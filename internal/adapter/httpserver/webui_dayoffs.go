@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 // germanStates is the Bundesland <select> source (DE = bundesweit only).
@@ -102,10 +104,17 @@ func firstFeedURL(toks []domain.FeedToken) string {
 }
 
 func (s *Server) renderDayOffFragment(w http.ResponseWriter, r *http.Request, u domain.User) {
+	s.renderDayOffFragmentError(w, r, u, "")
+}
+
+func (s *Server) renderDayOffFragmentError(w http.ResponseWriter, r *http.Request, u domain.User, errorKey string) {
 	vm, err := s.dayOffData(r.Context(), u)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
+	}
+	if errorKey != "" {
+		vm.Err = components.T(r.Context(), errorKey)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.FreiFragment(vm).Render(r.Context(), w)
@@ -131,12 +140,19 @@ func (s *Server) handleWebDayOffAdd(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
 	kind, ok := domain.ParseKind(r.FormValue("kind"))
-	if ok {
-		from, err1 := time.ParseInLocation("2006-01-02", r.FormValue("from"), time.Local)
-		to, err2 := time.ParseInLocation("2006-01-02", r.FormValue("to"), time.Local)
-		if err1 == nil && err2 == nil {
-			_ = s.AddDayOffs.Execute(r.Context(), u.ID, from, to, kind, r.FormValue("label"), 0, r.FormValue("skipWeekends") == "true")
+	from, err1 := time.ParseInLocation("2006-01-02", r.FormValue("from"), time.Local)
+	to, err2 := time.ParseInLocation("2006-01-02", r.FormValue("to"), time.Local)
+	if !ok || err1 != nil || err2 != nil {
+		s.renderDayOffFragmentError(w, r, u, "frei.error.invalid")
+		return
+	}
+	if err := s.AddDayOffs.Execute(r.Context(), u.ID, from, to, kind, r.FormValue("label"), 0, r.FormValue("skipWeekends") == "true"); err != nil {
+		key := "frei.error.save"
+		if errors.Is(err, usecase.ErrHolidayNotManual) || errors.Is(err, usecase.ErrDayOffRangeTooLarge) || errors.Is(err, domain.ErrInvalidDayOff) {
+			key = "frei.error.invalid"
 		}
+		s.renderDayOffFragmentError(w, r, u, key)
+		return
 	}
 	s.renderDayOffFragment(w, r, u)
 }
@@ -144,15 +160,24 @@ func (s *Server) handleWebDayOffAdd(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWebDayOffDelete(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
-	if day, err := time.ParseInLocation("2006-01-02", r.FormValue("day"), time.Local); err == nil {
-		_ = s.DeleteDayOff.Execute(r.Context(), u.ID, day)
+	day, err := time.ParseInLocation("2006-01-02", r.FormValue("day"), time.Local)
+	if err != nil {
+		s.renderDayOffFragmentError(w, r, u, "frei.error.invalid")
+		return
+	}
+	if err := s.DeleteDayOff.Execute(r.Context(), u.ID, day); err != nil {
+		s.renderDayOffFragmentError(w, r, u, "frei.error.delete")
+		return
 	}
 	s.renderDayOffFragment(w, r, u)
 }
 
 func (s *Server) handleWebRegenToken(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	_, _ = s.RegenIcsToken.Execute(r.Context(), u.ID)
+	if _, err := s.RegenIcsToken.Execute(r.Context(), u.ID); err != nil {
+		s.renderDayOffFragmentError(w, r, u, "frei.error.token")
+		return
+	}
 	s.renderDayOffFragment(w, r, u)
 }
 

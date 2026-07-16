@@ -123,6 +123,9 @@ func (s *Server) webAuth(next http.Handler) http.Handler {
 			http.Error(w, "forbidden request origin", http.StatusForbidden)
 			return
 		}
+		if !parseWebFormBody(w, r) {
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(ctxWithUser(r.Context(), u)))
 	})
 }

@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -49,10 +48,8 @@ func (s *Server) handleUploadFreeArtifact(w http.ResponseWriter, r *http.Request
 // base64-decode/error-mapping logic.
 func (s *Server) uploadArtifactJSON(w http.ResponseWriter, r *http.Request, nodeID string) {
 	u, _ := userFrom(r.Context())
-	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactJSONBody)
 	var req uploadArtifactReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxArtifactJSONBody, false) {
 		return
 	}
 	data, err := base64.StdEncoding.DecodeString(req.DataBase64)

@@ -46,6 +46,39 @@ func TestHandlePutContextActive_UnboundReturns409(t *testing.T) {
 	}
 }
 
+func TestHandlePutContextActive_RejectsUnknownAndTrailingJSON(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	primeUser(t, ts.URL)
+
+	for _, body := range []string{
+		`{"remote":"unbound-repo","body":"state","unexpected":true}`,
+		`{"remote":"unbound-repo","body":"state"} {}`,
+	} {
+		res := doDoc(t, ts, http.MethodPut, "/api/v1/context/active", body)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("body %q: status=%d, want 400", body, res.StatusCode)
+		}
+	}
+}
+
+func TestHandleGetContext_RejectsInvalidOrUnboundedCap(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	primeUser(t, ts.URL)
+
+	for _, cap := range []string{"abc", "0", "50001"} {
+		res := doDoc(t, ts, http.MethodGet, "/api/v1/context?cap="+cap, "")
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("cap=%s: status=%d, want 400", cap, res.StatusCode)
+		}
+	}
+}
+
 func TestHandlePutContextActive_HappyPath(t *testing.T) {
 	ctx := context.Background()
 	nodes := testutil.NewFakeNodeStore()

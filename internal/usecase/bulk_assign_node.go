@@ -4,13 +4,40 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// ErrNoSessions is returned by bulk operations when the id list is empty.
-var ErrNoSessions = errors.New("no sessions selected")
+const MaxBulkSessions = 200
+
+var (
+	// ErrNoSessions is returned by bulk operations when the id list is empty.
+	ErrNoSessions = errors.New("no sessions selected")
+	// ErrTooManySessions keeps every session bulk operation bounded per request.
+	ErrTooManySessions = errors.New("too many sessions selected")
+)
+
+func normalizedSessionIDs(raw []string) ([]string, error) {
+	if len(raw) > MaxBulkSessions {
+		return nil, ErrTooManySessions
+	}
+	seen := make(map[string]bool, len(raw))
+	ids := make([]string, 0, len(raw))
+	for _, id := range raw {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil, ErrNoSessions
+	}
+	return ids, nil
+}
 
 // BulkAssignNode assigns one project to many sessions (import cleanup).
 // Owner-scoped: the project must belong to the owner; sessions that are missing
@@ -18,12 +45,14 @@ var ErrNoSessions = errors.New("no sessions selected")
 // are untouched, so no overlap check is needed. Returns the count actually changed.
 type BulkAssignNode struct {
 	Sessions ports.SessionStore
-	Nodes	ports.NodeStore
+	Nodes    ports.NodeStore
 }
 
 func (uc BulkAssignNode) Execute(ctx context.Context, ownerID string, sessionIDs []string, nodeID string) (int, error) {
-	if len(sessionIDs) == 0 {
-		return 0, ErrNoSessions
+	var err error
+	sessionIDs, err = normalizedSessionIDs(sessionIDs)
+	if err != nil {
+		return 0, err
 	}
 	// Validate the target project up front (owner-scoped).
 	n, err := uc.Nodes.Get(ctx, ownerID, nodeID)

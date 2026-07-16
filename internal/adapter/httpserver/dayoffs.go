@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -41,6 +40,10 @@ func (s *Server) handleListDayOffs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "from/to required (yyyy-mm-dd)", http.StatusBadRequest)
 		return
 	}
+	if err := usecase.ValidateDayOffRange(from, to); err != nil {
+		http.Error(w, "day-off range must be 1..366 days", http.StatusBadRequest)
+		return
+	}
 	list, err := s.ListDayOffs.Execute(r.Context(), u.ID, from, to)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -65,8 +68,7 @@ type addDayOffReq struct {
 func (s *Server) handleAddDayOffs(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req addDayOffReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	from, err1 := time.ParseInLocation(dayFmt, req.From, time.Local)
@@ -83,7 +85,7 @@ func (s *Server) handleAddDayOffs(w http.ResponseWriter, r *http.Request) {
 	err := s.AddDayOffs.Execute(r.Context(), u.ID, from, to, kind,
 		req.Label, time.Duration(req.TargetMin)*time.Minute, req.SkipWeekends)
 	switch {
-	case errors.Is(err, usecase.ErrHolidayNotManual) || errors.Is(err, domain.ErrInvalidDayOff):
+	case errors.Is(err, usecase.ErrHolidayNotManual), errors.Is(err, usecase.ErrDayOffRangeTooLarge), errors.Is(err, domain.ErrInvalidDayOff):
 		http.Error(w, "invalid day-off", http.StatusBadRequest)
 		return
 	case err != nil:
@@ -156,8 +158,7 @@ type setTargetReq struct {
 func (s *Server) handleSetTarget(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req setTargetReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	weekday := make(map[time.Weekday]int, len(req.WeekdayTargetMin))
@@ -189,8 +190,7 @@ type setBundeslandReq struct {
 func (s *Server) handleSetBundesland(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req setBundeslandReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	err := s.SetBundesland.Execute(r.Context(), u.ID, req.Bundesland)

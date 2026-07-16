@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -26,8 +25,7 @@ type putActiveReq struct {
 func (s *Server) handlePutContextActive(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req putActiveReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxDocumentJSONBodyBytes, false) {
 		return
 	}
 	id, updated, err := s.SetActiveContext.Execute(r.Context(), u.ID,
@@ -51,6 +49,8 @@ type reorderReq struct {
 }
 
 const maxReorderContextDocuments = 200
+
+const maxContextBudgetTokens = 50000
 
 func (s *Server) handleReorderContext(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
@@ -93,9 +93,12 @@ func (s *Server) handleGetContext(w http.ResponseWriter, r *http.Request) {
 		budget = 12000
 	}
 	if v := strings.TrimSpace(q.Get("cap")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			budget = n
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxContextBudgetTokens {
+			http.Error(w, "bad cap (1..50000)", http.StatusBadRequest)
+			return
 		}
+		budget = n
 	}
 	cc, err := s.ComposeContext.Execute(r.Context(), u.ID, in, budget)
 	if err != nil {

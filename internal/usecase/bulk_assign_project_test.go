@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -53,6 +54,23 @@ func TestBulkAssignProject_EmptyIDs(t *testing.T) {
 	uc := usecase.BulkAssignNode{Sessions: testutil.NewFakeSessionStore(), Nodes: testutil.NewFakeNodeStore()}
 	if _, err := uc.Execute(context.Background(), "u1", nil, "p1"); !errors.Is(err, usecase.ErrNoSessions) {
 		t.Fatalf("err = %v, want ErrNoSessions", err)
+	}
+}
+
+func TestBulkAssignProject_RejectsUnboundedSelection(t *testing.T) {
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	ps := testutil.NewFakeNodeStore()
+	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow", Kind: domain.KindEngagement}); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, 201)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("session-%d", i)
+	}
+
+	if _, err := (usecase.BulkAssignNode{Sessions: ss, Nodes: ps}).Execute(ctx, "u1", ids, "p1"); err == nil {
+		t.Fatal("unbounded bulk assignment must be rejected")
 	}
 }
 

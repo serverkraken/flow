@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -85,8 +84,7 @@ func (s *Server) handleBindNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	nodeID := r.PathValue("id")
 	var req bindingReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	key := usecase.BindKey{

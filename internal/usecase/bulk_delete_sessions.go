@@ -15,12 +15,14 @@ type BulkDeleteSessions struct {
 }
 
 func (uc BulkDeleteSessions) Execute(ctx context.Context, ownerID string, ids []string) (int, error) {
-	if len(ids) == 0 {
-		return 0, ErrNoSessions
+	var err error
+	ids, err = normalizedSessionIDs(ids)
+	if err != nil {
+		return 0, err
 	}
 	deleted := 0
 	for _, id := range ids {
-		err := uc.Sessions.WithinTransaction(ctx, func(tx ports.SessionWriter) error {
+		err = uc.Sessions.WithinTransaction(ctx, func(tx ports.SessionWriter) error {
 			if _, err := tx.SetTags(ctx, ownerID, id, nil); err != nil {
 				return err
 			}

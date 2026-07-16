@@ -149,9 +149,12 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 
 	since := startOfDay(s.Clock.Now())
 	if q := r.URL.Query().Get("since"); q != "" {
-		if t, err := time.Parse(time.RFC3339, q); err == nil {
-			since = t
+		t, err := time.Parse(time.RFC3339, q)
+		if err != nil {
+			http.Error(w, "bad since", http.StatusBadRequest)
+			return
 		}
+		since = t
 	}
 	var (
 		list []domain.WorkSession
@@ -418,7 +421,7 @@ func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) 
 	}
 	n, err := s.BulkAssignNode.Execute(r.Context(), u.ID, req.IDs, req.NodeID)
 	switch {
-	case errors.Is(err, usecase.ErrNoSessions):
+	case errors.Is(err, usecase.ErrNoSessions), errors.Is(err, usecase.ErrTooManySessions):
 		http.Error(w, "no sessions selected", http.StatusBadRequest)
 		return
 	case errors.Is(err, ports.ErrNodeNotFound):
@@ -447,7 +450,7 @@ func (s *Server) handleBulkDeleteSessions(w http.ResponseWriter, r *http.Request
 	}
 	n, err := s.BulkDeleteSessions.Execute(r.Context(), u.ID, req.IDs)
 	switch {
-	case errors.Is(err, usecase.ErrNoSessions):
+	case errors.Is(err, usecase.ErrNoSessions), errors.Is(err, usecase.ErrTooManySessions):
 		http.Error(w, "no sessions selected", http.StatusBadRequest)
 		return
 	case err != nil:

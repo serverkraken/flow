@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -59,8 +58,7 @@ type setRateReq struct {
 func (s *Server) handleSetNodeRate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req setRateReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	var rate *domain.Money

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -240,6 +241,23 @@ func TestHandleListSessions_BadLimit(t *testing.T) {
 	}
 }
 
+func TestHandleListSessions_RejectsMalformedSince(t *testing.T) {
+	srv, _ := newWorktimeServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/sessions?since=not-a-time", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", res.StatusCode)
+	}
+}
+
 func TestEditSession_OverlapConflict(t *testing.T) {
 	srv, _ := newWorktimeServer(t)
 	ts := httptest.NewServer(srv.Routes())
@@ -375,6 +393,24 @@ func TestHandleReassignSessions_EmptyIDs(t *testing.T) {
 	}
 }
 
+func TestHandleReassignSessions_RejectsUnboundedSelection(t *testing.T) {
+	srv, _, ps := newReassignServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	if _, err := ps.Create(context.Background(), domain.Node{ID: "p1", OwnerID: "id-1", Name: "flow", Kind: domain.KindEngagement}); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, 201)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("session-%d", i)
+	}
+	res := authPost(t, ts.URL+"/api/v1/sessions/reassign", map[string]any{"ids": ids, "projectId": "p1"})
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", res.StatusCode)
+	}
+}
+
 func TestHandleReassignSessions_ForeignProject(t *testing.T) {
 	srv, _, _ := newReassignServer(t)
 	ts := httptest.NewServer(srv.Routes())
@@ -485,5 +521,20 @@ func TestHandleBulkDeleteSessions_EmptyIDs(t *testing.T) {
 	})
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("empty ids status = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestHandleBulkDeleteSessions_RejectsUnboundedSelection(t *testing.T) {
+	srv, _ := newBulkDeleteServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	ids := make([]string, 201)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("session-%d", i)
+	}
+	res := authPost(t, ts.URL+"/api/v1/sessions/bulk-delete", map[string]any{"ids": ids})
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", res.StatusCode)
 	}
 }

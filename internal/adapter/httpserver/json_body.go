@@ -10,6 +10,7 @@ import (
 const (
 	maxJSONBodyBytes         int64 = 64 * 1024
 	maxDocumentJSONBodyBytes int64 = 2 * 1024 * 1024
+	maxWebFormBodyBytes      int64 = 2 * 1024 * 1024
 )
 
 // decodeJSONBody decodes exactly one JSON value, rejects unknown fields and

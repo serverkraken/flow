@@ -20,12 +20,12 @@ import (
 // fakeActivityStore is a simple in-memory ActivityStore for handler tests.
 // It records the last call's arguments so tests can assert filter pass-through.
 type fakeActivityStore struct {
-	items     []domain.ActivityEntry
-	lastOwner string
+	items       []domain.ActivityEntry
+	lastOwner   string
 	lastClasses []string
-	lastActor *string
-	lastLimit  int
-	lastOffset int
+	lastActor   *string
+	lastLimit   int
+	lastOffset  int
 }
 
 func (f *fakeActivityStore) Append(_ context.Context, _ domain.ActivityEntry) error { return nil }
@@ -162,6 +162,19 @@ func TestHandleListActivity_NilResultSerializesAsEmptyArray(t *testing.T) {
 	}
 	if items == nil {
 		t.Error("want non-nil empty slice in JSON, got null")
+	}
+}
+
+func TestHandleListActivity_RejectsInvalidOrUnboundedPagination(t *testing.T) {
+	store := &fakeActivityStore{}
+	ts, _ := newActivityServer(t, store)
+
+	for _, query := range []string{"limit=abc", "limit=0", "limit=201", "offset=-1", "offset=abc"} {
+		res := doActivity(t, ts, "/api/v1/activity?"+query)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("query %q: status=%d, want 400", query, res.StatusCode)
+		}
 	}
 }
 

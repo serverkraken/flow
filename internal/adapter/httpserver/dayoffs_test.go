@@ -136,3 +136,40 @@ func TestHandleAddDayOffs_BadFromDate(t *testing.T) {
 		t.Fatalf("POST bad from date: want 400, got %d", res.StatusCode)
 	}
 }
+
+func TestHandleAddDayOffs_RejectsUnknownFieldsAndUnboundedRange(t *testing.T) {
+	ts := httptest.NewServer(newDayOffServer().Routes())
+	defer ts.Close()
+
+	for _, body := range []string{
+		`{"from":"2026-06-15","to":"2026-06-15","kind":"vacation","unexpected":true}`,
+		`{"from":"2026-01-01","to":"2027-01-02","kind":"vacation"}`,
+	} {
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/dayoffs", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer x")
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("body %s: status=%d, want 400", body, res.StatusCode)
+		}
+	}
+}
+
+func TestHandleListDayOffs_RejectsUnboundedRange(t *testing.T) {
+	ts := httptest.NewServer(newDayOffServer().Routes())
+	defer ts.Close()
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/dayoffs?from=2026-01-01&to=2027-01-02", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", res.StatusCode)
+	}
+}

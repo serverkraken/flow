@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -19,8 +18,7 @@ type moveNodeReq struct {
 func (s *Server) handleMoveNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req moveNodeReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	n, err := s.MoveNode.Execute(r.Context(), u.ID, r.PathValue("id"), req.ParentID)

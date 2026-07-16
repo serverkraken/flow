@@ -119,6 +119,21 @@ func TestAddDayOffs_RejectsEmptyExpansion(t *testing.T) {
 	}
 }
 
+func TestAddDayOffs_RejectsUnboundedRangeBeforeWriting(t *testing.T) {
+	store := newFakeDayOffs()
+	emitter := &recEmitter{}
+	uc := usecase.AddDayOffs{Store: store, Emitter: emitter}
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2027, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	if err := uc.Execute(context.Background(), "u1", from, to, domain.KindVacation, "", 0, false); err == nil {
+		t.Fatal("unbounded day-off range must be rejected")
+	}
+	if len(store.m) != 0 || len(emitter.events) != 0 {
+		t.Fatalf("rejected range mutated state: stored=%d events=%d", len(store.m), len(emitter.events))
+	}
+}
+
 func TestDeleteDayOff_RemovesAndEmits(t *testing.T) {
 	store := newFakeDayOffs()
 	emitter := &recEmitter{}

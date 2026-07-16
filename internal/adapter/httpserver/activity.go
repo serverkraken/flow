@@ -7,22 +7,30 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+const maxActivityPageSize = 200
+
 func (s *Server) handleListActivity(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	q := r.URL.Query()
 
 	limit := 50
 	if v := q.Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			limit = n
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxActivityPageSize {
+			http.Error(w, "bad limit (1..200)", http.StatusBadRequest)
+			return
 		}
+		limit = n
 	}
 
 	offset := 0
 	if v := q.Get("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			offset = n
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			http.Error(w, "bad offset", http.StatusBadRequest)
+			return
 		}
+		offset = n
 	}
 
 	classes := q["class"]

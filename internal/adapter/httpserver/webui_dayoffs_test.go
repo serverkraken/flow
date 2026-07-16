@@ -2,6 +2,7 @@ package httpserver_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,26 @@ import (
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+type failingWebDayOffStore struct {
+	*testutil.FakeDayOffStore
+	addErr    error
+	deleteErr error
+}
+
+func (s failingWebDayOffStore) Add(ctx context.Context, ownerID string, d domain.DayOff) error {
+	if s.addErr != nil {
+		return s.addErr
+	}
+	return s.FakeDayOffStore.Add(ctx, ownerID, d)
+}
+
+func (s failingWebDayOffStore) Delete(ctx context.Context, ownerID string, day time.Time) error {
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+	return s.FakeDayOffStore.Delete(ctx, ownerID, day)
+}
 
 // newWebDayOffServer wires the dayoff web handlers behind cookie auth, with a
 // pre-seeded user "u1" whose session cookie the test forges via the codec.
@@ -207,5 +228,77 @@ func TestWebSetBundesland(t *testing.T) {
 	code, _ = do(url.Values{"bundesland": {"XX"}}.Encode())
 	if code != http.StatusBadRequest {
 		t.Fatalf("want 400 for invalid bundesland, got %d", code)
+	}
+}
+
+func TestWebFormsRejectMalformedAndOversizedBodiesBeforeMutation(t *testing.T) {
+	srv, codec := newWebDayOffServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	for _, tc := range []struct {
+		name string
+		body string
+		want int
+	}{
+		{name: "malformed", body: "bundesland=NW&bad=%zz", want: http.StatusBadRequest},
+		{name: "oversized", body: "bundesland=NW&padding=" + strings.Repeat("x", 2*1024*1024), want: http.StatusRequestEntityTooLarge},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodPost, ts.URL+"/ui/dayoffs/bundesland", strings.NewReader(tc.body))
+			req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = res.Body.Close()
+			if res.StatusCode != tc.want {
+				t.Fatalf("status=%d, want %d", res.StatusCode, tc.want)
+			}
+		})
+	}
+}
+
+func TestWebDayOffMutationErrorsRenderVisibleAlert(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		path  string
+		form  url.Values
+		store failingWebDayOffStore
+	}{
+		{
+			name: "add store failure", path: "/ui/dayoffs/add",
+			form:  url.Values{"from": {"2026-06-15"}, "to": {"2026-06-15"}, "kind": {"vacation"}},
+			store: failingWebDayOffStore{FakeDayOffStore: testutil.NewFakeDayOffStore(), addErr: errors.New("write failed")},
+		},
+		{
+			name: "delete store failure", path: "/ui/dayoffs/delete",
+			form:  url.Values{"day": {"2026-06-15"}},
+			store: failingWebDayOffStore{FakeDayOffStore: testutil.NewFakeDayOffStore(), deleteErr: errors.New("delete failed")},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, codec := newWebDayOffServer(t)
+			srv.AddDayOffs.Store = tc.store
+			srv.DeleteDayOff.Store = tc.store
+			ts := httptest.NewServer(srv.Routes())
+			defer ts.Close()
+			cookieVal, _ := codec.Issue("u1")
+
+			req, _ := http.NewRequest(http.MethodPost, ts.URL+tc.path, strings.NewReader(tc.form.Encode()))
+			req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(res.Body)
+			_ = res.Body.Close()
+			if res.StatusCode != http.StatusOK || !strings.Contains(string(body), `role="alert"`) {
+				t.Fatalf("status=%d body=%.400s, want visible alert fragment", res.StatusCode, body)
+			}
+		})
 	}
 }

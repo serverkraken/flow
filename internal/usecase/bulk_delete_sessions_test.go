@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/ports"
@@ -46,5 +47,16 @@ func TestBulkDeleteSessions_TagFailureRollsBackDelete(t *testing.T) {
 	}
 	if _, err := base.Get(ctx, "u1", "a"); err != nil {
 		t.Fatalf("session was deleted despite tag failure: %v", err)
+	}
+}
+
+func TestBulkDeleteSessions_RejectsUnboundedSelection(t *testing.T) {
+	ids := make([]string, 201)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("session-%d", i)
+	}
+	uc := usecase.BulkDeleteSessions{Sessions: testutil.NewFakeSessionStore()}
+	if _, err := uc.Execute(context.Background(), "u1", ids); err == nil {
+		t.Fatal("unbounded bulk delete must be rejected")
 	}
 }
