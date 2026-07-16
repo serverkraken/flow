@@ -218,6 +218,7 @@ func run() error {
 		ListArchived:  usecase.ListArchived{Docs: documentStore},
 		ListActivity:  usecase.ListActivity{Activities: activityStore},
 		ContextBudget: contextBudget(os.Getenv),
+		PublicBaseURL: cfg.PublicBaseURL,
 		Users:         userStore,
 		OIDCAuth:      authn,
 		Session:       websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),

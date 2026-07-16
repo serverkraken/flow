@@ -18,7 +18,10 @@ type Server struct {
 	Emitter  ports.Emitter
 	Clock    ports.Clock
 	Dev      bool
-	Ready    func(context.Context) error // optional DB readiness probe; nil = always ready
+	// PublicBaseURL is the canonical browser origin used for CSRF validation.
+	// Production config requires it; direct unit-test Servers may omit it.
+	PublicBaseURL string
+	Ready         func(context.Context) error // optional DB readiness probe; nil = always ready
 
 	// CSPEnforce switches the Content-Security-Policy header from
 	// Report-Only (default, false) to enforcing (Lesesaal L3 Task 9,
@@ -238,7 +241,7 @@ func (s *Server) Routes() http.Handler {
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)
 	mux.HandleFunc("GET /auth/callback", s.handleCallback)
-	mux.HandleFunc("POST /auth/logout", s.handleLogout)
+	mux.Handle("POST /auth/logout", s.csrfCookieWrite(http.HandlerFunc(s.handleLogout)))
 
 	// Home landing + timer-hero fragment + start/stop (Slice 4, Task 1)
 	mux.Handle("GET /{$}", s.webAuth(http.HandlerFunc(s.handleHomeHome)))

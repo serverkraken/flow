@@ -119,7 +119,11 @@ func (s *Server) webAuth(next http.Handler) http.Handler {
 			http.Redirect(w, r, "/auth/login", http.StatusFound)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
+		if !s.validCookieWriteSource(r) {
+			http.Error(w, "forbidden request origin", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(ctxWithUser(r.Context(), u)))
 	})
 }
 
@@ -129,11 +133,15 @@ func (s *Server) webAuth(next http.Handler) http.Handler {
 func (s *Server) authAny(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if u, ok := s.resolveBearer(r); ok {
-			next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
+			next.ServeHTTP(w, r.WithContext(ctxWithUser(r.Context(), u)))
 			return
 		}
 		if u, ok := s.resolveCookie(r); ok {
-			next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
+			if !s.validCookieWriteSource(r) {
+				http.Error(w, "forbidden request origin", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(ctxWithUser(r.Context(), u)))
 			return
 		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

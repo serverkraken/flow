@@ -244,9 +244,9 @@ var mcpLogger = slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 func mcpLog() *slog.Logger { return mcpLogger }
 
-// clientName returns the actor name for attribution. The FLOW_ACTOR env var
-// takes precedence (useful for testing or explicit override). Otherwise the
-// MCP ClientInfo.Name reported by the connected client is used.
+// clientName identifies the MCP surface for client-specific context selection.
+// It is presentation metadata only and is never forwarded as audit provenance.
+// FLOW_ACTOR remains as a backwards-compatible local override.
 func clientName(req *mcp.CallToolRequest) string {
 	if v := os.Getenv("FLOW_ACTOR"); v != "" {
 		return v
@@ -261,17 +261,10 @@ func clientName(req *mcp.CallToolRequest) string {
 	return ip.ClientInfo.Name
 }
 
-// do is a DRY wrapper around h.mgr.Do that applies WithActor from the calling
-// tool's MCP request so every REST call carries X-Flow-Actor when the client
-// is identifiable.
-func (h *handlers) do(ctx context.Context, req *mcp.CallToolRequest, fn func(*apiclient.Client) error) error {
-	name := clientName(req)
-	return h.mgr.Do(ctx, func(c *apiclient.Client) error {
-		if name != "" {
-			c = c.WithActor(name)
-		}
-		return fn(c)
-	})
+// do is the shared authenticated REST-client wrapper. MCP ClientInfo is not a
+// credential, so it must not affect actor provenance.
+func (h *handlers) do(ctx context.Context, _ *mcp.CallToolRequest, fn func(*apiclient.Client) error) error {
+	return h.mgr.Do(ctx, fn)
 }
 
 // textResult wraps a plain-text success result.

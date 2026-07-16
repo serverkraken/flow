@@ -13,9 +13,9 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// TestAuthMiddlewareSetsActor verifies that the auth middleware derives the
-// correct actor from the X-Flow-Actor header and places it into the context.
-func TestAuthMiddlewareSetsActor(t *testing.T) {
+// TestAuthMiddlewareDerivesActorFromVerifiedUser verifies that bearer auth
+// never accepts request metadata as audit provenance.
+func TestAuthMiddlewareDerivesActorFromVerifiedUser(t *testing.T) {
 	users := testutil.NewFakeUserStore()
 	identity := ports.Identity{Subject: "sub-1", Username: "msoent"}
 	u, _ := domain.NewUser("u1", identity.Subject, identity.Username, "m@x", "Martin Soentgenrath")
@@ -36,18 +36,18 @@ func TestAuthMiddlewareSetsActor(t *testing.T) {
 
 	handler := srv.auth(probe)
 
-	// With X-Flow-Actor header: expect Agent actor.
+	// A caller-controlled actor header must not override the authenticated user.
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer xyz")
-	req.Header.Set("X-Flow-Actor", "claude-code")
+	req.Header.Set("X-Flow-Actor", "other-tenant-agent")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", rr.Code)
 	}
-	wantAgent := actor.Actor{Kind: actor.Agent, Ref: "claude-code"}
-	if capturedActor != wantAgent {
-		t.Errorf("with X-Flow-Actor: got %+v, want %+v", capturedActor, wantAgent)
+	wantHuman := actor.Actor{Kind: actor.Human, Ref: u.DisplayName}
+	if capturedActor != wantHuman {
+		t.Errorf("with spoofed X-Flow-Actor: got %+v, want %+v", capturedActor, wantHuman)
 	}
 
 	// Without X-Flow-Actor header: expect Human actor with display name.
@@ -58,7 +58,6 @@ func TestAuthMiddlewareSetsActor(t *testing.T) {
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", rr2.Code)
 	}
-	wantHuman := actor.Actor{Kind: actor.Human, Ref: u.DisplayName}
 	if capturedActor != wantHuman {
 		t.Errorf("without X-Flow-Actor: got %+v, want %+v", capturedActor, wantHuman)
 	}

@@ -20,12 +20,19 @@ func userFrom(ctx context.Context) (domain.User, bool) {
 	return u, ok
 }
 
-// ctxWithUser stores the authenticated user AND the derived actor in ctx.
-// The actor comes from the X-Flow-Actor header (set by the MCP client) or
-// defaults to the human user.
-func ctxWithUser(r *http.Request, u domain.User) context.Context {
-	ctx := context.WithValue(r.Context(), userKey, u)
-	return actor.WithContext(ctx, actor.FromHeader(r.Header.Get("X-Flow-Actor"), u.DisplayName))
+// ctxWithUser stores the authenticated user and the only actor provenance the
+// current auth architecture can prove: the verified human principal. Request
+// headers and MCP ClientInfo are caller-controlled metadata, not audit identity.
+func ctxWithUser(ctx context.Context, u domain.User) context.Context {
+	ctx = context.WithValue(ctx, userKey, u)
+	ref := strings.TrimSpace(u.DisplayName)
+	if ref == "" {
+		ref = strings.TrimSpace(u.Username)
+	}
+	if ref == "" {
+		ref = u.ID
+	}
+	return actor.WithContext(ctx, actor.AuthenticatedHuman(ref))
 }
 
 // resolveBearer verifies a bearer token and ensures the user. Returns
@@ -68,6 +75,6 @@ func (s *Server) auth(next http.Handler) http.Handler {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
+		next.ServeHTTP(w, r.WithContext(ctxWithUser(r.Context(), u)))
 	})
 }

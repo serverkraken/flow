@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -74,7 +75,17 @@ func TestCreateDocumentRecordsActivity(t *testing.T) {
 
 	// First request primes EnsureUser (user id = "id-1" via FakeIDGen).
 	body := `{"type":"free","path":"notes/hello","title":"Hello World","body":"content"}`
-	res := doDoc(t, ts, "POST", "/api/v1/documents", body)
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/documents", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer x")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Flow-Actor", "other-tenant-agent")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != 201 {
@@ -94,6 +105,9 @@ func TestCreateDocumentRecordsActivity(t *testing.T) {
 	}
 	if e.ActorKind != "human" {
 		t.Errorf("ActorKind: want %q, got %q", "human", e.ActorKind)
+	}
+	if e.ActorRef != "msoent" {
+		t.Errorf("ActorRef: want verified user %q, got %q", "msoent", e.ActorRef)
 	}
 }
 

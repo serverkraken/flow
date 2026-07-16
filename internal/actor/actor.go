@@ -33,11 +33,9 @@ func FromContext(ctx context.Context) Actor {
 	return Actor{Kind: Human}
 }
 
-// FromHeader builds an Actor from the X-Flow-Actor header value. A non-empty
-// value means an AI agent identified by that name; empty means the human user.
-func FromHeader(headerVal, displayName string) Actor {
-	if headerVal != "" {
-		return Actor{Kind: Agent, Ref: headerVal}
-	}
+// AuthenticatedHuman builds audit provenance from the server-verified user.
+// Agent is retained for historical entries and future trusted agent credentials;
+// caller-controlled labels must never be promoted to it.
+func AuthenticatedHuman(displayName string) Actor {
 	return Actor{Kind: Human, Ref: displayName}
 }

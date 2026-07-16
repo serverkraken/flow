@@ -7,17 +7,11 @@ import (
 	"github.com/serverkraken/flow/internal/actor"
 )
 
-func TestFromHeader(t *testing.T) {
-	got := actor.FromHeader("claude-code", "Soenne")
-	want := actor.Actor{Kind: actor.Agent, Ref: "claude-code"}
+func TestAuthenticatedHuman(t *testing.T) {
+	got := actor.AuthenticatedHuman("Soenne")
+	want := actor.Actor{Kind: actor.Human, Ref: "Soenne"}
 	if got != want {
-		t.Errorf("FromHeader(\"claude-code\", \"Soenne\") = %+v, want %+v", got, want)
-	}
-
-	got = actor.FromHeader("", "Soenne")
-	want = actor.Actor{Kind: actor.Human, Ref: "Soenne"}
-	if got != want {
-		t.Errorf("FromHeader(\"\", \"Soenne\") = %+v, want %+v", got, want)
+		t.Errorf("AuthenticatedHuman(\"Soenne\") = %+v, want %+v", got, want)
 	}
 }
 
