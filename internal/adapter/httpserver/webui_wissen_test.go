@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,12 @@ type noopActivityStore struct{}
 func (noopActivityStore) Append(_ context.Context, _ domain.ActivityEntry) error { return nil }
 func (noopActivityStore) ListPage(_ context.Context, _ string, _ []string, _ *string, _, _ int) ([]domain.ActivityEntry, int, error) {
 	return nil, 0, nil
+}
+
+type recordingWissenEmitter struct{ events []domain.Event }
+
+func (e *recordingWissenEmitter) Emit(_ context.Context, event domain.Event) {
+	e.events = append(e.events, event)
 }
 func (noopActivityStore) DistinctActors(_ context.Context, _ string) ([]string, error) {
 	return nil, nil
@@ -71,9 +78,10 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		RetryEmbedding:        usecase.RetryEmbedding{Docs: docs},
 		NodeAncestors:         usecase.NodeAncestors{Nodes: projects},
 		SetPinned:             usecase.SetPinned{Docs: docs},
-		SetArchived:           usecase.SetArchived{Docs: docs},
+		SetArchived:           usecase.SetArchived{Docs: docs, Curation: docs, Clock: clk},
+		BulkCurateDocuments:   usecase.BulkCurateDocuments{Docs: docs, Clock: clk},
 		ListArchived:          usecase.ListArchived{Docs: docs},
-		SetContextMode:        usecase.SetContextMode{Docs: docs},
+		SetContextMode:        usecase.SetContextMode{Docs: docs, Curation: docs, Clock: clk},
 		ListArtifacts:         usecase.ListArtifacts{Nodes: projects, Artifacts: artifacts},
 	}
 	return srv, codec, docs, projects
@@ -454,6 +462,108 @@ func TestWebWissenFacetsFollowStatusNodeTypeAndUseHierarchicalNodeLabels(t *test
 	}
 }
 
+func TestWebWissenBulkCurationIsSelectableAtomicOwnerScopedAndEmitsAfterCommit(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	recorder := &recordingWissenEmitter{}
+	srv.Emitter = recorder
+	ctx := context.Background()
+	now := time.Date(2026, 7, 16, 10, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "bulk-one", OwnerID: "u1", Type: domain.DocMemory, Path: "memory/one", Title: "Bulk One", Pinned: true, CreatedAt: now, UpdatedAt: now},
+		{ID: "bulk-two", OwnerID: "u1", Type: domain.DocMemory, Path: "memory/two", Title: "Bulk Two", Pinned: true, CreatedAt: now, UpdatedAt: now},
+		{ID: "bulk-free", OwnerID: "u1", Type: domain.DocFree, Path: "free/one", Title: "Bulk Free", CreatedAt: now, UpdatedAt: now},
+		{ID: "bulk-foreign", OwnerID: "u2", Type: domain.DocMemory, Path: "memory/foreign", Title: "Bulk Foreign", CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mux := wissenTestMux(srv)
+	body, status := getWissen(t, mux, "/wissen/typ?type=memory", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET selectable Wissen status=%d", status)
+	}
+	for _, want := range []string{
+		`/static/js/wissen-select.js`, `data-wissen-select-toggle`, `data-document-id="bulk-one"`,
+		`data-context-eligible="true"`, `id="wissenBulkForm"`, `data-wissen-action-bar`,
+		`data-wissen-action="archive"`, `data-wissen-mode="immer"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("selectable Wissen missing %q in %.4000s", want, body)
+		}
+	}
+
+	_, status = postWissenBulk(t, mux, codec, url.Values{"ids": {"bulk-one,bulk-foreign"}, "action": {"archive"}})
+	if status != http.StatusNotFound {
+		t.Fatalf("mixed-owner bulk status=%d, want 404", status)
+	}
+	one, _ := docs.Get(ctx, "u1", "bulk-one")
+	if one.Archived || len(recorder.events) != 0 {
+		t.Fatalf("failed bulk changed state or emitted: doc=%+v events=%+v", one, recorder.events)
+	}
+
+	_, status = postWissenBulk(t, mux, codec, url.Values{"ids": {"bulk-one,bulk-two"}, "action": {"archive"}})
+	if status != http.StatusNoContent {
+		t.Fatalf("archive bulk status=%d, want 204", status)
+	}
+	if len(recorder.events) != 2 {
+		t.Fatalf("successful bulk emitted %d events, want 2", len(recorder.events))
+	}
+	for _, event := range recorder.events {
+		if event.Type != domain.EventDocumentUpdated || event.Data["action"] != "archive" || event.Data["title"] == "" {
+			t.Fatalf("bulk event lacks action/title: %+v", event)
+		}
+	}
+	for _, id := range []string{"bulk-one", "bulk-two"} {
+		doc, _ := docs.Get(ctx, "u1", id)
+		if !doc.Archived || doc.ArchivedAt == nil || doc.UpdatedByRef != "Martin" {
+			t.Fatalf("bulk archive lacks state/provenance for %s: %+v", id, doc)
+		}
+	}
+
+	_, status = postWissenBulk(t, mux, codec, url.Values{"ids": {"bulk-one,bulk-two"}, "action": {"restore"}})
+	if status != http.StatusNoContent {
+		t.Fatalf("restore bulk status=%d, want 204", status)
+	}
+	_, status = postWissenBulk(t, mux, codec, url.Values{"ids": {"bulk-one,bulk-two"}, "action": {"mode"}, "mode": {"immer"}})
+	if status != http.StatusNoContent {
+		t.Fatalf("context bulk status=%d, want 204", status)
+	}
+	if len(recorder.events) != 6 || recorder.events[2].Data["action"] != "restore" || recorder.events[4].Data["action"] != "context.immer" {
+		t.Fatalf("bulk restore/context events = %+v", recorder.events)
+	}
+	for _, id := range []string{"bulk-one", "bulk-two"} {
+		doc, _ := docs.Get(ctx, "u1", id)
+		if doc.Archived || doc.ArchivedAt != nil || doc.ContextMode != domain.ContextModeImmer {
+			t.Fatalf("bulk restore/context incomplete for %s: %+v", id, doc)
+		}
+	}
+
+	_, status = postWissenBulk(t, mux, codec, url.Values{"ids": {"bulk-one,bulk-free"}, "action": {"mode"}, "mode": {"nie"}})
+	if status != http.StatusBadRequest {
+		t.Fatalf("mixed context eligibility status=%d, want 400", status)
+	}
+	one, _ = docs.Get(ctx, "u1", "bulk-one")
+	if one.ContextMode != domain.ContextModeImmer || len(recorder.events) != 6 {
+		t.Fatalf("invalid context bulk changed state or emitted: doc=%+v events=%+v", one, recorder.events)
+	}
+}
+
+func postWissenBulk(t *testing.T, handler http.Handler, codec *websession.Codec, values url.Values) (string, int) {
+	t.Helper()
+	cookie, err := codec.Issue("u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/wissen/bulk", strings.NewReader(values.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: cookie})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec.Body.String(), rec.Code
+}
+
 func TestWebWissenSearch(t *testing.T) {
 	srv, codec, docs, _ := newWebWissenServer(t)
 	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
@@ -759,6 +869,7 @@ func wissenTestMux(s *Server) http.Handler {
 	mux.Handle("GET /ui/wissen/list", s.webAuth(http.HandlerFunc(s.handleWebWissenList)))
 	mux.Handle("GET /wissen/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenType)))
 	mux.Handle("GET /ui/wissen/list/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenTypeList)))
+	mux.Handle("POST /wissen/bulk", s.webAuth(http.HandlerFunc(s.handleWebWissenBulk)))
 	return mux
 }
 

@@ -30,6 +30,7 @@ type DocumentVM struct {
 	ReadMinutes   int
 	Pinned        bool
 	Archived      bool
+	ArchivedRel   string
 	HTML          template.HTML
 	// Outgoing/Backlinks feed the docrail's Verweise `.blk` (Task 6, Mockup
 	// Z.788-793): Outgoing are this document's own resolved wikilinks ("von

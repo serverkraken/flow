@@ -6,6 +6,7 @@ package webui
 type SearchRow struct {
 	ID, Title, ChipClass, ChipLabel, Path, Snippet string
 	Archived                                       bool
+	ContextEligible                                bool
 }
 
 // TagChip is one tag in the filter bar.

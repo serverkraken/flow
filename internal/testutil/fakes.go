@@ -1474,6 +1474,58 @@ func (s *FakeDocumentStore) SetArchived(_ context.Context, ownerID, id string, a
 	return nil
 }
 
+func (s *FakeDocumentStore) CurateDocuments(_ context.Context, ownerID string, mutation ports.DocumentCurationMutation) ([]domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := uniqueFakeDocumentIDs(mutation.IDs)
+	if len(ids) == 0 || (mutation.Archived == nil) == (mutation.ContextMode == nil) || mutation.At.IsZero() {
+		return nil, domain.ErrInvalidDocument
+	}
+	for _, id := range ids {
+		doc, ok := s.m[id]
+		if !ok || doc.OwnerID != ownerID {
+			return nil, ports.ErrDocumentNotFound
+		}
+		if mutation.ContextMode != nil && !doc.Type.ContextEligible() {
+			return nil, domain.ErrInvalidDocument
+		}
+	}
+	out := make([]domain.Document, 0, len(ids))
+	for _, id := range ids {
+		doc := s.m[id]
+		doc.UpdatedByKind = mutation.ActorKind
+		doc.UpdatedByRef = mutation.ActorRef
+		if mutation.Archived != nil {
+			doc.Archived = *mutation.Archived
+			doc.UpdatedAt = mutation.At
+			if *mutation.Archived {
+				at := mutation.At
+				doc.ArchivedAt = &at
+				doc.Pinned = false
+			} else {
+				doc.ArchivedAt = nil
+			}
+		} else {
+			doc.ContextMode = mutation.ContextMode.OrAuto()
+		}
+		s.m[id] = doc
+		out = append(out, doc)
+	}
+	return out, nil
+}
+
+func uniqueFakeDocumentIDs(raw []string) []string {
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, id := range raw {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 func (s *FakeDocumentStore) ListArchived(_ context.Context, ownerID string) ([]domain.Document, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

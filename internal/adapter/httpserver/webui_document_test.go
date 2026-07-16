@@ -317,6 +317,8 @@ func TestWebDocumentView_ContextRankOwnerScoped(t *testing.T) {
 
 func TestWebDocumentArchiveAndRestoreRoundTrip(t *testing.T) {
 	srv, codec, docs, _ := newWebWissenServer(t)
+	capture := &archiveEventCapture{}
+	srv.Emitter = capture
 	ctx := context.Background()
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
 	if _, err := docs.Create(ctx, domain.Document{
@@ -352,10 +354,13 @@ func TestWebDocumentArchiveAndRestoreRoundTrip(t *testing.T) {
 	if !archived.Archived || archived.Pinned {
 		t.Fatalf("archive state = %+v, want archived and unpinned", archived)
 	}
-	for _, want := range []string{`data-document-archived="true"`, "Archiviertes Dokument", "Wiederherstellen", `value="false"`} {
+	for _, want := range []string{`data-document-archived="true"`, "Archiviertes Dokument", "Archiviert vor 1 Min.", "Martin", "Wiederherstellen", `value="false"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("archive response missing %q in %.1800s", want, body)
 		}
+	}
+	if len(capture.events) != 1 || capture.events[0].Data["action"] != "archive" || capture.events[0].Data["title"] != "Archive Me" {
+		t.Fatalf("archive event lacks activity metadata: %+v", capture.events)
 	}
 	for _, gone := range []string{"Bearbeiten", "Anpinnen"} {
 		if strings.Contains(body, gone) {
@@ -376,6 +381,9 @@ func TestWebDocumentArchiveAndRestoreRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(body, `data-dialog-open="archive-doc-archive"`) {
 		t.Fatalf("restore response did not return active actions: %.1800s", body)
+	}
+	if len(capture.events) != 2 || capture.events[1].Data["action"] != "restore" || capture.events[1].Data["title"] != "Archive Me" {
+		t.Fatalf("restore event lacks activity metadata: %+v", capture.events)
 	}
 }
 

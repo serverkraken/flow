@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1172,6 +1173,123 @@ func TestDocumentStore_SetArchived(t *testing.T) {
 	got, _ = ds.Get(ctx, "u1", "d1")
 	if got.Archived || got.ArchivedAt != nil {
 		t.Fatalf("un-archive must clear: %+v", got)
+	}
+}
+
+func TestDocumentStore_CurateDocumentsIsAtomicOwnerScopedAndRaceConsistent(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	users := pgstore.NewUserStore(pool)
+	curator, _ := domain.NewUser("curator", "sub-curator", "curator", "curator@example.invalid", "Curator")
+	other, _ := domain.NewUser("other", "sub-other-curator", "other-curator", "other@example.invalid", "Other")
+	for _, user := range []domain.User{curator, other} {
+		if _, err := users.UpsertBySub(ctx, user); err != nil {
+			t.Fatal(err)
+		}
+	}
+	docs := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	now := time.Date(2026, 7, 16, 10, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "curate-1", OwnerID: "curator", Type: domain.DocMemory, Path: "memory/one", Title: "One", Pinned: true, CreatedAt: now, UpdatedAt: now},
+		{ID: "curate-2", OwnerID: "curator", Type: domain.DocMemory, Path: "memory/two", Title: "Two", Pinned: true, CreatedAt: now, UpdatedAt: now},
+		{ID: "curate-free", OwnerID: "curator", Type: domain.DocFree, Path: "free/one", Title: "Free", CreatedAt: now, UpdatedAt: now},
+		{ID: "curate-foreign", OwnerID: "other", Type: domain.DocMemory, Path: "memory/foreign", Title: "Foreign", CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	archived := true
+	_, err = docs.CurateDocuments(ctx, "curator", ports.DocumentCurationMutation{
+		IDs: []string{"curate-1", "curate-foreign"}, Archived: &archived,
+		ActorKind: "human", ActorRef: "Soenne", At: now.Add(time.Hour),
+	})
+	if !errors.Is(err, ports.ErrDocumentNotFound) {
+		t.Fatalf("mixed-owner mutation error = %v, want ErrDocumentNotFound", err)
+	}
+	unchanged, err := docs.Get(ctx, "curator", "curate-1")
+	if err != nil || unchanged.Archived || !unchanged.Pinned {
+		t.Fatalf("mixed-owner mutation escaped rollback: %+v err=%v", unchanged, err)
+	}
+	mode := domain.ContextModeImmer
+	_, err = docs.CurateDocuments(ctx, "curator", ports.DocumentCurationMutation{
+		IDs: []string{"curate-1", "curate-free"}, ContextMode: &mode,
+		ActorKind: "human", ActorRef: "Soenne", At: now.Add(time.Hour),
+	})
+	if !errors.Is(err, domain.ErrInvalidDocument) {
+		t.Fatalf("mixed context types error = %v, want ErrInvalidDocument", err)
+	}
+	unchanged, err = docs.Get(ctx, "curator", "curate-1")
+	if err != nil || unchanged.ContextMode.OrAuto() != domain.ContextModeAuto {
+		t.Fatalf("mixed context types escaped rollback: %+v err=%v", unchanged, err)
+	}
+
+	changed, err := docs.CurateDocuments(ctx, "curator", ports.DocumentCurationMutation{
+		IDs: []string{"curate-2", "curate-1"}, Archived: &archived,
+		ActorKind: "human", ActorRef: "Soenne", At: now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changed) != 2 || changed[0].ID != "curate-2" || changed[1].ID != "curate-1" {
+		t.Fatalf("curation result order = %+v", changed)
+	}
+	for _, doc := range changed {
+		if !doc.Archived || doc.Pinned || doc.ArchivedAt == nil || !doc.ArchivedAt.Equal(now.Add(time.Hour)) || doc.UpdatedByKind != "human" || doc.UpdatedByRef != "Soenne" {
+			t.Fatalf("archive state/provenance incomplete: %+v", doc)
+		}
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(2)
+		go func(i int) {
+			defer wg.Done()
+			value := i%2 == 0
+			if _, err := docs.CurateDocuments(ctx, "curator", ports.DocumentCurationMutation{
+				IDs: []string{"curate-1", "curate-2"}, Archived: &value,
+				ActorKind: "agent", ActorRef: "race", At: now.Add(time.Duration(i+2) * time.Hour),
+			}); err != nil {
+				t.Errorf("concurrent curation %d: %v", i, err)
+			}
+		}(i)
+		go func(i int) {
+			defer wg.Done()
+			mode := domain.ContextModeImmer
+			if i%2 == 0 {
+				mode = domain.ContextModeNie
+			}
+			if _, err := docs.CurateDocuments(ctx, "curator", ports.DocumentCurationMutation{
+				IDs: []string{"curate-1", "curate-2"}, ContextMode: &mode,
+				ActorKind: "agent", ActorRef: "race", At: now.Add(time.Duration(i+2) * time.Hour),
+			}); err != nil {
+				t.Errorf("concurrent context curation %d: %v", i, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	one, err := docs.Get(ctx, "curator", "curate-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	two, err := docs.Get(ctx, "curator", "curate-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if one.Archived != two.Archived ||
+		(one.ArchivedAt == nil) != (two.ArchivedAt == nil) ||
+		(one.ArchivedAt != nil && !one.ArchivedAt.Equal(*two.ArchivedAt)) ||
+		!one.UpdatedAt.Equal(two.UpdatedAt) ||
+		one.ContextMode != two.ContextMode ||
+		one.UpdatedByRef != two.UpdatedByRef {
+		t.Fatalf("concurrent batch tore aggregate state: one=%+v two=%+v", one, two)
 	}
 }
 

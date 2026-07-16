@@ -61,7 +61,13 @@ templ DocumentFragment(vm DocumentVM) {
 				<div data-archive-banner class="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-line bg-sunken px-4 py-3">
 					<div>
 						<strong>{ components.T(ctx, "document.archive.banner") }</strong>
-						<span class="ml-2 text-sm text-muted">{ components.T(ctx, "document.archive.hint") }</span>
+						<span class="ml-2 text-sm text-muted">
+							if vm.ArchivedRel != "" {
+								{ fmt.Sprintf(components.T(ctx, "document.archive.provenance"), vm.ArchivedRel) }
+							} else {
+								{ components.T(ctx, "document.archive.hint") }
+							}
+						</span>
 					</div>
 					<button type="button" class="btn btn-q btn-s"
 						hx-post={ "/wissen/" + vm.ID + "/archive" }

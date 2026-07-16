@@ -366,6 +366,24 @@ type DocumentLibraryPage struct {
 	TagTotals     []domain.TagCount
 }
 
+// DocumentCurationMutation is one atomic owner-scoped bulk change. Exactly
+// one of Archived or ContextMode must be set. At and actor fields provide the
+// provenance stamped on every selected document.
+type DocumentCurationMutation struct {
+	IDs         []string
+	Archived    *bool
+	ContextMode *domain.ContextMode
+	ActorKind   string
+	ActorRef    string
+	At          time.Time
+}
+
+// DocumentCurationStore changes a complete selected document aggregate or
+// nothing. A missing or foreign ID aborts the entire mutation.
+type DocumentCurationStore interface {
+	CurateDocuments(ctx context.Context, ownerID string, mutation DocumentCurationMutation) ([]domain.Document, error)
+}
+
 // DocumentStore persists compendium documents. All reads are owner-scoped.
 // Create returns ErrDocumentExists on a (owner, project, path) collision.
 type DocumentStore interface {

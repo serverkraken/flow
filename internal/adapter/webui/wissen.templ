@@ -21,6 +21,7 @@ templ wissenOuter(vm WissenOverviewVM) {
 		hx-swap="innerHTML">
 		@WissenFragment(vm)
 	</div>
+	<script src={ AssetURL("js/wissen-select.js") } defer></script>
 }
 
 // WissenFragment is the Wissen library page (Mockup Z.806–843): a pagehead
@@ -36,6 +37,9 @@ templ WissenFragment(vm WissenOverviewVM) {
 			<p class="sub">{ WissenSummary(ctx, vm) }</p>
 		</div>
 		<a href="/wissen/artefakte" class="btn btn-q" hx-boost="false">{ components.T(ctx, "wissen.artifacts.nav") }</a>
+		<button type="button" class="btn btn-q" data-wissen-select-toggle
+			data-label-select={ components.T(ctx, "wissen.bulk.select") }
+			data-label-done={ components.T(ctx, "wissen.bulk.done") }>{ components.T(ctx, "wissen.bulk.select") }</button>
 		<a href={ templ.SafeURL(WissenNewDocumentHref("", vm.NodeParam)) } class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
 	</div>
 	@wissenManagementFilters(vm.WissenVM)
@@ -47,6 +51,7 @@ templ WissenFragment(vm WissenOverviewVM) {
 		@wissenShelvesSection(vm.Shelves)
 		@wissenRecentSection(vm)
 	}
+	@wissenBulkActionBar()
 }
 
 // wissenBigsearch is the Wissen page's main door (Mockup Z.815–819): a plain
@@ -178,17 +183,21 @@ templ wissenRecentSection(vm WissenOverviewVM) {
 // chip (DocTypeChipClass/DocTypeLabel, Spec §7.1), title + meta
 // ("Pfad · Akteur"), and the relative update time.
 templ wissenRow(row WissenRowVM) {
-	<a class="row" href={ templ.SafeURL("/wissen/" + row.ID) }>
-		<span class={ "typechip", row.ChipClass }>{ row.ChipLabel }</span>
-		if row.Archived {
-			<span class="typechip border-warning/35 bg-warning/10 text-warning">{ components.T(ctx, "wissen.status.badge") }</span>
-		}
-		<div class="grow">
-			<div class="t">{ row.Title }</div>
-			<div class="s">{ row.Meta }</div>
-		</div>
-		<div class="right"><div class="v">{ row.TimeStr }</div></div>
-	</a>
+	<div class="row" data-wissen-row data-document-id={ row.ID } data-context-eligible={ fmt.Sprintf("%t", row.ContextEligible) } data-archived={ fmt.Sprintf("%t", row.Archived) }>
+		<input type="checkbox" class="hidden h-4 w-4 shrink-0 accent-blue" data-wissen-checkbox
+			aria-label={ fmt.Sprintf(components.T(ctx, "wissen.bulk.selectDocument"), row.Title) }/>
+		<a class="contents" href={ templ.SafeURL("/wissen/" + row.ID) }>
+			<span class={ "typechip", row.ChipClass }>{ row.ChipLabel }</span>
+			if row.Archived {
+				<span class="typechip border-warning/35 bg-warning/10 text-warning">{ components.T(ctx, "wissen.status.badge") }</span>
+			}
+			<div class="grow">
+				<div class="t">{ row.Title }</div>
+				<div class="s">{ row.Meta }</div>
+			</div>
+			<div class="right"><div class="v">{ row.TimeStr }</div></div>
+		</a>
+	</div>
 }
 
 // wissenTagChips lists every taggable-document tag inside a collapsed filter
@@ -236,21 +245,23 @@ templ wissenResults(vm WissenVM) {
 			<p class="text-sm text-faint">{ components.T(ctx, "wissen.noresults") }</p>
 		} else {
 			for _, result := range vm.Results {
-				<a class="row" href={ templ.SafeURL("/wissen/" + result.ID) }>
-					<span class={ "typechip", result.ChipClass }>{ result.ChipLabel }</span>
-					if result.Archived {
-						<span class="typechip border-warning/35 bg-warning/10 text-warning">{ components.T(ctx, "wissen.status.badge") }</span>
-					}
-					<div class="grow">
-						<div class="t">{ result.Title }</div>
-						if result.Path != "" {
-							<div class="path">{ result.Path }</div>
+				<div class="row" data-wissen-row data-document-id={ result.ID } data-context-eligible={ fmt.Sprintf("%t", result.ContextEligible) } data-archived={ fmt.Sprintf("%t", result.Archived) }>
+					<input type="checkbox" class="hidden h-4 w-4 shrink-0 accent-blue" data-wissen-checkbox
+						aria-label={ fmt.Sprintf(components.T(ctx, "wissen.bulk.selectDocument"), result.Title) }/>
+					<a class="contents" href={ templ.SafeURL("/wissen/" + result.ID) }>
+						<span class={ "typechip", result.ChipClass }>{ result.ChipLabel }</span>
+						if result.Archived {
+							<span class="typechip border-warning/35 bg-warning/10 text-warning">{ components.T(ctx, "wissen.status.badge") }</span>
 						}
-						<div class="s">
-							@templ.Raw(result.Snippet)
+						<div class="grow">
+							<div class="t">{ result.Title }</div>
+							if result.Path != "" {
+								<div class="path">{ result.Path }</div>
+							}
+							<div class="s">@templ.Raw(result.Snippet)</div>
 						</div>
-					</div>
-				</a>
+					</a>
+				</div>
 			}
 		}
 		if vm.Page.PageSize > 0 && (vm.Page.Total > 0 || vm.Page.Page > 1) {
@@ -274,6 +285,7 @@ templ wissenTypeOuter(vm WissenTypeVM) {
 		hx-swap="innerHTML">
 		@WissenTypeFragment(vm)
 	</div>
+	<script src={ AssetURL("js/wissen-select.js") } defer></script>
 }
 
 // WissenTypeFragment is one shelf's document list (/wissen/typ?type=...):
@@ -291,6 +303,9 @@ templ WissenTypeFragment(vm WissenTypeVM) {
 			<h1>{ components.T(ctx, vm.Shelf.LabelKey) }</h1>
 			<p class="sub">{ components.T(ctx, vm.Shelf.DescKey) }</p>
 		</div>
+		<button type="button" class="btn btn-q" data-wissen-select-toggle
+			data-label-select={ components.T(ctx, "wissen.bulk.select") }
+			data-label-done={ components.T(ctx, "wissen.bulk.done") }>{ components.T(ctx, "wissen.bulk.select") }</button>
 		<a href={ templ.SafeURL(vm.Shelf.NewDocumentHref(vm.NodeParam)) } class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
 	</div>
 	@wissenManagementFilters(vm.WissenVM)
@@ -308,4 +323,47 @@ templ WissenTypeFragment(vm WissenTypeVM) {
 		</div>
 		@components.Pagination(vm.Page)
 	}
+	@wissenBulkActionBar()
+}
+
+templ wissenBulkActionBar() {
+	<div class="hidden fixed inset-x-0 bottom-0 z-50 px-3 md:bottom-5 md:pl-[260px] md:pr-6" data-wissen-action-bar>
+		<div class="mx-auto max-w-[1100px] border border-line bg-surface p-3 md:mx-0">
+			<form id="wissenBulkForm" class="contents">
+				<input type="hidden" name="ids" data-wissen-ids value=""/>
+			</form>
+			<div class="flex flex-wrap items-center gap-2.5">
+				<span class="inline-flex items-center gap-2 border-l-2 border-blue bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue">
+					<span data-wissen-count>0</span> { components.T(ctx, "wissen.bulk.selected") }
+				</span>
+				<div class="flex-1"></div>
+				<button type="button" class="btn btn-q btn-s disabled:cursor-not-allowed disabled:opacity-40" data-wissen-submit data-wissen-action="restore"
+					hx-post="/wissen/bulk" hx-include="#wissenBulkForm" hx-vals="{&quot;action&quot;:&quot;restore&quot;}" hx-swap="none">
+					{ components.T(ctx, "wissen.bulk.restore") }
+				</button>
+				<div class="inline-flex items-center border border-line" role="group" aria-label={ components.T(ctx, "wissen.bulk.context") }>
+					for _, mode := range []string{"auto", "immer", "nie"} {
+						<button type="button" class="px-2.5 py-2 text-[.78rem] font-medium text-muted hover:bg-sunken hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+							data-wissen-submit data-wissen-context-action data-wissen-mode={ mode }
+							hx-post="/wissen/bulk" hx-include="#wissenBulkForm" hx-vals={ fmt.Sprintf(`{"action":"mode","mode":%q}`, mode) } hx-swap="none">
+							{ components.T(ctx, "context.mode." + mode) }
+						</button>
+					}
+				</div>
+				<button type="button" class="btn btn-q btn-s text-danger disabled:cursor-not-allowed disabled:opacity-40" data-wissen-submit data-wissen-action="archive" data-dialog-open="wissenBulkArchive">
+					{ components.T(ctx, "wissen.bulk.archive") }
+				</button>
+				<button type="button" class="btn btn-q btn-s" data-wissen-cancel>{ components.T(ctx, "common.cancel") }</button>
+			</div>
+		</div>
+	</div>
+	@components.ConfirmDialog(components.ConfirmSpec{
+		ID: "wissenBulkArchive", TitleKey: "wissen.bulk.archiveTitle", BodyKey: "wissen.bulk.archiveBody",
+		ConfirmLabelKey: "wissen.bulk.archive",
+		ConfirmAttrs: templ.Attributes{
+			"type": "button", "data-wissen-submit": true, "data-wissen-action": "archive",
+			"hx-post": "/wissen/bulk", "hx-include": "#wissenBulkForm",
+			"hx-vals": `{"action":"archive"}`, "hx-swap": "none", "data-dialog-close": true,
+		},
+	})
 }

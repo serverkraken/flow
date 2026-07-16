@@ -209,15 +209,18 @@ func run() error {
 			Nodes:   nodeStore, Docs: documentStore, Aggregate: documentStore, Tags: tagStore,
 		},
 		SetPinned:          usecase.SetPinned{Docs: documentStore},
-		SetContextMode:     usecase.SetContextMode{Docs: documentStore},
+		SetContextMode:     usecase.SetContextMode{Docs: documentStore, Curation: documentStore, Clock: clock},
 		ReorderContextDocs: usecase.ReorderContextDocs{Docs: documentStore},
-		SetArchived:        usecase.SetArchived{Docs: documentStore},
-		ListArchived:       usecase.ListArchived{Docs: documentStore},
-		ListActivity:       usecase.ListActivity{Activities: activityStore},
-		ContextBudget:      contextBudget(os.Getenv),
-		Users:              userStore,
-		OIDCAuth:           authn,
-		Session:            websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
+		SetArchived:        usecase.SetArchived{Docs: documentStore, Curation: documentStore, Clock: clock},
+		BulkCurateDocuments: usecase.BulkCurateDocuments{
+			Docs: documentStore, Clock: clock,
+		},
+		ListArchived:  usecase.ListArchived{Docs: documentStore},
+		ListActivity:  usecase.ListActivity{Activities: activityStore},
+		ContextBudget: contextBudget(os.Getenv),
+		Users:         userStore,
+		OIDCAuth:      authn,
+		Session:       websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
 	}
 
 	// tmux status segment — aggregated read-only composer over the worktime

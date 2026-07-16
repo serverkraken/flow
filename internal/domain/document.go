@@ -46,6 +46,18 @@ func (t DocumentType) HumanOwned() bool {
 	}
 }
 
+// ContextEligible reports whether documents of this type participate in the
+// curated agent context. Other types can still be searched and archived, but
+// assigning auto/immer/nie to them would have no semantic effect.
+func (t DocumentType) ContextEligible() bool {
+	switch t {
+	case DocMemory, DocInstruction, DocActiveContext:
+		return true
+	default:
+		return false
+	}
+}
+
 func (t DocumentType) valid() bool {
 	for _, v := range DocumentTypes() {
 		if t == v {

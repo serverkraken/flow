@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 const (
@@ -247,13 +249,14 @@ func (s *Server) wissenLibraryQuery(ctx context.Context, ownerID string, vm webu
 
 func wissenSearchRow(h domain.SearchHit) webui.SearchRow {
 	return webui.SearchRow{
-		ID:        h.ID,
-		Title:     h.Title,
-		Path:      h.Path,
-		Archived:  h.Archived,
-		ChipClass: webui.DocTypeChipClass(h.Type),
-		ChipLabel: webui.DocTypeLabel(h.Type),
-		Snippet:   renderSnippet(h.Snippet),
+		ID:              h.ID,
+		Title:           h.Title,
+		Path:            h.Path,
+		Archived:        h.Archived,
+		ContextEligible: h.Type.ContextEligible(),
+		ChipClass:       webui.DocTypeChipClass(h.Type),
+		ChipLabel:       webui.DocTypeLabel(h.Type),
+		Snippet:         renderSnippet(h.Snippet),
 	}
 }
 
@@ -498,6 +501,67 @@ func (s *Server) handleWebWissenTypeList(w http.ResponseWriter, r *http.Request)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.WissenTypeFragment(vm).Render(r.Context(), w)
+}
+
+func (s *Server) handleWebWissenBulk(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	ids := splitWissenDocumentIDs(r.Form["ids"])
+	action := r.FormValue("action")
+	input := usecase.BulkCurateDocumentsInput{IDs: ids}
+	eventAction := action
+	switch action {
+	case "archive":
+		value := true
+		input.Archived = &value
+	case "restore":
+		value := false
+		input.Archived = &value
+	case "mode":
+		mode := domain.ContextMode(r.FormValue("mode"))
+		input.ContextMode = &mode
+		eventAction = "context." + string(mode)
+	default:
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	changed, err := s.BulkCurateDocuments.Execute(r.Context(), u.ID, input)
+	if errors.Is(err, ports.ErrDocumentNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, domain.ErrInvalidDocument) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	for _, doc := range changed {
+		data := map[string]any{"id": doc.ID, "title": doc.Title, "action": eventAction}
+		if doc.NodeID != nil {
+			data["node"] = *doc.NodeID
+		}
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: data})
+	}
+	if r.Header.Get("HX-Request") != "" {
+		w.Header().Set("HX-Trigger", "wissenBulkDone")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/wissen", http.StatusSeeOther)
+}
+
+func splitWissenDocumentIDs(values []string) []string {
+	var ids []string
+	for _, value := range values {
+		ids = append(ids, strings.FieldsFunc(value, func(r rune) bool { return r == ',' })...)
+	}
+	return ids
 }
 
 // handleWebWissenRedirect 302s a retired Wissen category slug to its

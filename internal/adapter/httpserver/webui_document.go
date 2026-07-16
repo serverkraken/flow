@@ -85,6 +85,9 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		Archived:      doc.Archived,
 		Outgoing:      buildOutgoingRefs(doc, all),
 	}
+	if doc.ArchivedAt != nil {
+		vm.ArchivedRel = webui.FmtRelTime(*doc.ArchivedAt, s.Clock.Now())
+	}
 	if refs, rerr := s.BacklinksDocument.Execute(r.Context(), ownerID, doc.ID); rerr == nil {
 		for _, b := range refs {
 			vm.Backlinks = append(vm.Backlinks, webui.RefRow{Title: b.Title, Href: "/wissen/" + b.ID, Dir: "document.ref.to"})
@@ -151,15 +154,6 @@ func (s *Server) handleWebDocArchive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
-	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
 	if err := s.SetArchived.Execute(r.Context(), u.ID, id, archived); err != nil {
 		if errors.Is(err, ports.ErrDocumentNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
@@ -168,15 +162,16 @@ func (s *Server) handleWebDocArchive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	doc.Archived = archived
-	if archived {
-		doc.Pinned = false
-		now := s.Clock.Now()
-		doc.ArchivedAt = &now
-	} else {
-		doc.ArchivedAt = nil
+	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
 	}
-	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	action := "restore"
+	if archived {
+		action = "archive"
+	}
+	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "action": action}})
 
 	if r.Header.Get("HX-Request") == "" {
 		http.Redirect(w, r, "/wissen/"+id, http.StatusSeeOther)
@@ -196,12 +191,7 @@ func (s *Server) handleWebDocArchive(w http.ResponseWriter, r *http.Request) {
 // activecontext). All other types never show the "Im Agenten-Kontext" block —
 // buildDocumentVM skips the Compose call entirely for them.
 func isContextType(t domain.DocumentType) bool {
-	switch t {
-	case domain.DocMemory, domain.DocInstruction, domain.DocActiveContext:
-		return true
-	default:
-		return false
-	}
+	return t.ContextEligible()
 }
 
 // buildArtifactResolver turns the flat, newest-first list ListArtifacts
@@ -367,7 +357,7 @@ func (s *Server) handleWebDocMode(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.SetContextMode.Execute(r.Context(), u.ID, id, domain.ContextMode(mode)); err == nil {
 		doc.ContextMode = domain.ContextMode(mode)
-		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "action": "context." + mode}})
 	} else if !contextModeErrKnown(err) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

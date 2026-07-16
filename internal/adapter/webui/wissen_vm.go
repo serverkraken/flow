@@ -109,6 +109,7 @@ func DocumentInShelf(d domain.Document, s WissenShelf) bool {
 type WissenRowVM struct {
 	ID, Title, ChipClass, ChipLabel, Meta, TimeStr string
 	Archived                                       bool
+	ContextEligible                                bool
 }
 
 // WissenRowFromDocument maps a document to a WissenRowVM: ChipClass/
@@ -125,13 +126,14 @@ func WissenRowFromDocument(d domain.Document, now time.Time) WissenRowVM {
 		meta = d.Path + " · " + d.UpdatedByRef
 	}
 	return WissenRowVM{
-		ID:        d.ID,
-		Title:     d.Title,
-		ChipClass: DocTypeChipClass(d.Type),
-		ChipLabel: DocTypeLabel(d.Type),
-		Meta:      meta,
-		TimeStr:   FmtRelTime(d.UpdatedAt, now),
-		Archived:  d.Archived,
+		ID:              d.ID,
+		Title:           d.Title,
+		ChipClass:       DocTypeChipClass(d.Type),
+		ChipLabel:       DocTypeLabel(d.Type),
+		Meta:            meta,
+		TimeStr:         FmtRelTime(d.UpdatedAt, now),
+		Archived:        d.Archived,
+		ContextEligible: d.Type.ContextEligible(),
 	}
 }
 

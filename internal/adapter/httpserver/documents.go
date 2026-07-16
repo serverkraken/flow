@@ -346,7 +346,11 @@ func (s *Server) handleArchiveDocument(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		action := "restore"
+		if req.Archived {
+			action = "archive"
+		}
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "action": action}})
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -374,7 +378,7 @@ func (s *Server) handleSetContextMode(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "action": "context." + req.Mode}})
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

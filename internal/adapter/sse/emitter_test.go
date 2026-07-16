@@ -153,6 +153,28 @@ func TestEmitter_artifactCreated_mapsToActivityEntry(t *testing.T) {
 	}
 }
 
+func TestEmitter_documentCurationActionUsesSpecificActivityVerb(t *testing.T) {
+	for action, wantKind := range map[string]string{
+		"archive":       "document.archived",
+		"restore":       "document.restored",
+		"context.auto":  "document.context.auto",
+		"context.immer": "document.context.immer",
+		"context.nie":   "document.context.nie",
+	} {
+		t.Run(action, func(t *testing.T) {
+			store := &fakeStore{}
+			emitter := sse.NewEmitter(sse.NewBus(), store, fakeIDs{"activity"}, fakeClock{time.Now()})
+			emitter.Emit(context.Background(), domain.Event{
+				Type: domain.EventDocumentUpdated, UserID: "u1",
+				Data: map[string]any{"id": "d1", "title": "Document", "action": action},
+			})
+			if len(store.entries) != 1 || store.entries[0].Kind != wantKind {
+				t.Fatalf("activity for %q = %+v, want kind %q", action, store.entries, wantKind)
+			}
+		})
+	}
+}
+
 func TestEmitter_settingsChanged_notLogged(t *testing.T) {
 	bus := sse.NewBus()
 	store := &fakeStore{}

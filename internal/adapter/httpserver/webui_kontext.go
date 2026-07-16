@@ -184,7 +184,7 @@ func (s *Server) handleWebKontextMode(w http.ResponseWriter, r *http.Request) {
 	mode := r.FormValue("mode")
 
 	if err := s.SetContextMode.Execute(r.Context(), u.ID, doc, domain.ContextMode(mode)); err == nil {
-		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc, "action": "context." + mode}})
 	} else if !contextModeErrKnown(err) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

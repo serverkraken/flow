@@ -23,6 +23,11 @@ func activityFor(ctx context.Context, ev domain.Event) (domain.ActivityEntry, bo
 		Kind:      string(ev.Type),
 	}
 	if ev.Data != nil {
+		if ev.Type == domain.EventDocumentUpdated {
+			if action, _ := ev.Data["action"].(string); documentCurationActions[action] != "" {
+				e.Kind = documentCurationActions[action]
+			}
+		}
 		if v, ok := ev.Data["id"].(string); ok && v != "" {
 			e.TargetRef = &v
 		}
@@ -43,4 +48,12 @@ func activityFor(ctx context.Context, ev domain.Event) (domain.ActivityEntry, bo
 		return domain.ActivityEntry{}, false
 	}
 	return e, true
+}
+
+var documentCurationActions = map[string]string{
+	"archive":       "document.archived",
+	"restore":       "document.restored",
+	"context.auto":  "document.context.auto",
+	"context.immer": "document.context.immer",
+	"context.nie":   "document.context.nie",
 }

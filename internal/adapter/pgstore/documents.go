@@ -654,6 +654,91 @@ func (s *DocumentStore) SetArchived(ctx context.Context, ownerID, id string, arc
 	return nil
 }
 
+func (s *DocumentStore) CurateDocuments(ctx context.Context, ownerID string, mutation ports.DocumentCurationMutation) ([]domain.Document, error) {
+	ids := uniqueDocumentIDs(mutation.IDs)
+	if len(ids) == 0 || (mutation.Archived == nil) == (mutation.ContextMode == nil) || mutation.At.IsZero() {
+		return nil, fmt.Errorf("%w: invalid document curation", domain.ErrInvalidDocument)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: begin document curation: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	rows, err := tx.Query(ctx, `SELECT `+docCols+` FROM documents WHERE owner_id=$1 AND id=ANY($2) FOR UPDATE`, ownerID, ids)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: lock document curation: %w", err)
+	}
+	locked, err := scanDocuments(rows)
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(locked) != len(ids) {
+		return nil, ports.ErrDocumentNotFound
+	}
+	byID := make(map[string]domain.Document, len(locked))
+	for _, doc := range locked {
+		if mutation.ContextMode != nil && !doc.Type.ContextEligible() {
+			return nil, fmt.Errorf("%w: document %s is not context eligible", domain.ErrInvalidDocument, doc.ID)
+		}
+		byID[doc.ID] = doc
+	}
+
+	if mutation.Archived != nil {
+		_, err = tx.Exec(ctx, `UPDATE documents
+SET archived=$1, archived_at=CASE WHEN $1 THEN $2::timestamptz ELSE NULL END,
+	    pinned=CASE WHEN $1 THEN false ELSE pinned END, updated_at=$2::timestamptz,
+    updated_by_kind=$3, updated_by_ref=$4
+WHERE owner_id=$5 AND id=ANY($6)`, *mutation.Archived, mutation.At,
+			nullIfEmpty(mutation.ActorKind), nullIfEmpty(mutation.ActorRef), ownerID, ids)
+	} else {
+		_, err = tx.Exec(ctx, `UPDATE documents SET context_mode=$1, updated_by_kind=$2, updated_by_ref=$3
+WHERE owner_id=$4 AND id=ANY($5)`, string(mutation.ContextMode.OrAuto()),
+			nullIfEmpty(mutation.ActorKind), nullIfEmpty(mutation.ActorRef), ownerID, ids)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: update document curation: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("pgstore: commit document curation: %w", err)
+	}
+
+	out := make([]domain.Document, 0, len(ids))
+	for _, id := range ids {
+		doc := byID[id]
+		doc.UpdatedByKind = mutation.ActorKind
+		doc.UpdatedByRef = mutation.ActorRef
+		if mutation.Archived != nil {
+			doc.Archived = *mutation.Archived
+			doc.UpdatedAt = mutation.At
+			if *mutation.Archived {
+				at := mutation.At
+				doc.ArchivedAt = &at
+				doc.Pinned = false
+			} else {
+				doc.ArchivedAt = nil
+			}
+		} else {
+			doc.ContextMode = mutation.ContextMode.OrAuto()
+		}
+		out = append(out, doc)
+	}
+	return out, nil
+}
+
+func uniqueDocumentIDs(raw []string) []string {
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, id := range raw {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 func (s *DocumentStore) ListArchived(ctx context.Context, ownerID string) ([]domain.Document, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+docCols+` FROM documents WHERE owner_id=$1 AND archived ORDER BY archived_at DESC NULLS LAST`, ownerID)
 	if err != nil {
