@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 const wissenPageSize = 50
@@ -78,6 +79,33 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 	if err != nil {
 		return webui.WissenTypeVM{}, err
 	}
+	overviewHref := "/wissen" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope)
+
+	if q == "" && s.ListDocumentLibrary.Docs != nil {
+		pageNumber := atoiDefault(r.URL.Query().Get("page"), 1)
+		query, err := s.wissenLibraryQuery(r.Context(), u.ID, base, shelf.Types, active, wissenPageSize, (pageNumber-1)*wissenPageSize)
+		if err != nil {
+			return webui.WissenTypeVM{}, err
+		}
+		library, err := s.ListDocumentLibrary.Execute(r.Context(), u.ID, query)
+		if err != nil {
+			return webui.WissenTypeVM{}, err
+		}
+		base.ActiveCount = library.ActiveTotal
+		base.ArchivedCount = library.ArchivedTotal
+		base = withWissenStatusHrefs(base, shelf.TypeKey)
+		vm := webui.BuildWissenType(shelf, library.Documents, s.Clock.Now())
+		vm.WissenVM = base
+		vm.Total = library.Total
+		vm.OverviewHref = overviewHref
+		vm.Page = components.PageNav{
+			Page:     pageNumber,
+			Total:    library.Total,
+			PageSize: wissenPageSize,
+			BaseHref: basePath + wissenQueryStringFull(shelf.TypeKey, active, q, base.Status, base.NodeParam, "scope", base.Scope),
+		}
+		return vm, nil
+	}
 
 	activeDocs, archivedDocs, err := s.wissenDocuments(r.Context(), u.ID, base.NodeParam, base.Scope, active)
 	if err != nil {
@@ -88,7 +116,6 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 	base.ActiveCount = len(activeDocs)
 	base.ArchivedCount = len(archivedDocs)
 	base = withWissenStatusHrefs(base, shelf.TypeKey)
-	overviewHref := "/wissen" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope)
 
 	if q != "" {
 		var hits []domain.SearchHit
@@ -132,6 +159,45 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 		BaseHref: basePath + wissenQueryStringFull(shelf.TypeKey, active, q, base.Status, base.NodeParam, "scope", base.Scope),
 	}
 	return vm, nil
+}
+
+func (s *Server) wissenLibraryQuery(ctx context.Context, ownerID string, vm webui.WissenVM, types []domain.DocumentType, tags []string, limit, offset int) (ports.DocumentLibraryQuery, error) {
+	query := ports.DocumentLibraryQuery{
+		Types:  types,
+		Tags:   tags,
+		Limit:  limit,
+		Offset: offset,
+	}
+	switch vm.Status {
+	case "archived":
+		query.Status = ports.DocumentLibraryArchived
+	case "all":
+		query.Status = ports.DocumentLibraryAll
+	default:
+		query.Status = ports.DocumentLibraryActive
+	}
+	if vm.NodeParam == "none" {
+		query.UnassignedOnly = true
+		return query, nil
+	}
+	if vm.NodeParam == "" {
+		return query, nil
+	}
+	if vm.Scope != "subtree" {
+		query.NodeIDs = []string{vm.NodeParam}
+		query.FilterNodeIDs = true
+		return query, nil
+	}
+	allowed, err := s.wissenSubtreeIDs(ctx, ownerID, vm.NodeParam)
+	if err != nil {
+		return ports.DocumentLibraryQuery{}, err
+	}
+	query.NodeIDs = make([]string, 0, len(allowed))
+	query.FilterNodeIDs = true
+	for id := range allowed {
+		query.NodeIDs = append(query.NodeIDs, id)
+	}
+	return query, nil
 }
 
 func wissenSearchRow(h domain.SearchHit) webui.SearchRow {

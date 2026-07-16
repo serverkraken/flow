@@ -387,6 +387,157 @@ func TestDocumentStore_ListPage(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_ListLibraryPageFacetsAreOwnerScopedAndFilterConsistent(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	for _, user := range []domain.User{
+		func() domain.User {
+			u, _ := domain.NewUser("u-library", "sub-library", "library", "library@x.de", "Library")
+			return u
+		}(),
+		func() domain.User {
+			u, _ := domain.NewUser("u-library-other", "sub-library-other", "library-other", "other@x.de", "Other")
+			return u
+		}(),
+	} {
+		if _, err := users.UpsertBySub(ctx, user); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	nodes := pgstore.NewNodeStore(pool)
+	if _, err := nodes.Create(ctx, domain.Node{
+		ID: "lib-root", OwnerID: "u-library", Kind: domain.KindEngagement, Name: "Library", Slug: "library",
+		Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rootID := "lib-root"
+	for _, id := range []string{"lib-n1", "lib-n2", "lib-outside"} {
+		if _, err := nodes.Create(ctx, domain.Node{
+			ID: id, OwnerID: "u-library", ParentID: &rootID, Kind: domain.KindRepo, Name: id, Slug: id,
+			Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	store := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	tags := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
+	create := func(id, owner, nodeID string, typ domain.DocumentType, updated time.Time, tag string) {
+		nid := nodeID
+		if _, err := store.Create(ctx, domain.Document{
+			ID: id, OwnerID: owner, NodeID: &nid, Type: typ, Path: id, Title: id,
+			CreatedAt: now, UpdatedAt: updated,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if tag != "" {
+			if _, err := tags.SetTags(ctx, owner, domain.TaggableDocument, id, []string{tag}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	create("lib-n1-active", "u-library", "lib-n1", domain.DocPlan, now, "ops")
+	create("lib-n2-active", "u-library", "lib-n2", domain.DocPlan, now.Add(time.Minute), "ops")
+	create("lib-n2-archived", "u-library", "lib-n2", domain.DocPlan, now.Add(2*time.Minute), "ops")
+	create("lib-wrong-type", "u-library", "lib-n2", domain.DocMemory, now.Add(3*time.Minute), "ops")
+	create("lib-wrong-tag", "u-library", "lib-n2", domain.DocPlan, now.Add(4*time.Minute), "design")
+	create("lib-outside", "u-library", "lib-outside", domain.DocPlan, now.Add(5*time.Minute), "ops")
+	// Deliberately attach another owner's document to an existing node ID. The
+	// library query must still exclude it solely through owner_id scoping.
+	create("lib-foreign", "u-library-other", "lib-n2", domain.DocPlan, now.Add(6*time.Minute), "ops")
+	if err := store.SetArchived(ctx, "u-library", "lib-n2-archived", true); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := store.ListLibraryPage(ctx, "u-library", ports.DocumentLibraryQuery{
+		NodeIDs:       []string{"lib-n1", "lib-n2"},
+		FilterNodeIDs: true,
+		Types:         []domain.DocumentType{domain.DocPlan},
+		Tags:          []string{"ops"},
+		Status:        ports.DocumentLibraryAll,
+		Limit:         2,
+		Offset:        1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 3 || page.ActiveTotal != 2 || page.ArchivedTotal != 1 {
+		t.Fatalf("library facets = total:%d active:%d archived:%d, want 3/2/1", page.Total, page.ActiveTotal, page.ArchivedTotal)
+	}
+	if len(page.Documents) != 2 {
+		t.Fatalf("library page len=%d, want 2: %+v", len(page.Documents), page.Documents)
+	}
+	for _, doc := range page.Documents {
+		if doc.OwnerID != "u-library" || doc.Type != domain.DocPlan || len(doc.Tags) != 1 || doc.Tags[0] != "ops" {
+			t.Fatalf("library page escaped owner/type/tag filter: %+v", doc)
+		}
+	}
+
+	archived, err := store.ListLibraryPage(ctx, "u-library", ports.DocumentLibraryQuery{
+		NodeIDs: []string{"lib-n1", "lib-n2"}, FilterNodeIDs: true, Types: []domain.DocumentType{domain.DocPlan},
+		Tags: []string{"ops"}, Status: ports.DocumentLibraryArchived, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if archived.Total != 1 || len(archived.Documents) != 1 || archived.Documents[0].ID != "lib-n2-archived" {
+		t.Fatalf("archived library page = %+v", archived)
+	}
+	empty, err := store.ListLibraryPage(ctx, "u-library", ports.DocumentLibraryQuery{
+		FilterNodeIDs: true, Status: ports.DocumentLibraryAll, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.Total != 0 || empty.ActiveTotal != 0 || empty.ArchivedTotal != 0 || len(empty.Documents) != 0 {
+		t.Fatalf("empty resolved node set must match nothing, got %+v", empty)
+	}
+
+	toggleDone := make(chan error, 1)
+	go func() {
+		for i := 0; i < 50; i++ {
+			if err := store.SetArchived(ctx, "u-library", "lib-n2-archived", i%2 == 0); err != nil {
+				toggleDone <- err
+				return
+			}
+		}
+		toggleDone <- nil
+	}()
+	for i := 0; i < 50; i++ {
+		snapshot, err := store.ListLibraryPage(ctx, "u-library", ports.DocumentLibraryQuery{
+			NodeIDs: []string{"lib-n1", "lib-n2"}, FilterNodeIDs: true, Types: []domain.DocumentType{domain.DocPlan},
+			Tags: []string{"ops"}, Status: ports.DocumentLibraryAll, Limit: 10,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		archivedDocs := 0
+		for _, doc := range snapshot.Documents {
+			if doc.Archived {
+				archivedDocs++
+			}
+		}
+		if snapshot.Total != 3 || len(snapshot.Documents) != 3 || snapshot.ActiveTotal+snapshot.ArchivedTotal != 3 || archivedDocs != snapshot.ArchivedTotal {
+			t.Fatalf("mixed library snapshot during concurrent archive: %+v archivedDocs=%d", snapshot, archivedDocs)
+		}
+	}
+	if err := <-toggleDone; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))

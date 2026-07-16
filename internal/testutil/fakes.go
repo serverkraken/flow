@@ -826,6 +826,89 @@ func (s *FakeDocumentStore) ListPage(ctx context.Context, ownerID string, nodeID
 	return all[offset:end], total, nil
 }
 
+func (s *FakeDocumentStore) ListLibraryPage(_ context.Context, ownerID string, query ports.DocumentLibraryQuery) (ports.DocumentLibraryPage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	allowedNodes := make(map[string]bool, len(query.NodeIDs))
+	for _, id := range query.NodeIDs {
+		allowedNodes[id] = true
+	}
+	allowedTypes := make(map[domain.DocumentType]bool, len(query.Types))
+	for _, typ := range query.Types {
+		allowedTypes[typ] = true
+	}
+
+	page := ports.DocumentLibraryPage{}
+	var matching []domain.Document
+	for _, d := range s.m {
+		if d.OwnerID != ownerID || !hasAllTags(d.Tags, query.Tags) {
+			continue
+		}
+		if query.UnassignedOnly {
+			if d.NodeID != nil {
+				continue
+			}
+		} else if query.FilterNodeIDs && (d.NodeID == nil || !allowedNodes[*d.NodeID]) {
+			continue
+		}
+		if len(allowedTypes) > 0 && !allowedTypes[d.Type] {
+			continue
+		}
+		if d.Archived {
+			page.ArchivedTotal++
+		} else {
+			page.ActiveTotal++
+		}
+		switch query.Status {
+		case ports.DocumentLibraryArchived:
+			if d.Archived {
+				matching = append(matching, d)
+			}
+		case ports.DocumentLibraryAll:
+			matching = append(matching, d)
+		default:
+			if !d.Archived {
+				matching = append(matching, d)
+			}
+		}
+	}
+
+	sort.SliceStable(matching, func(i, j int) bool {
+		if query.Status == ports.DocumentLibraryArchived {
+			left, right := matching[i].ArchivedAt, matching[j].ArchivedAt
+			if left != nil && right != nil && !left.Equal(*right) {
+				return left.After(*right)
+			}
+		}
+		if matching[i].UpdatedAt.Equal(matching[j].UpdatedAt) {
+			return matching[i].ID < matching[j].ID
+		}
+		return matching[i].UpdatedAt.After(matching[j].UpdatedAt)
+	})
+	page.Total = len(matching)
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := query.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > len(matching) {
+		offset = len(matching)
+	}
+	end := offset + limit
+	if end > len(matching) {
+		end = len(matching)
+	}
+	page.Documents = append([]domain.Document(nil), matching[offset:end]...)
+	return page, nil
+}
+
 func matchesNode(docPID, filter *string) bool {
 	if filter == nil {
 		return true

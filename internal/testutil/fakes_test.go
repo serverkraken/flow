@@ -177,6 +177,29 @@ func TestFakeDocumentStore_ListTagFilter(t *testing.T) {
 	}
 }
 
+func TestFakeDocumentStore_ListLibraryPageEmptyNodeSetFailsClosed(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+	nodeID := "n1"
+	if _, err := s.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u", NodeID: &nodeID, Type: domain.DocPlan, Path: "plan/one",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.ListLibraryPage(ctx, "u", ports.DocumentLibraryQuery{
+		FilterNodeIDs: true,
+		Status:        ports.DocumentLibraryAll,
+		Limit:         50,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 0 || page.ActiveTotal != 0 || page.ArchivedTotal != 0 || len(page.Documents) != 0 {
+		t.Fatalf("empty resolved node set must match nothing, got %+v", page)
+	}
+}
+
 func TestFakeStore_ChunksAndSemantic(t *testing.T) {
 	s := NewFakeDocumentStore()
 	e := NewFakeEmbedder()

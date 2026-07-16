@@ -329,6 +329,35 @@ type DocumentAggregateStore interface {
 	DeleteDocumentAggregate(ctx context.Context, ownerID, id string) error
 }
 
+type DocumentLibraryStatus string
+
+const (
+	DocumentLibraryActive   DocumentLibraryStatus = "active"
+	DocumentLibraryArchived DocumentLibraryStatus = "archived"
+	DocumentLibraryAll      DocumentLibraryStatus = "all"
+)
+
+// DocumentLibraryQuery is the bounded, owner-scoped read contract behind the
+// Wissen management surface. NodeIDs supports a pre-resolved owner subtree;
+// UnassignedOnly represents the explicit node-less library.
+type DocumentLibraryQuery struct {
+	NodeIDs        []string
+	FilterNodeIDs  bool
+	UnassignedOnly bool
+	Types          []domain.DocumentType
+	Tags           []string
+	Status         DocumentLibraryStatus
+	Limit          int
+	Offset         int
+}
+
+type DocumentLibraryPage struct {
+	Documents     []domain.Document
+	Total         int
+	ActiveTotal   int
+	ArchivedTotal int
+}
+
 // DocumentStore persists compendium documents. All reads are owner-scoped.
 // Create returns ErrDocumentExists on a (owner, project, path) collision.
 type DocumentStore interface {
@@ -341,6 +370,9 @@ type DocumentStore interface {
 	// ListPage returns one page of documents newest-first plus the total count
 	// matching the owner/project/tag filter, for server-side pagination.
 	ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error)
+	// ListLibraryPage returns one bounded management page plus status facets
+	// calculated from the same owner/node/type/tag filter space.
+	ListLibraryPage(ctx context.Context, ownerID string, query DocumentLibraryQuery) (DocumentLibraryPage, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
 	// Move atomically replaces type, node, path, date and write provenance.
 	// Implementations must reject destination collisions and owner-foreign nodes.

@@ -32,6 +32,10 @@ const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role,
 
 const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned, d.archived, d.archived_at, d.updated_by_kind, d.updated_by_ref, d.priority, d.context_mode`
 
+type documentQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
 // appendNodeFilter adds a project predicate to q, binding the next positional
 // parameter when needed. nodeID == nil → no filter; *nodeID == "none" →
 // IS NULL (unassigned); otherwise equality. col is the (possibly qualified)
@@ -45,6 +49,32 @@ func appendNodeFilter(q, col string, args *[]any, nodeID *string) string {
 	}
 	*args = append(*args, *nodeID)
 	return q + fmt.Sprintf(` AND %s = $%d`, col, len(*args))
+}
+
+func appendLibraryNodeFilter(q, col string, args *[]any, query ports.DocumentLibraryQuery) string {
+	if query.UnassignedOnly {
+		return q + ` AND ` + col + ` IS NULL`
+	}
+	if !query.FilterNodeIDs {
+		return q
+	}
+	if len(query.NodeIDs) == 0 {
+		return q + ` AND false`
+	}
+	*args = append(*args, query.NodeIDs)
+	return q + fmt.Sprintf(` AND %s = ANY($%d)`, col, len(*args))
+}
+
+func appendLibraryTypeFilter(q, col string, args *[]any, types []domain.DocumentType) string {
+	if len(types) == 0 {
+		return q
+	}
+	values := make([]string, len(types))
+	for i, typ := range types {
+		values[i] = string(typ)
+	}
+	*args = append(*args, values)
+	return q + fmt.Sprintf(` AND %s = ANY($%d)`, col, len(*args))
 }
 
 // appendTagFilter adds an AND-containment junction subquery for the given tag slugs.
@@ -61,6 +91,10 @@ func appendTagFilter(q string, args *[]any, ownerID string, tags []string) strin
 }
 
 func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []domain.Document) ([]domain.Document, error) {
+	return s.hydrateTagsWith(ctx, s.pool, ownerID, docs)
+}
+
+func (s *DocumentStore) hydrateTagsWith(ctx context.Context, querier documentQuerier, ownerID string, docs []domain.Document) ([]domain.Document, error) {
 	if len(docs) == 0 {
 		return docs, nil
 	}
@@ -68,9 +102,9 @@ func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []
 	for i, d := range docs {
 		ids[i] = d.ID
 	}
-	const q = `SELECT tg.taggable_id, t.slug FROM taggings tg JOIN tags t ON t.id = tg.tag_id ` +
+	const query = `SELECT tg.taggable_id, t.slug FROM taggings tg JOIN tags t ON t.id = tg.tag_id ` +
 		`WHERE t.owner_id=$1 AND tg.taggable_type='document' AND tg.taggable_id = ANY($2) ORDER BY t.slug`
-	rows, err := s.pool.Query(ctx, q, ownerID, ids)
+	rows, err := querier.Query(ctx, query, ownerID, ids)
 	if err != nil {
 		return nil, fmt.Errorf("pgstore: hydrate doc tags: %w", err)
 	}
@@ -169,6 +203,75 @@ func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *st
 		return nil, 0, err
 	}
 	return docs, total, nil
+}
+
+func (s *DocumentStore) ListLibraryPage(ctx context.Context, ownerID string, query ports.DocumentLibraryQuery) (ports.DocumentLibraryPage, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: begin document library read: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := query.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	where := ` WHERE owner_id=$1`
+	args := []any{ownerID}
+	where = appendLibraryNodeFilter(where, "node_id", &args, query)
+	where = appendLibraryTypeFilter(where, "type", &args, query.Types)
+	where = appendTagFilter(where, &args, ownerID, query.Tags)
+
+	page := ports.DocumentLibraryPage{}
+	countSQL := `SELECT count(*) FILTER (WHERE NOT archived), count(*) FILTER (WHERE archived) FROM documents` + where
+	if err := tx.QueryRow(ctx, countSQL, args...).Scan(&page.ActiveTotal, &page.ArchivedTotal); err != nil {
+		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: count document library: %w", err)
+	}
+
+	statusWhere := where
+	switch query.Status {
+	case ports.DocumentLibraryArchived:
+		statusWhere += ` AND archived`
+		page.Total = page.ArchivedTotal
+	case ports.DocumentLibraryAll:
+		page.Total = page.ActiveTotal + page.ArchivedTotal
+	default:
+		statusWhere += ` AND NOT archived`
+		page.Total = page.ActiveTotal
+	}
+
+	pageArgs := append(append([]any(nil), args...), limit, offset)
+	order := `updated_at DESC, id ASC`
+	if query.Status == ports.DocumentLibraryArchived {
+		order = `archived_at DESC NULLS LAST, id ASC`
+	}
+	listSQL := `SELECT ` + docCols + ` FROM documents` + statusWhere +
+		fmt.Sprintf(` ORDER BY %s LIMIT $%d OFFSET $%d`, order, len(pageArgs)-1, len(pageArgs))
+	rows, err := tx.Query(ctx, listSQL, pageArgs...)
+	if err != nil {
+		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: list document library: %w", err)
+	}
+	page.Documents, err = scanDocuments(rows)
+	rows.Close()
+	if err != nil {
+		return ports.DocumentLibraryPage{}, err
+	}
+	page.Documents, err = s.hydrateTagsWith(ctx, tx, ownerID, page.Documents)
+	if err != nil {
+		return ports.DocumentLibraryPage{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: commit document library read: %w", err)
+	}
+	return page, nil
 }
 
 func (s *DocumentStore) Update(ctx context.Context, d domain.Document) (domain.Document, error) {

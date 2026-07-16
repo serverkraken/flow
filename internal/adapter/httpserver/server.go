@@ -95,23 +95,24 @@ type Server struct {
 	NodeTags usecase.NodeTags
 
 	// m2a documents
-	CreateDocument    usecase.CreateDocument
-	ImportDocument    usecase.ImportDocument
-	GetDocument       usecase.GetDocument
-	ListDocuments     usecase.ListDocuments
-	ListDocumentsPage *usecase.ListDocumentsPage
-	UpdateDocument    usecase.UpdateDocument
-	MoveDocument      usecase.MoveDocument
-	DeleteDocument    usecase.DeleteDocument
-	BacklinksDocument usecase.Backlinks
-	ListTags          usecase.ListTags
-	SearchDocuments   usecase.SearchDocuments
-	RetryEmbedding    usecase.RetryEmbedding
-	GetEmbedStatus    usecase.GetEmbedStatus
-	SetPinned         usecase.SetPinned
-	SetContextMode    usecase.SetContextMode
-	SetArchived       usecase.SetArchived
-	ListArchived      usecase.ListArchived
+	CreateDocument      usecase.CreateDocument
+	ImportDocument      usecase.ImportDocument
+	GetDocument         usecase.GetDocument
+	ListDocuments       usecase.ListDocuments
+	ListDocumentsPage   *usecase.ListDocumentsPage
+	ListDocumentLibrary usecase.ListDocumentLibrary
+	UpdateDocument      usecase.UpdateDocument
+	MoveDocument        usecase.MoveDocument
+	DeleteDocument      usecase.DeleteDocument
+	BacklinksDocument   usecase.Backlinks
+	ListTags            usecase.ListTags
+	SearchDocuments     usecase.SearchDocuments
+	RetryEmbedding      usecase.RetryEmbedding
+	GetEmbedStatus      usecase.GetEmbedStatus
+	SetPinned           usecase.SetPinned
+	SetContextMode      usecase.SetContextMode
+	SetArchived         usecase.SetArchived
+	ListArchived        usecase.ListArchived
 
 	// activity feed (Task 5)
 	ListActivity usecase.ListActivity
