@@ -582,6 +582,67 @@ func TestSearchDocuments_NilEmbedderIsKeywordOnly(t *testing.T) {
 	}
 }
 
+func TestSearchDocumentLibraryFusesAndPaginatesActiveAndArchivedResults(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "active", OwnerID: "u", Type: domain.DocFree, Path: "active", Title: "Alpha active", Body: "alpha", CreatedAt: now, UpdatedAt: now.Add(time.Minute)},
+		{ID: "archived", OwnerID: "u", Type: domain.DocFree, Path: "archived", Title: "Beta archived", Body: "semantic only", CreatedAt: now, UpdatedAt: now},
+		{ID: "foreign", OwnerID: "other", Type: domain.DocFree, Path: "foreign", Title: "Alpha foreign", Body: "alpha", CreatedAt: now, UpdatedAt: now.Add(2 * time.Minute)},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	texts := []string{"Beta archived\n\nsemantic only"}
+	vecs, err := emb.Embed(ctx, texts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := docs.ReplaceChunks(ctx, "archived", "u", docs.SnapshotHash("archived"), texts, vecs); err != nil {
+		t.Fatal(err)
+	}
+	if err := docs.SetArchived(ctx, "u", "archived", true); err != nil {
+		t.Fatal(err)
+	}
+
+	uc := usecase.SearchDocumentLibrary{Docs: docs, Embedder: emb}
+	page, err := uc.Execute(ctx, "u", "alpha", ports.DocumentLibraryQuery{
+		Status: ports.DocumentLibraryAll, Limit: 1, Offset: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || page.ActiveTotal != 1 || page.ArchivedTotal != 1 || len(page.Results) != 1 {
+		t.Fatalf("library search page = %+v, want owner-scoped 2 total and one paginated result", page)
+	}
+	if page.Results[0].ID != "archived" || !page.Results[0].Archived {
+		t.Fatalf("second fused result = %+v, want archived", page.Results)
+	}
+}
+
+func TestSearchDocumentLibraryDegradesToKeywordWhenEmbeddingFails(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	emb.Err = context.DeadlineExceeded
+	ctx := context.Background()
+	if _, err := docs.Create(ctx, domain.Document{ID: "active", OwnerID: "u", Type: domain.DocFree, Path: "active", Title: "Alpha", Body: "keyword"}); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := (usecase.SearchDocumentLibrary{Docs: docs, Embedder: emb}).Execute(ctx, "u", "alpha", ports.DocumentLibraryQuery{
+		Status: ports.DocumentLibraryAll, Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("embedding failure must degrade, got %v", err)
+	}
+	if len(page.Results) != 1 || page.Results[0].ID != "active" {
+		t.Fatalf("keyword fallback = %+v, want active", page.Results)
+	}
+}
+
 // countingNotifier records how many times DocumentChanged is called.
 type countingNotifier struct{ n int }
 

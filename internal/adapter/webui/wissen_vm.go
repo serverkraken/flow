@@ -161,30 +161,35 @@ func WissenSummary(ctx context.Context, vm WissenOverviewVM) string {
 // the cap (the "Alle N ›" expand-in-place, mirrors the cockpit Wissen
 // section's ?wissen=all).
 func BuildWissenOverview(docs []domain.Document, now time.Time, recentAll bool) WissenOverviewVM {
-	vm := WissenOverviewVM{TotalCount: len(docs)}
+	typeTotals := make(map[domain.DocumentType]int)
+	for _, d := range docs {
+		typeTotals[d.Type]++
+	}
+	sorted := SortedDocuments(docs)
+	if !recentAll && len(sorted) > wissenRecentCap {
+		sorted = sorted[:wissenRecentCap]
+	}
+	vm := BuildWissenOverviewPage(sorted, len(docs), typeTotals, now, recentAll)
 	for _, d := range docs {
 		if d.Pinned {
 			vm.PinnedCount++
 		}
 	}
+	return vm
+}
 
+// BuildWissenOverviewPage maps one already-bounded library page while shelf
+// counts remain based on the full, filtered result set supplied by the store.
+func BuildWissenOverviewPage(pageDocs []domain.Document, total int, typeTotals map[domain.DocumentType]int, now time.Time, recentAll bool) WissenOverviewVM {
+	vm := WissenOverviewVM{TotalCount: total, RecentTotal: total, RecentAll: recentAll}
 	shelves := WissenShelves()
 	for i := range shelves {
-		for _, d := range docs {
-			if DocumentInShelf(d, shelves[i]) {
-				shelves[i].Count++
-			}
+		for _, typ := range shelves[i].Types {
+			shelves[i].Count += typeTotals[typ]
 		}
 	}
 	vm.Shelves = shelves
-
-	sorted := SortedDocuments(docs)
-	vm.RecentTotal = len(sorted)
-	vm.RecentAll = recentAll
-	if !recentAll && len(sorted) > wissenRecentCap {
-		sorted = sorted[:wissenRecentCap]
-	}
-	for _, d := range sorted {
+	for _, d := range pageDocs {
 		vm.Recent = append(vm.Recent, WissenRowFromDocument(d, now))
 	}
 	return vm

@@ -187,6 +187,7 @@ func run() error {
 		ListDocuments:         usecase.ListDocuments{Docs: documentStore},
 		ListDocumentsPage:     usecase.NewListDocumentsPage(documentStore),
 		ListDocumentLibrary:   usecase.ListDocumentLibrary{Docs: documentStore},
+		SearchDocumentLibrary: usecase.SearchDocumentLibrary{Docs: documentStore, Embedder: embedder, Log: logger},
 		UpdateDocument:        usecase.UpdateDocument{Docs: documentStore, Aggregate: documentStore, Clock: clock, Notifier: embedWorker, Tags: tagStore},
 		MoveDocument:          usecase.MoveDocument{Docs: documentStore, Nodes: nodeStore, Clock: clock, Notifier: embedWorker},
 		DeleteDocument:        usecase.DeleteDocument{Docs: documentStore, Aggregate: documentStore, Tags: tagStore},

@@ -839,8 +839,7 @@ func (s *FakeDocumentStore) ListLibraryPage(_ context.Context, ownerID string, q
 		allowedTypes[typ] = true
 	}
 
-	page := ports.DocumentLibraryPage{}
-	var matching []domain.Document
+	var filtered []domain.Document
 	for _, d := range s.m {
 		if d.OwnerID != ownerID || !hasAllTags(d.Tags, query.Tags) {
 			continue
@@ -855,24 +854,26 @@ func (s *FakeDocumentStore) ListLibraryPage(_ context.Context, ownerID string, q
 		if len(allowedTypes) > 0 && !allowedTypes[d.Type] {
 			continue
 		}
+		filtered = append(filtered, d)
+	}
+
+	if strings.TrimSpace(query.Search) != "" {
+		return s.searchLibraryPageLocked(filtered, query), nil
+	}
+
+	page := ports.DocumentLibraryPage{}
+	var matching []domain.Document
+	for _, d := range filtered {
 		if d.Archived {
 			page.ArchivedTotal++
 		} else {
 			page.ActiveTotal++
 		}
-		switch query.Status {
-		case ports.DocumentLibraryArchived:
-			if d.Archived {
-				matching = append(matching, d)
-			}
-		case ports.DocumentLibraryAll:
+		if libraryStatusMatches(d, query.Status) {
 			matching = append(matching, d)
-		default:
-			if !d.Archived {
-				matching = append(matching, d)
-			}
 		}
 	}
+	setDocumentLibraryFacets(&page, matching)
 
 	sort.SliceStable(matching, func(i, j int) bool {
 		if query.Status == ports.DocumentLibraryArchived {
@@ -907,6 +908,147 @@ func (s *FakeDocumentStore) ListLibraryPage(_ context.Context, ownerID string, q
 	}
 	page.Documents = append([]domain.Document(nil), matching[offset:end]...)
 	return page, nil
+}
+
+func (s *FakeDocumentStore) searchLibraryPageLocked(filtered []domain.Document, query ports.DocumentLibraryQuery) ports.DocumentLibraryPage {
+	type ranked struct {
+		doc     domain.Document
+		snippet string
+		score   float64
+	}
+	q := strings.ToLower(strings.TrimSpace(query.Search))
+	byID := make(map[string]*ranked, len(filtered))
+	keyword := make([]ranked, 0, len(filtered))
+	for _, d := range filtered {
+		text := d.Title + " " + d.Body
+		idx := strings.Index(strings.ToLower(text), q)
+		if idx < 0 {
+			continue
+		}
+		keyword = append(keyword, ranked{doc: d, snippet: fakeSnippet(text, idx, len(query.Search))})
+	}
+	sort.SliceStable(keyword, func(i, j int) bool {
+		if keyword[i].doc.UpdatedAt.Equal(keyword[j].doc.UpdatedAt) {
+			return keyword[i].doc.ID < keyword[j].doc.ID
+		}
+		return keyword[i].doc.UpdatedAt.After(keyword[j].doc.UpdatedAt)
+	})
+	for i := range keyword {
+		hit := keyword[i]
+		hit.score = 1 / float64(60+i+1)
+		copy := hit
+		byID[hit.doc.ID] = &copy
+	}
+
+	if len(query.Embedding) > 0 {
+		semantic := make([]ranked, 0, len(filtered))
+		for _, d := range filtered {
+			best := -1.0
+			bestContent := ""
+			for _, chunk := range s.chunks[d.ID] {
+				sim := cosine(query.Embedding, chunk.emb)
+				if sim > best {
+					best = sim
+					bestContent = chunk.content
+				}
+			}
+			if bestContent != "" {
+				semantic = append(semantic, ranked{doc: d, snippet: bestContent, score: 1 - best})
+			}
+		}
+		sort.SliceStable(semantic, func(i, j int) bool {
+			if semantic[i].score == semantic[j].score {
+				return semantic[i].doc.ID < semantic[j].doc.ID
+			}
+			return semantic[i].score < semantic[j].score
+		})
+		for i, hit := range semantic {
+			score := 1 / float64(60+i+1)
+			if existing := byID[hit.doc.ID]; existing != nil {
+				existing.score += score
+				continue
+			}
+			hit.score = score
+			copy := hit
+			byID[hit.doc.ID] = &copy
+		}
+	}
+
+	all := make([]ranked, 0, len(byID))
+	page := ports.DocumentLibraryPage{}
+	for _, hit := range byID {
+		all = append(all, *hit)
+		if hit.doc.Archived {
+			page.ArchivedTotal++
+		} else {
+			page.ActiveTotal++
+		}
+	}
+	sort.SliceStable(all, func(i, j int) bool {
+		if all[i].score != all[j].score {
+			return all[i].score > all[j].score
+		}
+		if !all[i].doc.UpdatedAt.Equal(all[j].doc.UpdatedAt) {
+			return all[i].doc.UpdatedAt.After(all[j].doc.UpdatedAt)
+		}
+		return all[i].doc.ID < all[j].doc.ID
+	})
+	matching := make([]ranked, 0, len(all))
+	matchingDocs := make([]domain.Document, 0, len(all))
+	for _, hit := range all {
+		if libraryStatusMatches(hit.doc, query.Status) {
+			matching = append(matching, hit)
+			matchingDocs = append(matchingDocs, hit.doc)
+		}
+	}
+	setDocumentLibraryFacets(&page, matchingDocs)
+	page.Total = len(matching)
+	limit, offset := libraryPageBounds(query, len(matching))
+	end := offset + limit
+	if end > len(matching) {
+		end = len(matching)
+	}
+	for _, hit := range matching[offset:end] {
+		page.Results = append(page.Results, domain.SearchHit{Document: hit.doc, Snippet: hit.snippet})
+	}
+	return page
+}
+
+func setDocumentLibraryFacets(page *ports.DocumentLibraryPage, docs []domain.Document) {
+	page.TypeTotals = make(map[domain.DocumentType]int)
+	for _, d := range docs {
+		page.TypeTotals[d.Type]++
+	}
+	page.TagTotals = domain.CollectTags(docs)
+}
+
+func libraryStatusMatches(d domain.Document, status ports.DocumentLibraryStatus) bool {
+	switch status {
+	case ports.DocumentLibraryArchived:
+		return d.Archived
+	case ports.DocumentLibraryAll:
+		return true
+	default:
+		return !d.Archived
+	}
+}
+
+func libraryPageBounds(query ports.DocumentLibraryQuery, total int) (int, int) {
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := query.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total {
+		offset = total
+	}
+	return limit, offset
 }
 
 func matchesNode(docPID, filter *string) bool {

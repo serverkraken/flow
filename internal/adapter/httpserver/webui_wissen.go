@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -14,7 +15,10 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-const wissenPageSize = 50
+const (
+	wissenPageSize            = 50
+	wissenOverviewRecentLimit = 8
+)
 
 // wissenOverviewData builds the /wissen library page's data: search-hit rows
 // when a query is present, otherwise the type-shelf counts + capped "Zuletzt
@@ -26,6 +30,69 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
+	if q != "" {
+		pageNumber := atoiDefault(r.URL.Query().Get("page"), 1)
+		query, err := s.wissenLibraryQuery(r.Context(), u.ID, base, nil, active, wissenPageSize, (pageNumber-1)*wissenPageSize)
+		if err != nil {
+			return webui.WissenOverviewVM{}, err
+		}
+		library, err := s.SearchDocumentLibrary.Execute(r.Context(), u.ID, q, query)
+		if err != nil {
+			return webui.WissenOverviewVM{}, err
+		}
+		base.ActiveCount = library.ActiveTotal
+		base.ArchivedCount = library.ArchivedTotal
+		base = withWissenStatusHrefs(base, "")
+		base = withWissenTagTotals(base, library.TagTotals, "/wissen", "")
+		for _, hit := range library.Results {
+			base.Results = append(base.Results, wissenSearchRow(hit))
+		}
+		base.Page = components.PageNav{
+			Page: pageNumber, Total: library.Total, PageSize: wissenPageSize,
+			BaseHref: "/wissen" + wissenQueryStringFull("", active, q, base.Status, base.NodeParam, "scope", base.Scope),
+		}
+		base.Query = wissenQueryStringFull("", active, q, base.Status, base.NodeParam, "scope", base.Scope, "page", strconv.Itoa(pageNumber))
+		return webui.WissenOverviewVM{WissenVM: base, TotalCount: library.ActiveTotal + library.ArchivedTotal}, nil
+	}
+	if s.ListDocumentLibrary.Docs != nil {
+		recentAll := r.URL.Query().Get("recent") == "all"
+		pageNumber, limit := 1, wissenOverviewRecentLimit
+		if recentAll {
+			pageNumber = atoiDefault(r.URL.Query().Get("page"), 1)
+			limit = wissenPageSize
+		}
+		query, err := s.wissenLibraryQuery(r.Context(), u.ID, base, nil, active, limit, (pageNumber-1)*limit)
+		if err != nil {
+			return webui.WissenOverviewVM{}, err
+		}
+		library, err := s.ListDocumentLibrary.Execute(r.Context(), u.ID, query)
+		if err != nil {
+			return webui.WissenOverviewVM{}, err
+		}
+		base.ActiveCount = library.ActiveTotal
+		base.ArchivedCount = library.ArchivedTotal
+		base = withWissenStatusHrefs(base, "")
+		base = withWissenTagTotals(base, library.TagTotals, "/wissen", "")
+		if recentAll {
+			base.Query = wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope, "recent", "all", "page", strconv.Itoa(pageNumber))
+		}
+		vm := webui.BuildWissenOverviewPage(library.Documents, library.Total, library.TypeTotals, s.Clock.Now(), recentAll)
+		vm.WissenVM = base
+		vm.TotalCount = library.ActiveTotal + library.ArchivedTotal
+		for i := range vm.Shelves {
+			vm.Shelves[i].Href = "/wissen/typ" + wissenQueryStringFull(vm.Shelves[i].TypeKey, active, "", base.Status, base.NodeParam, "scope", base.Scope)
+		}
+		vm.RecentAllHref = "/wissen" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope, "recent", "all")
+		vm.RecentAllFragmentHref = "/ui/wissen/list" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope, "recent", "all")
+		if recentAll {
+			vm.Page = components.PageNav{
+				Page: pageNumber, Total: library.Total, PageSize: wissenPageSize,
+				BaseHref: "/wissen" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope, "recent", "all"),
+			}
+		}
+		return vm, nil
+	}
+
 	activeDocs, archivedDocs, err := s.wissenDocuments(r.Context(), u.ID, base.NodeParam, base.Scope, active)
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
@@ -33,27 +100,6 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 	base.ActiveCount = len(activeDocs)
 	base.ArchivedCount = len(archivedDocs)
 	base = withWissenStatusHrefs(base, "")
-
-	if q != "" {
-		if base.Status != "archived" {
-			hits, err := s.wissenSearch(r.Context(), u.ID, q, base.NodeParam, base.Scope, active)
-			if err != nil {
-				return webui.WissenOverviewVM{}, err
-			}
-			for _, h := range hits {
-				base.Results = append(base.Results, wissenSearchRow(h))
-			}
-		}
-		if base.Status != "active" {
-			for _, d := range archivedDocs {
-				if wissenDocumentMatches(d, q) {
-					base.Results = append(base.Results, wissenArchivedSearchRow(d, q))
-				}
-			}
-		}
-		return webui.WissenOverviewVM{WissenVM: base, TotalCount: len(activeDocs) + len(archivedDocs)}, nil
-	}
-
 	docs := wissenDocumentsForStatus(base.Status, activeDocs, archivedDocs)
 	recentAll := r.URL.Query().Get("recent") == "all"
 	vm := webui.BuildWissenOverview(docs, s.Clock.Now(), recentAll)
@@ -80,6 +126,30 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 		return webui.WissenTypeVM{}, err
 	}
 	overviewHref := "/wissen" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope)
+	if q != "" {
+		pageNumber := atoiDefault(r.URL.Query().Get("page"), 1)
+		query, err := s.wissenLibraryQuery(r.Context(), u.ID, base, shelf.Types, active, wissenPageSize, (pageNumber-1)*wissenPageSize)
+		if err != nil {
+			return webui.WissenTypeVM{}, err
+		}
+		library, err := s.SearchDocumentLibrary.Execute(r.Context(), u.ID, q, query)
+		if err != nil {
+			return webui.WissenTypeVM{}, err
+		}
+		base.ActiveCount = library.ActiveTotal
+		base.ArchivedCount = library.ArchivedTotal
+		base = withWissenStatusHrefs(base, shelf.TypeKey)
+		base = withWissenTagTotals(base, library.TagTotals, basePath, shelf.TypeKey)
+		for _, hit := range library.Results {
+			base.Results = append(base.Results, wissenSearchRow(hit))
+		}
+		base.Page = components.PageNav{
+			Page: pageNumber, Total: library.Total, PageSize: wissenPageSize,
+			BaseHref: basePath + wissenQueryStringFull(shelf.TypeKey, active, q, base.Status, base.NodeParam, "scope", base.Scope),
+		}
+		base.Query = wissenQueryStringFull(shelf.TypeKey, active, q, base.Status, base.NodeParam, "scope", base.Scope, "page", strconv.Itoa(pageNumber))
+		return webui.WissenTypeVM{WissenVM: base, Shelf: shelf, Total: library.Total, OverviewHref: overviewHref}, nil
+	}
 
 	if q == "" && s.ListDocumentLibrary.Docs != nil {
 		pageNumber := atoiDefault(r.URL.Query().Get("page"), 1)
@@ -94,6 +164,7 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 		base.ActiveCount = library.ActiveTotal
 		base.ArchivedCount = library.ArchivedTotal
 		base = withWissenStatusHrefs(base, shelf.TypeKey)
+		base = withWissenTagTotals(base, library.TagTotals, basePath, shelf.TypeKey)
 		vm := webui.BuildWissenType(shelf, library.Documents, s.Clock.Now())
 		vm.WissenVM = base
 		vm.Total = library.Total
@@ -116,32 +187,6 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 	base.ActiveCount = len(activeDocs)
 	base.ArchivedCount = len(archivedDocs)
 	base = withWissenStatusHrefs(base, shelf.TypeKey)
-
-	if q != "" {
-		var hits []domain.SearchHit
-		if base.Status != "archived" {
-			hits, err = s.wissenSearch(r.Context(), u.ID, q, base.NodeParam, base.Scope, active)
-			if err != nil {
-				return webui.WissenTypeVM{}, err
-			}
-		}
-		vm := webui.WissenTypeVM{WissenVM: base, Shelf: shelf, OverviewHref: overviewHref}
-		for _, h := range hits {
-			if !webui.DocumentInShelf(h.Document, shelf) {
-				continue
-			}
-			vm.Results = append(vm.Results, wissenSearchRow(h))
-		}
-		if base.Status != "active" {
-			for _, d := range archivedDocs {
-				if webui.DocumentInShelf(d, shelf) && wissenDocumentMatches(d, q) {
-					vm.Results = append(vm.Results, wissenArchivedSearchRow(d, q))
-				}
-			}
-		}
-		vm.Total = len(vm.Results)
-		return vm, nil
-	}
 
 	filtered := wissenDocumentsForStatus(base.Status, activeDocs, archivedDocs)
 	page := atoiDefault(r.URL.Query().Get("page"), 1)
@@ -205,17 +250,10 @@ func wissenSearchRow(h domain.SearchHit) webui.SearchRow {
 		ID:        h.ID,
 		Title:     h.Title,
 		Path:      h.Path,
+		Archived:  h.Archived,
 		ChipClass: webui.DocTypeChipClass(h.Type),
 		ChipLabel: webui.DocTypeLabel(h.Type),
 		Snippet:   renderSnippet(h.Snippet),
-	}
-}
-
-func wissenArchivedSearchRow(d domain.Document, q string) webui.SearchRow {
-	return webui.SearchRow{
-		ID: d.ID, Title: d.Title, Path: d.Path, Archived: true,
-		ChipClass: webui.DocTypeChipClass(d.Type), ChipLabel: webui.DocTypeLabel(d.Type),
-		Snippet: renderSnippet(wissenArchiveSnippet(d, q)),
 	}
 }
 
@@ -232,10 +270,14 @@ func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath, typeKey 
 	nodeParam := strings.TrimSpace(r.URL.Query().Get("node"))
 	scope := wissenScope(r.URL.Query().Get("scope"), nodeParam)
 
-	docType := domain.TaggableDocument
-	allTags, err := s.ListTags.Execute(r.Context(), u.ID, domain.TagScope{Type: &docType})
-	if err != nil {
-		return webui.WissenVM{}, nil, "", err
+	var allTags []domain.TagCount
+	if s.ListDocumentLibrary.Docs == nil {
+		docType := domain.TaggableDocument
+		var err error
+		allTags, err = s.ListTags.Execute(r.Context(), u.ID, domain.TagScope{Type: &docType})
+		if err != nil {
+			return webui.WissenVM{}, nil, "", err
+		}
 	}
 	activeSet := map[string]bool{}
 	for _, t := range active {
@@ -256,9 +298,7 @@ func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath, typeKey 
 		if nerr != nil {
 			return webui.WissenVM{}, nil, "", nerr
 		}
-		for _, n := range nodes {
-			nodeOptions = append(nodeOptions, webui.WissenNodeOption{ID: n.ID, Name: n.Name})
-		}
+		nodeOptions = wissenNodeOptions(nodes)
 	}
 	return webui.WissenVM{
 		User:         u.Username,
@@ -275,6 +315,78 @@ func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath, typeKey 
 		NodeOptions:  nodeOptions,
 		FilterAction: basePath,
 	}, active, q, nil
+}
+
+func withWissenTagTotals(vm webui.WissenVM, totals []domain.TagCount, basePath, typeKey string) webui.WissenVM {
+	activeSet := make(map[string]bool, len(vm.ActiveTags))
+	counts := make(map[string]int, len(totals)+len(vm.ActiveTags))
+	for _, tag := range vm.ActiveTags {
+		activeSet[tag] = true
+		counts[tag] = 0
+	}
+	for _, total := range totals {
+		counts[total.Tag] = total.Count
+	}
+	totals = totals[:0]
+	for tag, count := range counts {
+		totals = append(totals, domain.TagCount{Tag: tag, Count: count})
+	}
+	sort.Slice(totals, func(i, j int) bool {
+		if totals[i].Count != totals[j].Count {
+			return totals[i].Count > totals[j].Count
+		}
+		return totals[i].Tag < totals[j].Tag
+	})
+	vm.AllTags = make([]webui.TagChip, 0, len(totals))
+	for _, total := range totals {
+		vm.AllTags = append(vm.AllTags, webui.TagChip{
+			Tag: total.Tag, Count: total.Count, Active: activeSet[total.Tag],
+			Href: basePath + wissenQueryStringFull(typeKey, toggledTags(vm.ActiveTags, total.Tag), vm.SearchQ, vm.Status, vm.NodeParam, "scope", vm.Scope),
+		})
+	}
+	return vm
+}
+
+func wissenNodeOptions(nodes []domain.Node) []webui.WissenNodeOption {
+	byID := make(map[string]domain.Node, len(nodes))
+	for _, node := range nodes {
+		byID[node.ID] = node
+	}
+	memo := make(map[string]string, len(nodes))
+	var label func(string, map[string]bool) string
+	label = func(id string, visiting map[string]bool) string {
+		if cached, ok := memo[id]; ok {
+			return cached
+		}
+		node, ok := byID[id]
+		if !ok {
+			return ""
+		}
+		if visiting[id] {
+			return node.Name
+		}
+		visiting[id] = true
+		name := node.Name
+		if node.ParentID != nil {
+			if parent := label(*node.ParentID, visiting); parent != "" {
+				name = parent + " / " + name
+			}
+		}
+		delete(visiting, id)
+		memo[id] = name
+		return name
+	}
+	options := make([]webui.WissenNodeOption, 0, len(nodes))
+	for _, node := range nodes {
+		options = append(options, webui.WissenNodeOption{ID: node.ID, Name: label(node.ID, map[string]bool{})})
+	}
+	sort.Slice(options, func(i, j int) bool {
+		if options[i].Name != options[j].Name {
+			return options[i].Name < options[j].Name
+		}
+		return options[i].ID < options[j].ID
+	})
+	return options
 }
 
 func (s *Server) wissenDocuments(ctx context.Context, ownerID, nodeParam, scope string, tags []string) ([]domain.Document, []domain.Document, error) {
@@ -310,27 +422,6 @@ func (s *Server) wissenDocuments(ctx context.Context, ownerID, nodeParam, scope 
 		return nil, nil, err
 	}
 	return active, filterWissenDocuments(archived, nodeParam, tags), nil
-}
-
-func (s *Server) wissenSearch(ctx context.Context, ownerID, q, nodeParam, scope string, tags []string) ([]domain.SearchHit, error) {
-	if scope != "subtree" {
-		return s.SearchDocuments.Execute(ctx, ownerID, q, wissenNodeFilter(nodeParam), tags)
-	}
-	allowed, err := s.wissenSubtreeIDs(ctx, ownerID, nodeParam)
-	if err != nil {
-		return nil, err
-	}
-	hits, err := s.SearchDocuments.Execute(ctx, ownerID, q, nil, tags)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]domain.SearchHit, 0, len(hits))
-	for _, hit := range hits {
-		if hit.NodeID != nil && allowed[*hit.NodeID] {
-			out = append(out, hit)
-		}
-	}
-	return out, nil
 }
 
 func (s *Server) wissenSubtreeIDs(ctx context.Context, ownerID, nodeID string) (map[string]bool, error) {
@@ -584,28 +675,6 @@ func filterWissenDocumentsByNodeIDs(docs []domain.Document, allowed map[string]b
 		}
 	}
 	return out
-}
-
-func wissenDocumentMatches(d domain.Document, q string) bool {
-	q = strings.ToLower(strings.TrimSpace(q))
-	return q == "" || strings.Contains(strings.ToLower(d.Title+"\n"+d.Path+"\n"+d.Body), q)
-}
-
-func wissenArchiveSnippet(d domain.Document, q string) string {
-	source := strings.TrimSpace(d.Body)
-	if source == "" {
-		source = d.Path
-	}
-	const max = 180
-	runes := []rune(source)
-	if len(runes) > max {
-		source = string(runes[:max]) + "…"
-	}
-	lower, needle := strings.ToLower(source), strings.ToLower(strings.TrimSpace(q))
-	if i := strings.Index(lower, needle); needle != "" && i >= 0 && i+len(needle) <= len(source) {
-		return source[:i] + domain.HighlightStart + source[i:i+len(needle)] + domain.HighlightEnd + source[i+len(needle):]
-	}
-	return source
 }
 
 // toggledTags returns active with tag removed if present, or appended if not

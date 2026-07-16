@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,26 +54,27 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		Users:   users,
 		Session: codec,
 
-		ListDocuments:       usecase.ListDocuments{Docs: docs},
-		ListDocumentsPage:   usecase.NewListDocumentsPage(docs),
-		ListDocumentLibrary: usecase.ListDocumentLibrary{Docs: docs},
-		ListNodes:           usecase.ListNodes{Nodes: projects},
-		CreateDocument:      usecase.CreateDocument{Docs: docs, Tags: tags, IDs: &testutil.FakeIDGen{}, Clock: clk},
-		GetDocument:         usecase.GetDocument{Docs: docs},
-		UpdateDocument:      usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
-		MoveDocument:        usecase.MoveDocument{Docs: docs, Nodes: projects, Clock: clk},
-		DeleteDocument:      usecase.DeleteDocument{Docs: docs},
-		BacklinksDocument:   usecase.Backlinks{Docs: docs},
-		ListTags:            usecase.ListTags{Tags: tags},
-		SearchDocuments:     usecase.SearchDocuments{Docs: docs},
-		GetEmbedStatus:      usecase.GetEmbedStatus{Docs: docs},
-		RetryEmbedding:      usecase.RetryEmbedding{Docs: docs},
-		NodeAncestors:       usecase.NodeAncestors{Nodes: projects},
-		SetPinned:           usecase.SetPinned{Docs: docs},
-		SetArchived:         usecase.SetArchived{Docs: docs},
-		ListArchived:        usecase.ListArchived{Docs: docs},
-		SetContextMode:      usecase.SetContextMode{Docs: docs},
-		ListArtifacts:       usecase.ListArtifacts{Nodes: projects, Artifacts: artifacts},
+		ListDocuments:         usecase.ListDocuments{Docs: docs},
+		ListDocumentsPage:     usecase.NewListDocumentsPage(docs),
+		ListDocumentLibrary:   usecase.ListDocumentLibrary{Docs: docs},
+		SearchDocumentLibrary: usecase.SearchDocumentLibrary{Docs: docs},
+		ListNodes:             usecase.ListNodes{Nodes: projects},
+		CreateDocument:        usecase.CreateDocument{Docs: docs, Nodes: projects, Tags: tags, IDs: &testutil.FakeIDGen{}, Clock: clk},
+		GetDocument:           usecase.GetDocument{Docs: docs},
+		UpdateDocument:        usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
+		MoveDocument:          usecase.MoveDocument{Docs: docs, Nodes: projects, Clock: clk},
+		DeleteDocument:        usecase.DeleteDocument{Docs: docs},
+		BacklinksDocument:     usecase.Backlinks{Docs: docs},
+		ListTags:              usecase.ListTags{Tags: tags},
+		SearchDocuments:       usecase.SearchDocuments{Docs: docs},
+		GetEmbedStatus:        usecase.GetEmbedStatus{Docs: docs},
+		RetryEmbedding:        usecase.RetryEmbedding{Docs: docs},
+		NodeAncestors:         usecase.NodeAncestors{Nodes: projects},
+		SetPinned:             usecase.SetPinned{Docs: docs},
+		SetArchived:           usecase.SetArchived{Docs: docs},
+		ListArchived:          usecase.ListArchived{Docs: docs},
+		SetContextMode:        usecase.SetContextMode{Docs: docs},
+		ListArtifacts:         usecase.ListArtifacts{Nodes: projects, Artifacts: artifacts},
 	}
 	return srv, codec, docs, projects
 }
@@ -278,10 +280,56 @@ func TestWebWissenAllAndArchivedSearch(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("GET all search status=%d body=%.500s", status, body)
 	}
-	for _, want := range []string{"Active Alpha", "Archived Alpha", "<mark>alpha</mark>", "Archiviert"} {
+	for _, want := range []string{"Active Alpha", "Archived Alpha", "<mark>Alpha</mark>", "Archiviert"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("all search missing %q in %.1800s", want, body)
 		}
+	}
+}
+
+func TestWebWissenSearchPaginatesOneRankedActiveAndArchivedResultSet(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < wissenPageSize+2; i++ {
+		id := fmt.Sprintf("alpha-%02d", i)
+		if _, err := docs.Create(ctx, domain.Document{
+			ID: id, OwnerID: "u1", Type: domain.DocFree, Path: "notes/" + id,
+			Title: "Alpha " + id, Body: "alpha result", CreatedAt: now, UpdatedAt: now.Add(time.Duration(i) * time.Minute),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if i < 2 {
+			if err := docs.SetArchived(ctx, "u1", id, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	page1, status := getWissen(t, wissenTestMux(srv), "/wissen?status=all&q=alpha", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET search page 1 status=%d body=%.500s", status, page1)
+	}
+	for _, want := range []string{"Aktiv 50", "Archiv 2", "Seite 1 / 2", "q=alpha", "status=all", "page=2"} {
+		if !strings.Contains(page1, want) {
+			t.Errorf("search page 1 missing %q in %.2600s", want, page1)
+		}
+	}
+	if strings.Contains(page1, "Alpha alpha-00") {
+		t.Fatalf("oldest result leaked onto first ranked page: %.2600s", page1)
+	}
+
+	page2, status := getWissen(t, wissenTestMux(srv), "/wissen?status=all&q=alpha&page=2", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET search page 2 status=%d body=%.500s", status, page2)
+	}
+	for _, want := range []string{"Alpha alpha-00", "Alpha alpha-01", "Archiviert", "Seite 2 / 2"} {
+		if !strings.Contains(page2, want) {
+			t.Errorf("search page 2 missing %q in %.2600s", want, page2)
+		}
+	}
+	if strings.Contains(page2, "Alpha alpha-51") {
+		t.Fatalf("newest result repeated on second ranked page: %.2600s", page2)
 	}
 }
 
@@ -318,6 +366,90 @@ func TestWebWissenHomeShelvesAndRecent(t *testing.T) {
 	for _, notWant := range []string{"daily-sec", "notes-sec", "free-sec", "system-sec"} {
 		if strings.Contains(body, notWant) {
 			t.Fatalf("overview should not render old category section %q", notWant)
+		}
+	}
+}
+
+func TestWebWissenOverviewRecentAllIsStorePaginated(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 202; i++ {
+		id := fmt.Sprintf("overview-%03d", i)
+		if _, err := docs.Create(ctx, domain.Document{
+			ID: id, OwnerID: "u1", Type: domain.DocFree, Path: "free/" + id,
+			Title: "Overview " + id, CreatedAt: now, UpdatedAt: now.Add(time.Duration(i) * time.Minute),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen?status=all&recent=all&page=5", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET paginated overview status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{"202 Dokumente", "Overview overview-000", "Overview overview-001", "Seite 5 / 5", "recent=all"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("paginated overview missing %q in %.3000s", want, body)
+		}
+	}
+	if strings.Contains(body, "Overview overview-201") {
+		t.Fatalf("newest overview document repeated on page 5: %.3000s", body)
+	}
+}
+
+func TestWebWissenFacetsFollowStatusNodeTypeAndUseHierarchicalNodeLabels(t *testing.T) {
+	srv, codec, _, nodes := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for _, node := range []domain.Node{
+		{ID: "eng-one", OwnerID: "u1", Kind: domain.KindEngagement, Name: "Engagement One", Slug: "eng-one", Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now},
+		{ID: "eng-two", OwnerID: "u1", Kind: domain.KindEngagement, Name: "Engagement Two", Slug: "eng-two", Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := nodes.Create(ctx, node); err != nil {
+			t.Fatal(err)
+		}
+	}
+	engOne, engTwo := "eng-one", "eng-two"
+	for _, node := range []domain.Node{
+		{ID: "repo-one", OwnerID: "u1", ParentID: &engOne, Kind: domain.KindRepo, Name: "Shared", Slug: "shared-one", Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now},
+		{ID: "repo-two", OwnerID: "u1", ParentID: &engTwo, Kind: domain.KindRepo, Name: "Shared", Slug: "shared-two", Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := nodes.Create(ctx, node); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repoOne, repoTwo := "repo-one", "repo-two"
+	create := func(typ domain.DocumentType, nodeID *string, title string, tags []string, archived bool) {
+		doc, err := srv.CreateDocument.Execute(ctx, "u1", usecase.CreateDocumentInput{
+			Type: typ, NodeID: nodeID, Path: strings.ToLower(strings.ReplaceAll(title, " ", "-")), Title: title, Body: "body", Tags: tags,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if archived {
+			if err := srv.SetArchived.Execute(ctx, "u1", doc.ID, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	create(domain.DocProject, &repoOne, "Scoped Archived", []string{"ops", "common"}, true)
+	create(domain.DocProject, &repoOne, "Scoped Active", []string{"active-only"}, false)
+	create(domain.DocProject, &repoTwo, "Other Archived", []string{"other"}, true)
+	create(domain.DocMemory, &repoOne, "Memory Archived", []string{"memory-only"}, true)
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=project&node=repo-one&status=archived", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET scoped facets status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{"Scoped Archived", "ops", "common", "Engagement One / Shared", "Engagement Two / Shared"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("scoped facets missing %q in %.3200s", want, body)
+		}
+	}
+	for _, notWant := range []string{"Scoped Active", "Other Archived", "Memory Archived", "active-only", "other", "memory-only"} {
+		if strings.Contains(body, notWant) {
+			t.Errorf("scoped facets leaked %q in %.3200s", notWant, body)
 		}
 	}
 }
@@ -408,6 +540,45 @@ func TestWebWissenTypeSearchIsShelfScoped(t *testing.T) {
 	}
 	if !strings.Contains(body, "Free Alpha") || strings.Contains(body, "Daily Alpha") {
 		t.Fatalf("free shelf search not scoped: %.1000s", body)
+	}
+}
+
+func TestWebWissenTypeSearchPaginatesWithinShelf(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < wissenPageSize+2; i++ {
+		id := fmt.Sprintf("free-alpha-%02d", i)
+		if _, err := docs.Create(ctx, domain.Document{
+			ID: id, OwnerID: "u1", Type: domain.DocFree, Path: "free/" + id,
+			Title: "Alpha " + id, Body: "alpha", CreatedAt: now, UpdatedAt: now.Add(time.Duration(i) * time.Minute),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if i < 2 {
+			if err := docs.SetArchived(ctx, "u1", id, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "daily-alpha", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/alpha",
+		Title: "Daily Alpha Outside Shelf", Body: "alpha", CreatedAt: now, UpdatedAt: now.Add(3 * time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=free&status=all&q=alpha&page=2", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET free search page 2 status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{"Alpha free-alpha-00", "Alpha free-alpha-01", "Archiviert", "Seite 2 / 2"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("free search page 2 missing %q in %.2600s", want, body)
+		}
+	}
+	if strings.Contains(body, "Daily Alpha Outside Shelf") || strings.Contains(body, "Alpha free-alpha-51") {
+		t.Fatalf("free search page escaped shelf or repeated page 1: %.2600s", body)
 	}
 }
 

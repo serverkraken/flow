@@ -347,15 +347,23 @@ type DocumentLibraryQuery struct {
 	Types          []domain.DocumentType
 	Tags           []string
 	Status         DocumentLibraryStatus
-	Limit          int
-	Offset         int
+	// Search enables the bounded library search path. Embedding is optional;
+	// when present the store fuses keyword and semantic ranks before applying
+	// status and pagination.
+	Search    string
+	Embedding []float32
+	Limit     int
+	Offset    int
 }
 
 type DocumentLibraryPage struct {
 	Documents     []domain.Document
+	Results       []domain.SearchHit
 	Total         int
 	ActiveTotal   int
 	ArchivedTotal int
+	TypeTotals    map[domain.DocumentType]int
+	TagTotals     []domain.TagCount
 }
 
 // DocumentStore persists compendium documents. All reads are owner-scoped.
@@ -371,7 +379,8 @@ type DocumentStore interface {
 	// matching the owner/project/tag filter, for server-side pagination.
 	ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error)
 	// ListLibraryPage returns one bounded management page plus status facets
-	// calculated from the same owner/node/type/tag filter space.
+	// calculated from the same owner/node/type/tag/search filter space. When
+	// Search is set, Results contains the ranked page and Documents is empty.
 	ListLibraryPage(ctx context.Context, ownerID string, query DocumentLibraryQuery) (DocumentLibraryPage, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
 	// Move atomically replaces type, node, path, date and write provenance.

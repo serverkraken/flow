@@ -167,6 +167,9 @@ templ wissenRecentSection(vm WissenOverviewVM) {
 				@wissenRow(row)
 			}
 		}
+		if vm.RecentAll && vm.Page.PageSize > 0 && (vm.Page.Total > 0 || vm.Page.Page > 1) {
+			@components.Pagination(vm.Page)
+		}
 	</div>
 }
 
@@ -249,6 +252,9 @@ templ wissenResults(vm WissenVM) {
 					</div>
 				</a>
 			}
+		}
+		if vm.Page.PageSize > 0 && (vm.Page.Total > 0 || vm.Page.Page > 1) {
+			@components.Pagination(vm.Page)
 		}
 	</div>
 }

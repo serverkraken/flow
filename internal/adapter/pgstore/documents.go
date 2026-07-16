@@ -79,15 +79,19 @@ func appendLibraryTypeFilter(q, col string, args *[]any, types []domain.Document
 
 // appendTagFilter adds an AND-containment junction subquery for the given tag slugs.
 func appendTagFilter(q string, args *[]any, ownerID string, tags []string) string {
+	return appendTagFilterOn(q, "id", args, ownerID, tags)
+}
+
+func appendTagFilterOn(q, idCol string, args *[]any, ownerID string, tags []string) string {
 	tags = domain.NormalizeTags(tags)
 	if len(tags) == 0 {
 		return q
 	}
 	*args = append(*args, ownerID, tags)
 	ownPos, tagPos := len(*args)-1, len(*args)
-	return q + fmt.Sprintf(` AND id IN (SELECT tg.taggable_id FROM taggings tg JOIN tags t ON t.id = tg.tag_id `+
+	return q + fmt.Sprintf(` AND %s IN (SELECT tg.taggable_id FROM taggings tg JOIN tags t ON t.id = tg.tag_id `+
 		`WHERE t.owner_id=$%d AND tg.taggable_type='document' AND t.slug = ANY($%d) `+
-		`GROUP BY tg.taggable_id HAVING count(DISTINCT t.slug) = cardinality($%d))`, ownPos, tagPos, tagPos)
+		`GROUP BY tg.taggable_id HAVING count(DISTINCT t.slug) = cardinality($%d))`, idCol, ownPos, tagPos, tagPos)
 }
 
 func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []domain.Document) ([]domain.Document, error) {
@@ -223,15 +227,25 @@ func (s *DocumentStore) ListLibraryPage(ctx context.Context, ownerID string, que
 	if offset < 0 {
 		offset = 0
 	}
+	if strings.TrimSpace(query.Search) != "" {
+		page, err := s.searchLibraryPageTx(ctx, tx, ownerID, query, limit, offset)
+		if err != nil {
+			return ports.DocumentLibraryPage{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: commit document library search: %w", err)
+		}
+		return page, nil
+	}
 
-	where := ` WHERE owner_id=$1`
+	where := ` WHERE d.owner_id=$1`
 	args := []any{ownerID}
-	where = appendLibraryNodeFilter(where, "node_id", &args, query)
-	where = appendLibraryTypeFilter(where, "type", &args, query.Types)
-	where = appendTagFilter(where, &args, ownerID, query.Tags)
+	where = appendLibraryNodeFilter(where, "d.node_id", &args, query)
+	where = appendLibraryTypeFilter(where, "d.type", &args, query.Types)
+	where = appendTagFilterOn(where, "d.id", &args, ownerID, query.Tags)
 
 	page := ports.DocumentLibraryPage{}
-	countSQL := `SELECT count(*) FILTER (WHERE NOT archived), count(*) FILTER (WHERE archived) FROM documents` + where
+	countSQL := `SELECT count(*) FILTER (WHERE NOT d.archived), count(*) FILTER (WHERE d.archived) FROM documents d` + where
 	if err := tx.QueryRow(ctx, countSQL, args...).Scan(&page.ActiveTotal, &page.ArchivedTotal); err != nil {
 		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: count document library: %w", err)
 	}
@@ -239,21 +253,24 @@ func (s *DocumentStore) ListLibraryPage(ctx context.Context, ownerID string, que
 	statusWhere := where
 	switch query.Status {
 	case ports.DocumentLibraryArchived:
-		statusWhere += ` AND archived`
+		statusWhere += ` AND d.archived`
 		page.Total = page.ArchivedTotal
 	case ports.DocumentLibraryAll:
 		page.Total = page.ActiveTotal + page.ArchivedTotal
 	default:
-		statusWhere += ` AND NOT archived`
+		statusWhere += ` AND NOT d.archived`
 		page.Total = page.ActiveTotal
+	}
+	if err := s.loadDocumentLibraryFacets(ctx, tx, ownerID, statusWhere, args, &page); err != nil {
+		return ports.DocumentLibraryPage{}, err
 	}
 
 	pageArgs := append(append([]any(nil), args...), limit, offset)
-	order := `updated_at DESC, id ASC`
+	order := `d.updated_at DESC, d.id ASC`
 	if query.Status == ports.DocumentLibraryArchived {
-		order = `archived_at DESC NULLS LAST, id ASC`
+		order = `d.archived_at DESC NULLS LAST, d.id ASC`
 	}
-	listSQL := `SELECT ` + docCols + ` FROM documents` + statusWhere +
+	listSQL := `SELECT ` + prefixedDocCols + ` FROM documents d` + statusWhere +
 		fmt.Sprintf(` ORDER BY %s LIMIT $%d OFFSET $%d`, order, len(pageArgs)-1, len(pageArgs))
 	rows, err := tx.Query(ctx, listSQL, pageArgs...)
 	if err != nil {
@@ -272,6 +289,208 @@ func (s *DocumentStore) ListLibraryPage(ctx context.Context, ownerID string, que
 		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: commit document library read: %w", err)
 	}
 	return page, nil
+}
+
+func (s *DocumentStore) loadDocumentLibraryFacets(ctx context.Context, tx pgx.Tx, ownerID, statusWhere string, args []any, page *ports.DocumentLibraryPage) error {
+	page.TypeTotals = make(map[domain.DocumentType]int)
+	rows, err := tx.Query(ctx, `SELECT d.type, count(*) FROM documents d`+statusWhere+` GROUP BY d.type`, args...)
+	if err != nil {
+		return fmt.Errorf("pgstore: list document library type facets: %w", err)
+	}
+	for rows.Next() {
+		var typ domain.DocumentType
+		var count int
+		if err := rows.Scan(&typ, &count); err != nil {
+			rows.Close()
+			return err
+		}
+		page.TypeTotals[typ] = count
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	rows, err = tx.Query(ctx, `SELECT t.slug, count(DISTINCT d.id)
+FROM documents d
+JOIN taggings tg ON tg.taggable_id=d.id AND tg.taggable_type='document'
+JOIN tags t ON t.id=tg.tag_id AND t.owner_id=$1`+statusWhere+`
+GROUP BY t.slug ORDER BY count(DISTINCT d.id) DESC, t.slug ASC`, args...)
+	if err != nil {
+		return fmt.Errorf("pgstore: list document library tag facets: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tag domain.TagCount
+		if err := rows.Scan(&tag.Tag, &tag.Count); err != nil {
+			return err
+		}
+		page.TagTotals = append(page.TagTotals, tag)
+	}
+	return rows.Err()
+}
+
+const librarySearchCandidateLimit = 200
+
+func (s *DocumentStore) searchLibraryPageTx(ctx context.Context, tx pgx.Tx, ownerID string, query ports.DocumentLibraryQuery, limit, offset int) (ports.DocumentLibraryPage, error) {
+	cte, args := documentLibrarySearchCTE(ownerID, query)
+	page := ports.DocumentLibraryPage{}
+	countSQL := cte + `
+SELECT count(*) FILTER (WHERE NOT d.archived), count(*) FILTER (WHERE d.archived)
+FROM ranked r JOIN documents d ON d.id=r.id AND d.owner_id=$1`
+	if err := tx.QueryRow(ctx, countSQL, args...).Scan(&page.ActiveTotal, &page.ArchivedTotal); err != nil {
+		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: count document library search: %w", err)
+	}
+
+	statusWhere := ""
+	switch query.Status {
+	case ports.DocumentLibraryArchived:
+		statusWhere = ` WHERE d.archived`
+		page.Total = page.ArchivedTotal
+	case ports.DocumentLibraryAll:
+		page.Total = page.ActiveTotal + page.ArchivedTotal
+	default:
+		statusWhere = ` WHERE NOT d.archived`
+		page.Total = page.ActiveTotal
+	}
+	if err := s.loadDocumentLibrarySearchFacets(ctx, tx, ownerID, cte, statusWhere, args, &page); err != nil {
+		return ports.DocumentLibraryPage{}, err
+	}
+
+	pageArgs := append(append([]any(nil), args...), limit, offset)
+	listSQL := cte + `
+SELECT ` + prefixedDocCols + `, r.snippet
+FROM ranked r JOIN documents d ON d.id=r.id AND d.owner_id=$1` + statusWhere +
+		fmt.Sprintf(` ORDER BY r.score DESC, d.updated_at DESC, d.id ASC LIMIT $%d OFFSET $%d`, len(pageArgs)-1, len(pageArgs))
+	rows, err := tx.Query(ctx, listSQL, pageArgs...)
+	if err != nil {
+		return ports.DocumentLibraryPage{}, fmt.Errorf("pgstore: list document library search: %w", err)
+	}
+	for rows.Next() {
+		hit, scanErr := scanSearchHit(rows)
+		if scanErr != nil {
+			rows.Close()
+			return ports.DocumentLibraryPage{}, scanErr
+		}
+		page.Results = append(page.Results, hit)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return ports.DocumentLibraryPage{}, err
+	}
+	hitDocs := make([]domain.Document, len(page.Results))
+	for i := range page.Results {
+		hitDocs[i] = page.Results[i].Document
+	}
+	hitDocs, err = s.hydrateTagsWith(ctx, tx, ownerID, hitDocs)
+	if err != nil {
+		return ports.DocumentLibraryPage{}, err
+	}
+	for i := range page.Results {
+		page.Results[i].Document = hitDocs[i]
+	}
+	return page, nil
+}
+
+func (s *DocumentStore) loadDocumentLibrarySearchFacets(ctx context.Context, tx pgx.Tx, ownerID, cte, statusWhere string, args []any, page *ports.DocumentLibraryPage) error {
+	page.TypeTotals = make(map[domain.DocumentType]int)
+	rows, err := tx.Query(ctx, cte+`
+SELECT d.type, count(*) FROM ranked r
+JOIN documents d ON d.id=r.id AND d.owner_id=$1`+statusWhere+` GROUP BY d.type`, args...)
+	if err != nil {
+		return fmt.Errorf("pgstore: list document library search type facets: %w", err)
+	}
+	for rows.Next() {
+		var typ domain.DocumentType
+		var count int
+		if err := rows.Scan(&typ, &count); err != nil {
+			rows.Close()
+			return err
+		}
+		page.TypeTotals[typ] = count
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	rows, err = tx.Query(ctx, cte+`
+SELECT t.slug, count(DISTINCT d.id) FROM ranked r
+JOIN documents d ON d.id=r.id AND d.owner_id=$1
+JOIN taggings tg ON tg.taggable_id=d.id AND tg.taggable_type='document'
+JOIN tags t ON t.id=tg.tag_id AND t.owner_id=$1`+statusWhere+`
+GROUP BY t.slug ORDER BY count(DISTINCT d.id) DESC, t.slug ASC`, args...)
+	if err != nil {
+		return fmt.Errorf("pgstore: list document library search tag facets: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tag domain.TagCount
+		if err := rows.Scan(&tag.Tag, &tag.Count); err != nil {
+			return err
+		}
+		page.TagTotals = append(page.TagTotals, tag)
+	}
+	return rows.Err()
+}
+
+func documentLibrarySearchCTE(ownerID string, query ports.DocumentLibraryQuery) (string, []any) {
+	args := []any{ownerID}
+	where := ` WHERE d.owner_id=$1`
+	where = appendLibraryNodeFilter(where, "d.node_id", &args, query)
+	where = appendLibraryTypeFilter(where, "d.type", &args, query.Types)
+	where = appendTagFilterOn(where, "d.id", &args, ownerID, query.Tags)
+	args = append(args, strings.TrimSpace(query.Search), headlineOpts)
+	searchPos, headlinePos := len(args)-1, len(args)
+
+	cte := fmt.Sprintf(`WITH filtered AS (
+  SELECT d.id FROM documents d%s
+), fts AS (
+  SELECT websearch_to_tsquery('simple', $%d) AS ftsq,
+         coalesce(to_tsquery('simple',
+           (SELECT string_agg(w || ':*', ' | ')
+            FROM unnest(tsvector_to_array(to_tsvector('simple', $%d))) AS w)), ''::tsquery) AS prefixq
+), keyword_ranked AS (
+  SELECT d.id,
+         row_number() OVER (ORDER BY (d.search @@ fts.ftsq) DESC,
+           ts_rank(d.search, fts.ftsq) DESC,
+           GREATEST(word_similarity($%d, d.title), word_similarity($%d, d.body)) DESC,
+           d.updated_at DESC, d.id ASC) AS rank,
+         ts_headline('simple', coalesce(d.title,'')||' '||coalesce(d.body,''), fts.ftsq || fts.prefixq, $%d) AS snippet
+  FROM documents d JOIN filtered f ON f.id=d.id CROSS JOIN fts
+  WHERE d.search @@ fts.ftsq OR $%d <%% (coalesce(d.title,'')||' '||coalesce(d.body,''))
+  ORDER BY rank
+  LIMIT %d
+)`, where, searchPos, searchPos, searchPos, searchPos, headlinePos, searchPos, librarySearchCandidateLimit)
+
+	semanticUnion := ""
+	if len(query.Embedding) > 0 {
+		args = append(args, vectorLiteral(query.Embedding))
+		vectorPos := len(args)
+		cte += fmt.Sprintf(`, semantic_best AS (
+  SELECT DISTINCT ON (c.document_id) c.document_id AS id, c.content AS snippet,
+         c.embedding <=> $%d::vector AS distance
+  FROM document_chunks c JOIN filtered f ON f.id=c.document_id
+  WHERE c.owner_id=$1
+  ORDER BY c.document_id, distance
+), semantic_ranked AS (
+  SELECT id, snippet, row_number() OVER (ORDER BY distance, id ASC) AS rank
+  FROM semantic_best
+  ORDER BY rank
+  LIMIT %d
+)`, vectorPos, librarySearchCandidateLimit)
+		semanticUnion = `
+  UNION ALL
+  SELECT id, 1.0/(60+rank), snippet, false FROM semantic_ranked`
+	}
+	cte += `, candidate_rows AS (
+  SELECT id, 1.0/(60+rank) AS score, snippet, true AS keyword FROM keyword_ranked` + semanticUnion + `
+), ranked AS (
+  SELECT id, sum(score) AS score,
+         coalesce(max(snippet) FILTER (WHERE keyword), max(snippet)) AS snippet
+  FROM candidate_rows GROUP BY id
+)`
+	return cte, args
 }
 
 func (s *DocumentStore) Update(ctx context.Context, d domain.Document) (domain.Document, error) {

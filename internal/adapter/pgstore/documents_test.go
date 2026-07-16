@@ -437,7 +437,7 @@ func TestDocumentStore_ListLibraryPageFacetsAreOwnerScopedAndFilterConsistent(t 
 	create := func(id, owner, nodeID string, typ domain.DocumentType, updated time.Time, tag string) {
 		nid := nodeID
 		if _, err := store.Create(ctx, domain.Document{
-			ID: id, OwnerID: owner, NodeID: &nid, Type: typ, Path: id, Title: id,
+			ID: id, OwnerID: owner, NodeID: &nid, Type: typ, Path: id, Title: id, Body: "alpha library",
 			CreatedAt: now, UpdatedAt: updated,
 		}); err != nil {
 			t.Fatal(err)
@@ -476,6 +476,12 @@ func TestDocumentStore_ListLibraryPageFacetsAreOwnerScopedAndFilterConsistent(t 
 	if page.Total != 3 || page.ActiveTotal != 2 || page.ArchivedTotal != 1 {
 		t.Fatalf("library facets = total:%d active:%d archived:%d, want 3/2/1", page.Total, page.ActiveTotal, page.ArchivedTotal)
 	}
+	if page.TypeTotals[domain.DocPlan] != 3 || len(page.TypeTotals) != 1 {
+		t.Fatalf("library type facets = %#v, want plan:3", page.TypeTotals)
+	}
+	if len(page.TagTotals) != 1 || page.TagTotals[0] != (domain.TagCount{Tag: "ops", Count: 3}) {
+		t.Fatalf("library tag facets = %#v, want ops:3", page.TagTotals)
+	}
 	if len(page.Documents) != 2 {
 		t.Fatalf("library page len=%d, want 2: %+v", len(page.Documents), page.Documents)
 	}
@@ -495,6 +501,9 @@ func TestDocumentStore_ListLibraryPageFacetsAreOwnerScopedAndFilterConsistent(t 
 	if archived.Total != 1 || len(archived.Documents) != 1 || archived.Documents[0].ID != "lib-n2-archived" {
 		t.Fatalf("archived library page = %+v", archived)
 	}
+	if archived.TypeTotals[domain.DocPlan] != 1 || len(archived.TagTotals) != 1 || archived.TagTotals[0].Count != 1 {
+		t.Fatalf("archived contextual facets = %+v", archived)
+	}
 	empty, err := store.ListLibraryPage(ctx, "u-library", ports.DocumentLibraryQuery{
 		FilterNodeIDs: true, Status: ports.DocumentLibraryAll, Limit: 10,
 	})
@@ -503,6 +512,20 @@ func TestDocumentStore_ListLibraryPageFacetsAreOwnerScopedAndFilterConsistent(t 
 	}
 	if empty.Total != 0 || empty.ActiveTotal != 0 || empty.ArchivedTotal != 0 || len(empty.Documents) != 0 {
 		t.Fatalf("empty resolved node set must match nothing, got %+v", empty)
+	}
+
+	search, err := store.ListLibraryPage(ctx, "u-library", ports.DocumentLibraryQuery{
+		NodeIDs: []string{"lib-n1", "lib-n2"}, FilterNodeIDs: true, Types: []domain.DocumentType{domain.DocPlan},
+		Tags: []string{"ops"}, Status: ports.DocumentLibraryAll, Search: "alpha", Limit: 1, Offset: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if search.Total != 3 || search.ActiveTotal != 2 || search.ArchivedTotal != 1 || len(search.Results) != 1 {
+		t.Fatalf("paginated library search = %+v, want total 3, facets 2/1 and one hit", search)
+	}
+	if search.Results[0].ID != "lib-n2-archived" || !strings.Contains(search.Results[0].Snippet, domain.HighlightStart) {
+		t.Fatalf("ranked library search page = %+v, want highlighted lib-n2-archived", search.Results)
 	}
 
 	toggleDone := make(chan error, 1)
@@ -518,18 +541,18 @@ func TestDocumentStore_ListLibraryPageFacetsAreOwnerScopedAndFilterConsistent(t 
 	for i := 0; i < 50; i++ {
 		snapshot, err := store.ListLibraryPage(ctx, "u-library", ports.DocumentLibraryQuery{
 			NodeIDs: []string{"lib-n1", "lib-n2"}, FilterNodeIDs: true, Types: []domain.DocumentType{domain.DocPlan},
-			Tags: []string{"ops"}, Status: ports.DocumentLibraryAll, Limit: 10,
+			Tags: []string{"ops"}, Status: ports.DocumentLibraryAll, Search: "alpha", Limit: 10,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		archivedDocs := 0
-		for _, doc := range snapshot.Documents {
-			if doc.Archived {
+		for _, hit := range snapshot.Results {
+			if hit.Archived {
 				archivedDocs++
 			}
 		}
-		if snapshot.Total != 3 || len(snapshot.Documents) != 3 || snapshot.ActiveTotal+snapshot.ArchivedTotal != 3 || archivedDocs != snapshot.ArchivedTotal {
+		if snapshot.Total != 3 || len(snapshot.Results) != 3 || snapshot.ActiveTotal+snapshot.ArchivedTotal != 3 || archivedDocs != snapshot.ArchivedTotal || snapshot.TypeTotals[domain.DocPlan] != 3 || len(snapshot.TagTotals) != 1 || snapshot.TagTotals[0].Count != 3 {
 			t.Fatalf("mixed library snapshot during concurrent archive: %+v archivedDocs=%d", snapshot, archivedDocs)
 		}
 	}
@@ -783,6 +806,21 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	tagged, _ := s.SemanticSearch(ctx, owner, vec(1.0), nil, []string{"go"}, 10)
 	if len(tagged) != 1 || tagged[0].Path != "near" {
 		t.Fatalf("tag-filtered semantic = %#v, want [near]", tagged)
+	}
+	if err := s.SetArchived(ctx, owner, "near", true); err != nil {
+		t.Fatal(err)
+	}
+	library, err := s.ListLibraryPage(ctx, owner, ports.DocumentLibraryQuery{
+		Search: "no-keyword-match", Embedding: vec(1.0), Status: ports.DocumentLibraryAll, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if library.Total != 2 || library.ActiveTotal != 1 || library.ArchivedTotal != 1 || len(library.Results) != 2 {
+		t.Fatalf("semantic-only library search = %+v, want active+archived result set", library)
+	}
+	if library.Results[0].ID != "near" || !library.Results[0].Archived || library.Results[0].Snippet != "near chunk" {
+		t.Fatalf("semantic-only top library hit = %+v, want archived near chunk", library.Results[0])
 	}
 	mkDoc("fresh", "Fresh", "fresh")
 	stale, _ := s.StaleDocuments(ctx, 100)
