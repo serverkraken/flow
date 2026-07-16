@@ -29,13 +29,31 @@ type WissenShelf struct {
 	LabelKey string
 	DescKey  string
 	Count    int
+	Href     string
 }
 
-func (s WissenShelf) NewDocumentHref() string {
+func (s WissenShelf) NewDocumentHref(nodeID string) string {
 	if len(s.Types) == 0 {
-		return "/wissen/neu"
+		return WissenNewDocumentHref("", nodeID)
 	}
-	return "/wissen/neu?type=" + url.QueryEscape(string(s.Types[0]))
+	return WissenNewDocumentHref(string(s.Types[0]), nodeID)
+}
+
+// WissenNewDocumentHref preserves the selected direct node when entering the
+// editor from the library. "none" means deliberately unassigned and therefore
+// needs no node query parameter.
+func WissenNewDocumentHref(docType, nodeID string) string {
+	v := url.Values{}
+	if docType != "" {
+		v.Set("type", docType)
+	}
+	if nodeID != "" && nodeID != "none" {
+		v.Set("node", nodeID)
+	}
+	if q := v.Encode(); q != "" {
+		return "/wissen/neu?" + q
+	}
+	return "/wissen/neu"
 }
 
 // WissenShelves returns the 7 fixed type-shelves in Mockup order (Z.821–
@@ -90,6 +108,7 @@ func DocumentInShelf(d domain.Document, s WissenShelf) bool {
 // listing, and (L4 Task 2) the Schreibtisch's "Zuletzt im Wissen" section.
 type WissenRowVM struct {
 	ID, Title, ChipClass, ChipLabel, Meta, TimeStr string
+	Archived                                       bool
 }
 
 // WissenRowFromDocument maps a document to a WissenRowVM: ChipClass/
@@ -112,6 +131,7 @@ func WissenRowFromDocument(d domain.Document, now time.Time) WissenRowVM {
 		ChipLabel: DocTypeLabel(d.Type),
 		Meta:      meta,
 		TimeStr:   FmtRelTime(d.UpdatedAt, now),
+		Archived:  d.Archived,
 	}
 }
 
@@ -121,18 +141,19 @@ func WissenRowFromDocument(d domain.Document, now time.Time) WissenRowVM {
 // list.
 type WissenOverviewVM struct {
 	WissenVM
-	TotalCount  int
-	PinnedCount int
-	Shelves     []WissenShelf
-	Recent      []WissenRowVM
-	RecentTotal int
-	RecentAll   bool
+	TotalCount            int
+	PinnedCount           int
+	Shelves               []WissenShelf
+	Recent                []WissenRowVM
+	RecentTotal           int
+	RecentAll             bool
+	RecentAllHref         string
+	RecentAllFragmentHref string
 }
 
-// WissenSummary renders "%d Dokumente · %d angepinnt" (mirrors the
-// ProjectsSummary(ctx, vm) convention used by the Projekte pagehead).
+// WissenSummary renders total, active, and archived inventory counts.
 func WissenSummary(ctx context.Context, vm WissenOverviewVM) string {
-	return fmt.Sprintf(components.T(ctx, "wissen.summary"), vm.TotalCount, vm.PinnedCount)
+	return fmt.Sprintf(components.T(ctx, "wissen.summary"), vm.TotalCount, vm.ActiveCount, vm.ArchivedCount)
 }
 
 // BuildWissenOverview builds the shelf counts and the capped "Zuletzt
@@ -176,9 +197,10 @@ func BuildWissenOverview(docs []domain.Document, now time.Time, recentAll bool) 
 // Wissen rows).
 type WissenTypeVM struct {
 	WissenVM
-	Shelf WissenShelf
-	Rows  []WissenRowVM
-	Total int
+	Shelf        WissenShelf
+	Rows         []WissenRowVM
+	Total        int
+	OverviewHref string
 }
 
 // BuildWissenType maps one page of a shelf's documents to Lesesaal rows.
@@ -193,13 +215,23 @@ func BuildWissenType(shelf WissenShelf, pageDocs []domain.Document, now time.Tim
 // WissenVM is the view model for the Wissen bigsearch/tag-filter machinery,
 // shared by the overview page and the type-shelf page.
 type WissenVM struct {
-	User         string
-	AllTags      []TagChip
-	ActiveTags   []string
-	SearchQ      string
-	Query        string // encoded query preserved for the SSE fragment hx-get
-	SearchAction string
-	ResetHref    string
+	User               string
+	AllTags            []TagChip
+	ActiveTags         []string
+	SearchQ            string
+	Query              string // encoded query preserved for the SSE fragment hx-get
+	SearchAction       string
+	ResetHref          string
+	Status             string
+	ActiveCount        int
+	ArchivedCount      int
+	StatusActiveHref   string
+	StatusArchivedHref string
+	StatusAllHref      string
+	NodeParam          string
+	Scope              string
+	NodeOptions        []WissenNodeOption
+	FilterAction       string
 
 	// TypeParam is the /wissen/typ?type= shelf filter, empty on the plain
 	// overview page. A GET form drops its action URL's existing query string
@@ -215,6 +247,12 @@ type WissenVM struct {
 	Results []SearchRow
 
 	Page components.PageNav
+}
+
+// WissenNodeOption is one owner-scoped node in the project filter. The empty
+// value means all nodes; "none" means explicitly unassigned documents.
+type WissenNodeOption struct {
+	ID, Name string
 }
 
 // SortedDocuments returns docs newest-first by UpdatedAt. Exported (L4 Task
@@ -239,6 +277,47 @@ func wissenSearchAction(vm WissenVM) string {
 		return vm.SearchAction
 	}
 	return "/wissen"
+}
+
+func wissenSearchPlaceholderKey(vm WissenVM) string {
+	if vm.Status == "active" || vm.Status == "" {
+		return "wissen.search.placeholder"
+	}
+	return "wissen.search.archivePlaceholder"
+}
+
+func wissenSearchLabelKey(vm WissenVM) string {
+	if vm.Status == "active" || vm.Status == "" {
+		return "wissen.search"
+	}
+	return "wissen.search.archiveLabel"
+}
+
+func wissenShelfHref(s WissenShelf) string {
+	if s.Href != "" {
+		return s.Href
+	}
+	return "/wissen/typ?type=" + url.QueryEscape(s.TypeKey)
+}
+
+func wissenOverviewHref(vm WissenTypeVM) string {
+	if vm.OverviewHref != "" {
+		return vm.OverviewHref
+	}
+	return "/wissen"
+}
+
+func wissenRecentAllHref(vm WissenOverviewVM, fragment bool) string {
+	if fragment && vm.RecentAllFragmentHref != "" {
+		return vm.RecentAllFragmentHref
+	}
+	if !fragment && vm.RecentAllHref != "" {
+		return vm.RecentAllHref
+	}
+	if fragment {
+		return "/ui/wissen/list?recent=all"
+	}
+	return "/wissen?recent=all"
 }
 
 func wissenResetHref(vm WissenVM) string {

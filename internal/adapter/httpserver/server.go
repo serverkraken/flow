@@ -329,6 +329,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebEditorDelete)))
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 	mux.Handle("POST /wissen/{id}/pin", s.webAuth(http.HandlerFunc(s.handleWebDocPin)))
+	mux.Handle("POST /wissen/{id}/archive", s.webAuth(http.HandlerFunc(s.handleWebDocArchive)))
 	mux.Handle("POST /wissen/{id}/mode", s.webAuth(http.HandlerFunc(s.handleWebDocMode)))
 
 	// Kuratieren-Seite (L5 Task 7): Budget-Meter + Rang-Liste mit Höher/

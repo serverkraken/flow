@@ -689,6 +689,17 @@ func TestDocumentStore_HydratesTagsFromJunction(t *testing.T) {
 	if len(list) != 1 || list[0].ID != "d1" {
 		t.Fatalf("junction AND filter want [d1], got %+v", list)
 	}
+
+	if err := docs.SetArchived(ctx, "u1", "d1", true); err != nil {
+		t.Fatal(err)
+	}
+	archived, err := docs.ListArchived(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(archived) != 1 || len(archived[0].Tags) != 2 {
+		t.Fatalf("ListArchived must hydrate tags for archive filters, got %+v", archived)
+	}
 }
 
 func TestDocumentStore_NoTagsHydratesEmpty(t *testing.T) {

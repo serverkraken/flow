@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +11,23 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+type failingArchiveStore struct {
+	ports.DocumentStore
+	err error
+}
+
+func (s failingArchiveStore) SetArchived(context.Context, string, string, bool) error { return s.err }
+
+type archiveEventCapture struct{ events []domain.Event }
+
+func (e *archiveEventCapture) Emit(_ context.Context, ev domain.Event) {
+	e.events = append(e.events, ev)
+}
 
 func TestWebWissenDocumentView(t *testing.T) {
 	srv, codec, docs, _ := newWebWissenServer(t)
@@ -75,19 +90,18 @@ func TestWebWissenDocumentView(t *testing.T) {
 			t.Fatalf("GET /wissen/target missing %q in %.1200s", want, body)
 		}
 	}
-	// Lesesaal L3 (Task 5, fixed after review): the document view page itself
-	// no longer carries a ConfirmDialog at all — Delete moved to the edit
-	// page (editor.templ, edit mode only; see TestEditorEditModeHasDeleteConfirmDialog
-	// in webui_editor_test.go) to match the Mockup (Z.688–695: only
-	// Bearbeiten + Anpinnen) and the same L2 doctrine already applied to
-	// nodes. So the whole document-fragment article can be checked directly
-	// for Kristall remnants, no ConfirmDialog scoping needed anymore.
+	// Delete remains on the edit page. Archive legitimately adds the shared
+	// ConfirmDialog, so scope old Lesesaal chrome checks to the content before
+	// that component.
 	fragStart := strings.Index(body, `id="document-fragment"`)
 	articleEnd := strings.Index(body, `</article>`)
 	if fragStart < 0 || articleEnd < 0 || articleEnd < fragStart {
 		t.Fatalf("could not locate document-fragment markers in body: %.1200s", body)
 	}
 	fragment := body[fragStart:articleEnd]
+	if dialog := strings.Index(fragment, "<dialog"); dialog >= 0 {
+		fragment = fragment[:dialog]
+	}
 	for _, gone := range []string{"glass", "bg-surface", "shadow-soft", "font-display", "data-dialog-open=\"del-"} {
 		if strings.Contains(fragment, gone) {
 			t.Errorf("Document fragment should not carry Kristall/delete remnant %q, got fragment:\n%s", gone, fragment)
@@ -180,6 +194,12 @@ func TestWebDocumentView_SanitizerBoundaryEndToEnd(t *testing.T) {
 		t.Fatalf("could not locate document-fragment markers in body: %.1200s", body)
 	}
 	fragment := body[fragStart:articleEnd]
+	// The archive ConfirmDialog legitimately mounts the shared dialog script;
+	// the sanitizer boundary applies to the rendered agent prose before that
+	// trusted component, not to application-owned chrome.
+	if dialog := strings.Index(fragment, "<dialog"); dialog >= 0 {
+		fragment = fragment[:dialog]
+	}
 	for _, want := range []string{"<script", "hx-get", "onclick", "javascript:"} {
 		if strings.Contains(fragment, want) {
 			t.Fatalf("agent markdown not neutralized end-to-end, found %q in fragment:\n%s", want, fragment)
@@ -293,6 +313,138 @@ func TestWebDocumentView_ContextRankOwnerScoped(t *testing.T) {
 	if !strings.Contains(body, "01 / 01") {
 		t.Errorf("owner-scoped compose must show total 1 (foreign doc excluded), got: %.800s", body)
 	}
+}
+
+func TestWebDocumentArchiveAndRestoreRoundTrip(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "doc-archive", OwnerID: "u1", Type: domain.DocMemory,
+		Path: "memory/archive-me", Title: "Archive Me", Body: "body",
+		CreatedAt: now, UpdatedAt: now, Pinned: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /wissen/{id}", srv.webAuth(http.HandlerFunc(srv.handleWebDocumentView)))
+	mux.Handle("POST /wissen/{id}/archive", srv.webAuth(http.HandlerFunc(srv.handleWebDocArchive)))
+
+	body, status := getWissenDocument(t, srv, codec, "/wissen/doc-archive")
+	if status != http.StatusOK {
+		t.Fatalf("GET active document status=%d", status)
+	}
+	for _, want := range []string{`data-dialog-open="archive-doc-archive"`, `hx-post="/wissen/doc-archive/archive"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("active document missing archive affordance %q in %.1600s", want, body)
+		}
+	}
+
+	body, status = postWissenArchive(t, mux, codec, "u1", "doc-archive", true)
+	if status != http.StatusOK {
+		t.Fatalf("POST archive status=%d body=%.500s", status, body)
+	}
+	archived, err := docs.Get(ctx, "u1", "doc-archive")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !archived.Archived || archived.Pinned {
+		t.Fatalf("archive state = %+v, want archived and unpinned", archived)
+	}
+	for _, want := range []string{`data-document-archived="true"`, "Archiviertes Dokument", "Wiederherstellen", `value="false"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("archive response missing %q in %.1800s", want, body)
+		}
+	}
+	for _, gone := range []string{"Bearbeiten", "Anpinnen"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("archived document must not offer %q in %.1800s", gone, body)
+		}
+	}
+
+	body, status = postWissenArchive(t, mux, codec, "u1", "doc-archive", false)
+	if status != http.StatusOK {
+		t.Fatalf("POST restore status=%d body=%.500s", status, body)
+	}
+	restored, err := docs.Get(ctx, "u1", "doc-archive")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Archived || restored.ArchivedAt != nil {
+		t.Fatalf("restore state = %+v, want active", restored)
+	}
+	if !strings.Contains(body, `data-dialog-open="archive-doc-archive"`) {
+		t.Fatalf("restore response did not return active actions: %.1800s", body)
+	}
+}
+
+func TestWebDocumentArchiveOwnerScoped(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	if _, err := docs.Create(context.Background(), domain.Document{
+		ID: "theirs", OwnerID: "u2", Type: domain.DocMemory,
+		Path: "memory/theirs", Title: "Theirs", Body: "body", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.Handle("POST /wissen/{id}/archive", srv.webAuth(http.HandlerFunc(srv.handleWebDocArchive)))
+	_, status := postWissenArchive(t, mux, codec, "u1", "theirs", true)
+	if status != http.StatusNotFound {
+		t.Fatalf("foreign archive status=%d, want 404", status)
+	}
+	got, err := docs.Get(context.Background(), "u2", "theirs")
+	if err != nil || got.Archived {
+		t.Fatalf("foreign document mutated: doc=%+v err=%v", got, err)
+	}
+}
+
+func TestWebDocumentArchiveStoreFailureLeavesStateAndEmitsNothing(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	if _, err := docs.Create(context.Background(), domain.Document{
+		ID: "doc-fail", OwnerID: "u1", Type: domain.DocMemory,
+		Path: "memory/fail", Title: "Fail", Body: "body", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	capture := &archiveEventCapture{}
+	srv.Emitter = capture
+	srv.SetArchived = usecase.SetArchived{Docs: failingArchiveStore{DocumentStore: docs, err: errors.New("write failed")}}
+	mux := http.NewServeMux()
+	mux.Handle("POST /wissen/{id}/archive", srv.webAuth(http.HandlerFunc(srv.handleWebDocArchive)))
+
+	_, status := postWissenArchive(t, mux, codec, "u1", "doc-fail", true)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("archive store failure status=%d, want 500", status)
+	}
+	got, err := docs.Get(context.Background(), "u1", "doc-fail")
+	if err != nil || got.Archived {
+		t.Fatalf("failed archive mutated document: doc=%+v err=%v", got, err)
+	}
+	if len(capture.events) != 0 {
+		t.Fatalf("failed archive emitted events: %+v", capture.events)
+	}
+}
+
+func postWissenArchive(t *testing.T, h http.Handler, codec SessionCodec, userID, id string, archived bool) (string, int) {
+	t.Helper()
+	cookieVal, err := codec.Issue(userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := "false"
+	if archived {
+		value = "true"
+	}
+	req := httptest.NewRequest(http.MethodPost, "/wissen/"+id+"/archive", strings.NewReader("archived="+value))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: cookieVal})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec.Body.String(), rec.Code
 }
 
 func getWissenDocument(t *testing.T, s *Server, codec SessionCodec, target string) (string, int) {

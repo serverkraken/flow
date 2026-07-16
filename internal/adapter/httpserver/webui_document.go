@@ -3,6 +3,7 @@ package httpserver
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -81,6 +82,7 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		UpdatedRel:    webui.FmtRelTime(doc.UpdatedAt, s.Clock.Now()),
 		ReadMinutes:   webui.ReadingTime(doc.Body),
 		Pinned:        doc.Pinned,
+		Archived:      doc.Archived,
 		Outgoing:      buildOutgoingRefs(doc, all),
 	}
 	if refs, rerr := s.BacklinksDocument.Execute(r.Context(), ownerID, doc.ID); rerr == nil {
@@ -94,7 +96,7 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 			vm.Crumbs = append(vm.Crumbs, webui.DocCrumb{Label: n.Name, Href: "/nodes/" + n.ID})
 		}
 	}
-	if s.GetEmbedStatus.Docs != nil {
+	if !doc.Archived && s.GetEmbedStatus.Docs != nil {
 		if st, serr := s.GetEmbedStatus.Execute(r.Context(), ownerID, doc.ID); serr == nil {
 			vm.Embed = &webui.EmbedView{
 				State:     string(st.State),
@@ -110,7 +112,7 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 	// compose error just omits the block. BuildDocContext now always returns
 	// a non-nil VM (never nil for absent/nie) so the mode switcher stays
 	// reachable in every standing.
-	if isContextType(doc.Type) && s.ComposeContext.Nodes != nil {
+	if !doc.Archived && isContextType(doc.Type) && s.ComposeContext.Nodes != nil {
 		budget := s.ContextBudget
 		if budget <= 0 {
 			budget = 12000
@@ -131,6 +133,62 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		}
 	}
 	return vm, nil
+}
+
+// handleWebDocArchive archives or restores one owner-scoped document. The
+// store commit is the mutation boundary; only after it succeeds do we emit
+// document.updated and render the new fragment. Both directions deliberately
+// stay on the document page so the archival state is visible and reversible.
+func (s *Server) handleWebDocArchive(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	archived, err := strconv.ParseBool(r.FormValue("archived"))
+	if err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
+	if errors.Is(err, ports.ErrDocumentNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if err := s.SetArchived.Execute(r.Context(), u.ID, id, archived); err != nil {
+		if errors.Is(err, ports.ErrDocumentNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	doc.Archived = archived
+	if archived {
+		doc.Pinned = false
+		now := s.Clock.Now()
+		doc.ArchivedAt = &now
+	} else {
+		doc.ArchivedAt = nil
+	}
+	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+
+	if r.Header.Get("HX-Request") == "" {
+		http.Redirect(w, r, "/wissen/"+id, http.StatusSeeOther)
+		return
+	}
+	vm, err := s.buildDocumentVM(r, u.ID, doc)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.DocumentFragment(vm).Render(r.Context(), w)
 }
 
 // isContextType reports whether t is one of the three context-eligible

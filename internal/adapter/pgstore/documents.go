@@ -338,7 +338,11 @@ func (s *DocumentStore) ListArchived(ctx context.Context, ownerID string) ([]dom
 		return nil, fmt.Errorf("pgstore: list archived: %w", err)
 	}
 	defer rows.Close()
-	return scanDocuments(rows)
+	docs, err := scanDocuments(rows)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateTags(ctx, ownerID, docs)
 }
 
 func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool, updatedByKind, updatedByRef string) (string, time.Time, error) {

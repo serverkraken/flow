@@ -25,12 +25,12 @@ const (
 
 // CockpitTimer is the resolved timer view state for the head.
 type CockpitTimer struct {
-	State       CockpitTimerState
-	RunningID   string // running session id (hidden field for stop/switch)
-	RunningBase int    // elapsed seconds at render (data-base for the live clock)
-	RunningSince int64 // unix epoch of the effective start — absolute data-since anchor
-	OtherID     string // node id the timer runs on (OtherBound) — link target
-	OtherName   string // node name the timer runs on (OtherBound)
+	State        CockpitTimerState
+	RunningID    string // running session id (hidden field for stop/switch)
+	RunningBase  int    // elapsed seconds at render (data-base for the live clock)
+	RunningSince int64  // unix epoch of the effective start — absolute data-since anchor
+	OtherID      string // node id the timer runs on (OtherBound) — link target
+	OtherName    string // node name the timer runs on (OtherBound)
 }
 
 // NodeTimer computes the timer state for nodeID given the owner's running
@@ -87,15 +87,17 @@ type NodeCockpit struct {
 	// block needs (BuildChain wants one NodeRollup per node.ID: N + every
 	// ancestor). Filled by Task 7's page wiring via s.Stats.NodeStats; empty
 	// map means every chain row renders "—" (Nullen ohne Bühne, Spec §4).
-	ChainStats  map[string]domain.NodeRollup
-	Pulse       []ActivityRowVM         // subtree-filtered live activity feed (Puls section)
-	SessionRows []CockpitSessionRow     // Buchungen: precomputed display rows, newest first
-	WissenRows  []WissenRow             // Wissen: built display rows (BuildWissenRows), what CockpitMain renders
-	WissenScope string                  // "subtree"|"self" — effective Wissen scope (drives the .seg toggle)
-	WissenTotal int                     // Wissen: doc count before the section cap — drives the "Alle N ›" more-link
-	WissenAll   bool                    // Wissen: true when ?wissen=all expanded the section past the cap
-	Children    []NodeChild             // Enthält
-	Bindings    []domain.ProjectBinding // rail Bindings block
+	ChainStats          map[string]domain.NodeRollup
+	Pulse               []ActivityRowVM         // subtree-filtered live activity feed (Puls section)
+	SessionRows         []CockpitSessionRow     // Buchungen: precomputed display rows, newest first
+	WissenRows          []WissenRow             // Wissen: built display rows (BuildWissenRows), what CockpitMain renders
+	WissenScope         string                  // "subtree"|"self" — effective Wissen scope (drives the .seg toggle)
+	WissenTotal         int                     // Wissen: doc count before the section cap — drives the "Alle N ›" more-link
+	WissenAll           bool                    // Wissen: true when ?wissen=all expanded the section past the cap
+	WissenArchivedTotal int                     // Wissen: archived docs in the effective self/subtree scope
+	WissenManagerHref   string                  // project-scoped /wissen management surface
+	Children            []NodeChild             // Enthält
+	Bindings            []domain.ProjectBinding // rail Bindings block
 	// Artifacts feeds the #cockpit-artifacts gallery (Task 5): own + inherited
 	// artifact cards built from ListArtifacts' Ahnenkette result
 	// (BuildArtifactCards). Empty (nil) renders the gallery's empty state.
@@ -167,7 +169,6 @@ func sessionDialogEditVM(d NodeCockpit) components.SessionDialogVM {
 		NodeID:   nodeID,
 	}
 }
-
 
 // CockpitSessionRow is a precomputed display row for the worktime panel.
 // Fields are formatted strings to keep template logic-free.

@@ -101,10 +101,10 @@ func TestCockpitMain_EmptyStates(t *testing.T) {
 	d.SessionRows = nil
 	out := renderToBuf(t, context.Background(), CockpitMain(d))
 	for _, want := range []string{
-		"Keine Unterknoten",         // cockpit.struktur.empty
-		"Noch keine Dokumente",      // cockpit.wissen.empty
-		"Noch keine Buchungen",      // cockpit.worktime.empty
-		"Noch keine Aktivität",      // activity.empty
+		"Keine Unterknoten",    // cockpit.struktur.empty
+		"Noch keine Dokumente", // cockpit.wissen.empty
+		"Noch keine Buchungen", // cockpit.worktime.empty
+		"Noch keine Aktivität", // activity.empty
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("cockpit main missing empty-state text %q:\n%s", want, out)
@@ -241,6 +241,23 @@ func TestCockpitMain_WissenCapShowsAllLink(t *testing.T) {
 	out = renderToBuf(t, ctx, CockpitMain(d))
 	if strings.Contains(out, "Alle 187 ›") {
 		t.Fatalf("expanded wissen section must not repeat the all-link:\n%s", out)
+	}
+}
+
+func TestCockpitMain_WissenLinksToScopedManagerWithArchiveCounts(t *testing.T) {
+	d := seededCockpit()
+	d.N.Kind = domain.KindRepo
+	d.WissenTotal = 187
+	d.WissenArchivedTotal = 23
+	d.WissenManagerHref = "/wissen?node=n1"
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, CockpitMain(d))
+	for _, want := range []string{
+		`href="/wissen?node=n1"`, "Verwalten", "187 aktiv", "23 archiviert",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("Wissen manager summary misses %q:\n%s", want, out)
+		}
 	}
 }
 

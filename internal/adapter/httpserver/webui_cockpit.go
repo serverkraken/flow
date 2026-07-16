@@ -1,9 +1,11 @@
 package httpserver
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -177,6 +179,11 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	d.WissenScope = scope
 	d.WissenRows = webui.BuildWissenRows(docs, now)
 	d.WissenTotal = len(d.WissenRows)
+	d.WissenManagerHref = "/wissen?node=" + url.QueryEscape(n.ID)
+	if scope == "subtree" {
+		d.WissenManagerHref += "&scope=subtree"
+	}
+	d.WissenArchivedTotal = s.wissenArchivedCount(ctx, u.ID, n, scope)
 	d.WissenAll = r.URL.Query().Get("wissen") == "all"
 	if !d.WissenAll && len(d.WissenRows) > wissenSectionCap {
 		d.WissenRows = d.WissenRows[:wissenSectionCap]
@@ -221,6 +228,36 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	}
 
 	return d, nil
+}
+
+// wissenArchivedCount mirrors the cockpit's active self/subtree scope over
+// the archived store. ListArchived is owner-scoped; the in-memory containment
+// filter therefore cannot introduce a cross-tenant document even when node
+// IDs happen to collide between owners.
+func (s *Server) wissenArchivedCount(ctx context.Context, ownerID string, n domain.Node, scope string) int {
+	if s.ListArchived.Docs == nil {
+		return 0
+	}
+	docs, err := s.ListArchived.Execute(ctx, ownerID)
+	if err != nil {
+		slog.WarnContext(ctx, "cockpit wissen: archived list failed", "nodeID", n.ID, "err", err)
+		return 0
+	}
+	ids := map[string]bool{n.ID: true}
+	if scope == "subtree" && s.Stats.Nodes != nil {
+		if subtree, serr := s.Stats.Nodes.Subtree(ctx, ownerID, n.ID); serr == nil {
+			for _, child := range subtree {
+				ids[child.ID] = true
+			}
+		}
+	}
+	count := 0
+	for _, doc := range docs {
+		if doc.NodeID != nil && ids[*doc.NodeID] {
+			count++
+		}
+	}
+	return count
 }
 
 // findReadme returns the node's own README document — the first doc whose path

@@ -26,8 +26,8 @@ templ wissenOuter(vm WissenOverviewVM) {
 // WissenFragment is the Wissen library page (Mockup Z.806–843): a pagehead
 // with the document-count summary, the bigsearch bar (the page's main
 // door), and — outside search mode — the 7 type shelves plus the capped
-// "Zuletzt aktualisiert" list. Tags surface only as filters alongside search
-// results (Offene Entsch. #6, "nie Wand"), never as a permanent tag cloud.
+// "Zuletzt aktualisiert" list. Tags stay available as a collapsed management
+// filter instead of a permanent tag wall.
 templ WissenFragment(vm WissenOverviewVM) {
 	<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px">
 		<div style="flex:1">
@@ -36,12 +36,11 @@ templ WissenFragment(vm WissenOverviewVM) {
 			<p class="sub">{ WissenSummary(ctx, vm) }</p>
 		</div>
 		<a href="/wissen/artefakte" class="btn btn-q" hx-boost="false">{ components.T(ctx, "wissen.artifacts.nav") }</a>
-		<a href="/wissen/neu" class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
+		<a href={ templ.SafeURL(WissenNewDocumentHref("", vm.NodeParam)) } class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
 	</div>
+	@wissenManagementFilters(vm.WissenVM)
 	@wissenBigsearch(vm.WissenVM)
-	if vm.SearchQ != "" || len(vm.ActiveTags) > 0 {
-		@wissenTagChips(vm.WissenVM)
-	}
+	@wissenTagChips(vm.WissenVM)
 	if vm.SearchQ != "" {
 		@wissenResults(vm.WissenVM)
 	} else {
@@ -63,12 +62,68 @@ templ wissenBigsearch(vm WissenVM) {
 		for _, t := range vm.ActiveTags {
 			<input type="hidden" name="tag" value={ t }/>
 		}
+		if vm.Status != "" && vm.Status != "active" {
+			<input type="hidden" name="status" value={ vm.Status }/>
+		}
+		if vm.NodeParam != "" {
+			<input type="hidden" name="node" value={ vm.NodeParam }/>
+		}
+		if vm.Scope != "" {
+			<input type="hidden" name="scope" value={ vm.Scope }/>
+		}
 		<span class="ico" aria-hidden="true">⌕</span>
 		<input type="search" name="q" value={ vm.SearchQ }
-			placeholder={ components.T(ctx, "wissen.search.placeholder") }
-			aria-label={ components.T(ctx, "wissen.search") }/>
+			placeholder={ components.T(ctx, wissenSearchPlaceholderKey(vm)) }
+			aria-label={ components.T(ctx, wissenSearchLabelKey(vm)) }/>
 		<kbd>⌘K</kbd>
 	</form>
+}
+
+// wissenManagementFilters is the management surface shared by overview and
+// type shelves. The status band makes archive inventory visible at a glance;
+// the node selector scopes the same library without creating a second page.
+templ wissenManagementFilters(vm WissenVM) {
+	<div class="mb-5 border-y border-line py-3" data-wissen-status={ vm.Status }>
+		<div class="flex flex-wrap items-center justify-between gap-3">
+			<nav class="seg seg-sm inline-flex" aria-label={ components.T(ctx, "wissen.status.label") }>
+				<a href={ templ.SafeURL(vm.StatusActiveHref) } aria-current?={ vm.Status == "active" } class="px-3 py-1.5">
+					{ fmt.Sprintf(components.T(ctx, "wissen.status.active"), vm.ActiveCount) }
+				</a>
+				<a href={ templ.SafeURL(vm.StatusArchivedHref) } aria-current?={ vm.Status == "archived" } class="px-3 py-1.5">
+					{ fmt.Sprintf(components.T(ctx, "wissen.status.archived"), vm.ArchivedCount) }
+				</a>
+				<a href={ templ.SafeURL(vm.StatusAllHref) } aria-current?={ vm.Status == "all" } class="px-3 py-1.5">
+					{ fmt.Sprintf(components.T(ctx, "wissen.status.all"), vm.ActiveCount + vm.ArchivedCount) }
+				</a>
+			</nav>
+			<form method="get" action={ templ.SafeURL(vm.FilterAction) } class="flex flex-wrap items-center gap-2">
+				if vm.TypeParam != "" {
+					<input type="hidden" name="type" value={ vm.TypeParam }/>
+				}
+				if vm.Status != "" && vm.Status != "active" {
+					<input type="hidden" name="status" value={ vm.Status }/>
+				}
+				if vm.SearchQ != "" {
+					<input type="hidden" name="q" value={ vm.SearchQ }/>
+				}
+				if vm.Scope != "" {
+					<input type="hidden" name="scope" value={ vm.Scope }/>
+				}
+				for _, tag := range vm.ActiveTags {
+					<input type="hidden" name="tag" value={ tag }/>
+				}
+				<label class="text-sm text-muted" for="wissen-node-filter">{ components.T(ctx, "wissen.filter.project") }</label>
+				<select id="wissen-node-filter" name="node" class="field min-w-52 py-2 text-sm">
+					<option value="" selected?={ vm.NodeParam == "" }>{ components.T(ctx, "wissen.filter.allProjects") }</option>
+					<option value="none" selected?={ vm.NodeParam == "none" }>{ components.T(ctx, "wissen.project.none") }</option>
+					for _, option := range vm.NodeOptions {
+						<option value={ option.ID } selected?={ vm.NodeParam == option.ID }>{ option.Name }</option>
+					}
+				</select>
+				<button type="submit" class="btn btn-q btn-s">{ components.T(ctx, "wissen.filter.apply") }</button>
+			</form>
+		</div>
+	</div>
 }
 
 // wissenShelvesSection renders the 7 type-shelves (Mockup Z.821–830) as
@@ -78,7 +133,7 @@ templ wissenShelvesSection(shelves []WissenShelf) {
 	<div class="sect shelf">
 		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "wissen.shelves") }</span></div>
 		for _, shelf := range shelves {
-			<a class={ "row", templ.KV("opacity-60", shelf.Count == 0) } href={ templ.SafeURL("/wissen/typ?type=" + shelf.TypeKey) }>
+			<a class={ "row", templ.KV("opacity-60", shelf.Count == 0) } href={ templ.SafeURL(wissenShelfHref(shelf)) }>
 				<div class="grow">
 					<div class="t">{ components.T(ctx, shelf.LabelKey) }</div>
 					<div class="s">{ components.T(ctx, shelf.DescKey) }</div>
@@ -99,8 +154,8 @@ templ wissenRecentSection(vm WissenOverviewVM) {
 		<div class="sect-h">
 			<span class="eyebrow">{ components.T(ctx, "wissen.recent") }</span>
 			if !vm.RecentAll && vm.RecentTotal > len(vm.Recent) {
-				<a class="more" href="/wissen?recent=all"
-					hx-get="/ui/wissen/list?recent=all" hx-target="#content" hx-swap="innerHTML">
+				<a class="more" href={ templ.SafeURL(wissenRecentAllHref(vm, false)) }
+					hx-get={ wissenRecentAllHref(vm, true) } hx-target="#content" hx-swap="innerHTML">
 					{ fmt.Sprintf(components.T(ctx, "wissen.recent.all"), vm.RecentTotal) }
 				</a>
 			}
@@ -122,6 +177,9 @@ templ wissenRecentSection(vm WissenOverviewVM) {
 templ wissenRow(row WissenRowVM) {
 	<a class="row" href={ templ.SafeURL("/wissen/" + row.ID) }>
 		<span class={ "typechip", row.ChipClass }>{ row.ChipLabel }</span>
+		if row.Archived {
+			<span class="typechip border-warning/35 bg-warning/10 text-warning">{ components.T(ctx, "wissen.status.badge") }</span>
+		}
 		<div class="grow">
 			<div class="t">{ row.Title }</div>
 			<div class="s">{ row.Meta }</div>
@@ -130,34 +188,38 @@ templ wissenRow(row WissenRowVM) {
 	</a>
 }
 
-// wissenTagChips lists every taggable-document tag as a filter pill — shown
-// only alongside search results (never as a standalone browsing wall,
-// Offene Entsch. #6). Bestand behavior (hrefs/active-state/reset), restyled
-// off the Kristall glass/bg-ink chrome onto plain bordered pills.
+// wissenTagChips lists every taggable-document tag inside a collapsed filter
+// so archive management can discover tags without turning the library into a
+// permanent tag wall. Active/search state opens it automatically.
 templ wissenTagChips(vm WissenVM) {
 	if len(vm.AllTags) > 0 {
-		<div class="mb-4 flex flex-wrap items-center gap-2">
-			for _, chip := range vm.AllTags {
-				if chip.Active {
-					<a href={ templ.SafeURL(chip.Href) }
-						class="inline-flex items-center gap-1.5 rounded-full border border-blue/40 bg-blue/10 px-3 py-1 text-[.8rem] font-medium text-blue">
-						<span aria-hidden="true">#</span>{ chip.Tag }
-						<span class="text-faint">{ itoa(chip.Count) }</span>
-					</a>
-				} else {
-					<a href={ templ.SafeURL(chip.Href) }
-						class="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue">
-						<span aria-hidden="true">#</span>{ chip.Tag }
-						<span class="text-faint">{ itoa(chip.Count) }</span>
+		<details class="mb-4 border-b border-line pb-3" open?={ len(vm.ActiveTags) > 0 || vm.SearchQ != "" }>
+			<summary class="cursor-pointer text-sm font-medium text-muted hover:text-ink">
+				{ fmt.Sprintf(components.T(ctx, "wissen.filter.tags"), len(vm.AllTags)) }
+			</summary>
+			<div class="mt-3 flex flex-wrap items-center gap-2">
+				for _, chip := range vm.AllTags {
+					if chip.Active {
+						<a href={ templ.SafeURL(chip.Href) }
+							class="inline-flex items-center gap-1.5 rounded-full border border-blue/40 bg-blue/10 px-3 py-1 text-[.8rem] font-medium text-blue">
+							<span aria-hidden="true">#</span>{ chip.Tag }
+							<span class="text-faint">{ itoa(chip.Count) }</span>
+						</a>
+					} else {
+						<a href={ templ.SafeURL(chip.Href) }
+							class="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue">
+							<span aria-hidden="true">#</span>{ chip.Tag }
+							<span class="text-faint">{ itoa(chip.Count) }</span>
+						</a>
+					}
+				}
+				if len(vm.ActiveTags) > 0 || vm.SearchQ != "" {
+					<a href={ templ.SafeURL(wissenResetHref(vm)) } class="ml-1 text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+						{ components.T(ctx, "wissen.resetFilters") }
 					</a>
 				}
-			}
-			if len(vm.ActiveTags) > 0 || vm.SearchQ != "" {
-				<a href={ templ.SafeURL(wissenResetHref(vm)) } class="ml-1 text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
-					{ components.T(ctx, "wissen.resetFilters") }
-				</a>
-			}
-		</div>
+			</div>
+		</details>
 	}
 }
 
@@ -173,6 +235,9 @@ templ wissenResults(vm WissenVM) {
 			for _, result := range vm.Results {
 				<a class="row" href={ templ.SafeURL("/wissen/" + result.ID) }>
 					<span class={ "typechip", result.ChipClass }>{ result.ChipLabel }</span>
+					if result.Archived {
+						<span class="typechip border-warning/35 bg-warning/10 text-warning">{ components.T(ctx, "wissen.status.badge") }</span>
+					}
 					<div class="grow">
 						<div class="t">{ result.Title }</div>
 						if result.Path != "" {
@@ -213,19 +278,18 @@ templ wissenTypeOuter(vm WissenTypeVM) {
 templ WissenTypeFragment(vm WissenTypeVM) {
 	<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">
 		<div style="flex:1;min-width:0">
-			<a href="/wissen" class="mb-2 inline-block text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+			<a href={ templ.SafeURL(wissenOverviewHref(vm)) } class="mb-2 inline-block text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
 				{ components.T(ctx, "wissen.overview") }
 			</a>
 			<span class="eyebrow">{ components.T(ctx, "nav.knowledge") }</span>
 			<h1>{ components.T(ctx, vm.Shelf.LabelKey) }</h1>
 			<p class="sub">{ components.T(ctx, vm.Shelf.DescKey) }</p>
 		</div>
-		<a href={ templ.SafeURL(vm.Shelf.NewDocumentHref()) } class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
+		<a href={ templ.SafeURL(vm.Shelf.NewDocumentHref(vm.NodeParam)) } class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
 	</div>
+	@wissenManagementFilters(vm.WissenVM)
 	@wissenBigsearch(vm.WissenVM)
-	if vm.SearchQ != "" || len(vm.ActiveTags) > 0 {
-		@wissenTagChips(vm.WissenVM)
-	}
+	@wissenTagChips(vm.WissenVM)
 	if vm.SearchQ != "" {
 		@wissenResults(vm.WissenVM)
 	} else if vm.Total == 0 {

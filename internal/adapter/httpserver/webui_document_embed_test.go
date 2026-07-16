@@ -27,15 +27,17 @@ func TestWebDocumentView_EmbedBadgeFailedShowsRetry(t *testing.T) {
 	if !strings.Contains(body, "/wissen/d1/reembed") {
 		t.Fatalf("expected /wissen/d1/reembed retry form, got %.600s", body)
 	}
-	// Lesesaal L3 (Task 5, fixed after review): the document view page no
-	// longer carries a ConfirmDialog at all (Delete moved to the edit page),
-	// so the whole fragment can be checked directly — no scoping needed.
+	// Archive now has a ConfirmDialog; keep the old Lesesaal chrome assertion
+	// scoped to the document content before that shared component.
 	fragStart := strings.Index(body, `id="document-fragment"`)
 	articleEnd := strings.Index(body, `</article>`)
 	if fragStart < 0 || articleEnd < 0 || articleEnd < fragStart {
 		t.Fatalf("could not locate document-fragment markers in body: %.1200s", body)
 	}
 	fragment := body[fragStart:articleEnd]
+	if dialog := strings.Index(fragment, "<dialog"); dialog >= 0 {
+		fragment = fragment[:dialog]
+	}
 	if !strings.Contains(fragment, `class="btn btn-q btn-s"`) {
 		t.Errorf("expected reembed retry button to use the named .btn.btn-q.btn-s class, got fragment:\n%s", fragment)
 	}

@@ -69,6 +69,17 @@ func TestWissenQueryString(t *testing.T) {
 	}
 }
 
+func TestWissenQueryStringFullPreservesManagementFilters(t *testing.T) {
+	got := wissenQueryStringFull("memory", []string{"ops"}, "alpha", "archived", "node-1", "scope", "subtree", "recent", "all")
+	want := "?node=node-1&q=alpha&recent=all&scope=subtree&status=archived&tag=ops&type=memory"
+	if got != want {
+		t.Fatalf("wissenQueryStringFull = %q, want %q", got, want)
+	}
+	if got := wissenStatus("bogus"); got != "active" {
+		t.Fatalf("wissenStatus(bogus) = %q, want active", got)
+	}
+}
+
 func TestToggledTags(t *testing.T) {
 	tests := []struct {
 		name   string

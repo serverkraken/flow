@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -24,25 +25,44 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
-
-	if q != "" {
-		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, nil, active)
-		if err != nil {
-			return webui.WissenOverviewVM{}, err
-		}
-		for _, h := range hits {
-			base.Results = append(base.Results, wissenSearchRow(h))
-		}
-		return webui.WissenOverviewVM{WissenVM: base}, nil
-	}
-
-	docs, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, active)
+	activeDocs, archivedDocs, err := s.wissenDocuments(r.Context(), u.ID, base.NodeParam, base.Scope, active)
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
+	base.ActiveCount = len(activeDocs)
+	base.ArchivedCount = len(archivedDocs)
+	base = withWissenStatusHrefs(base, "")
+
+	if q != "" {
+		if base.Status != "archived" {
+			hits, err := s.wissenSearch(r.Context(), u.ID, q, base.NodeParam, base.Scope, active)
+			if err != nil {
+				return webui.WissenOverviewVM{}, err
+			}
+			for _, h := range hits {
+				base.Results = append(base.Results, wissenSearchRow(h))
+			}
+		}
+		if base.Status != "active" {
+			for _, d := range archivedDocs {
+				if wissenDocumentMatches(d, q) {
+					base.Results = append(base.Results, wissenArchivedSearchRow(d, q))
+				}
+			}
+		}
+		return webui.WissenOverviewVM{WissenVM: base, TotalCount: len(activeDocs) + len(archivedDocs)}, nil
+	}
+
+	docs := wissenDocumentsForStatus(base.Status, activeDocs, archivedDocs)
 	recentAll := r.URL.Query().Get("recent") == "all"
 	vm := webui.BuildWissenOverview(docs, s.Clock.Now(), recentAll)
 	vm.WissenVM = base
+	vm.TotalCount = len(activeDocs) + len(archivedDocs)
+	for i := range vm.Shelves {
+		vm.Shelves[i].Href = "/wissen/typ" + wissenQueryStringFull(vm.Shelves[i].TypeKey, active, "", base.Status, base.NodeParam, "scope", base.Scope)
+	}
+	vm.RecentAllHref = "/wissen" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope, "recent", "all")
+	vm.RecentAllFragmentHref = "/ui/wissen/list" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope, "recent", "all")
 	return vm, nil
 }
 
@@ -59,27 +79,44 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 		return webui.WissenTypeVM{}, err
 	}
 
+	activeDocs, archivedDocs, err := s.wissenDocuments(r.Context(), u.ID, base.NodeParam, base.Scope, active)
+	if err != nil {
+		return webui.WissenTypeVM{}, err
+	}
+	activeDocs = filterWissenShelfDocs(activeDocs, shelf)
+	archivedDocs = filterWissenShelfDocs(archivedDocs, shelf)
+	base.ActiveCount = len(activeDocs)
+	base.ArchivedCount = len(archivedDocs)
+	base = withWissenStatusHrefs(base, shelf.TypeKey)
+	overviewHref := "/wissen" + wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope)
+
 	if q != "" {
-		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, nil, active)
-		if err != nil {
-			return webui.WissenTypeVM{}, err
+		var hits []domain.SearchHit
+		if base.Status != "archived" {
+			hits, err = s.wissenSearch(r.Context(), u.ID, q, base.NodeParam, base.Scope, active)
+			if err != nil {
+				return webui.WissenTypeVM{}, err
+			}
 		}
-		vm := webui.WissenTypeVM{WissenVM: base, Shelf: shelf}
+		vm := webui.WissenTypeVM{WissenVM: base, Shelf: shelf, OverviewHref: overviewHref}
 		for _, h := range hits {
 			if !webui.DocumentInShelf(h.Document, shelf) {
 				continue
 			}
 			vm.Results = append(vm.Results, wissenSearchRow(h))
 		}
+		if base.Status != "active" {
+			for _, d := range archivedDocs {
+				if webui.DocumentInShelf(d, shelf) && wissenDocumentMatches(d, q) {
+					vm.Results = append(vm.Results, wissenArchivedSearchRow(d, q))
+				}
+			}
+		}
 		vm.Total = len(vm.Results)
 		return vm, nil
 	}
 
-	docs, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, active)
-	if err != nil {
-		return webui.WissenTypeVM{}, err
-	}
-	filtered := filterWissenShelfDocs(docs, shelf)
+	filtered := wissenDocumentsForStatus(base.Status, activeDocs, archivedDocs)
 	page := atoiDefault(r.URL.Query().Get("page"), 1)
 	offset := (page - 1) * wissenPageSize
 	pageDocs := paginateDocuments(filtered, wissenPageSize, offset)
@@ -87,11 +124,12 @@ func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.Wiss
 	vm := webui.BuildWissenType(shelf, pageDocs, s.Clock.Now())
 	vm.WissenVM = base
 	vm.Total = len(filtered)
+	vm.OverviewHref = overviewHref
 	vm.Page = components.PageNav{
 		Page:     page,
 		Total:    len(filtered),
 		PageSize: wissenPageSize,
-		BaseHref: basePath + wissenQueryString(shelf.TypeKey, active, q),
+		BaseHref: basePath + wissenQueryStringFull(shelf.TypeKey, active, q, base.Status, base.NodeParam, "scope", base.Scope),
 	}
 	return vm, nil
 }
@@ -107,6 +145,14 @@ func wissenSearchRow(h domain.SearchHit) webui.SearchRow {
 	}
 }
 
+func wissenArchivedSearchRow(d domain.Document, q string) webui.SearchRow {
+	return webui.SearchRow{
+		ID: d.ID, Title: d.Title, Path: d.Path, Archived: true,
+		ChipClass: webui.DocTypeChipClass(d.Type), ChipLabel: webui.DocTypeLabel(d.Type),
+		Snippet: renderSnippet(wissenArchiveSnippet(d, q)),
+	}
+}
+
 // wissenBaseVM builds the bigsearch/tag-chip machinery shared by the
 // overview and type-shelf pages. typeKey is "" on the overview page and the
 // shelf's TypeKey on /wissen/typ — threaded through every href/query built
@@ -116,6 +162,9 @@ func wissenSearchRow(h domain.SearchHit) webui.SearchRow {
 func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath, typeKey string) (webui.WissenVM, []string, string, error) {
 	active := r.URL.Query()["tag"]
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	status := wissenStatus(r.URL.Query().Get("status"))
+	nodeParam := strings.TrimSpace(r.URL.Query().Get("node"))
+	scope := wissenScope(r.URL.Query().Get("scope"), nodeParam)
 
 	docType := domain.TaggableDocument
 	allTags, err := s.ListTags.Execute(r.Context(), u.ID, domain.TagScope{Type: &docType})
@@ -132,19 +181,112 @@ func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath, typeKey 
 			Tag:    tc.Tag,
 			Count:  tc.Count,
 			Active: activeSet[tc.Tag],
-			Href:   basePath + wissenQueryString(typeKey, toggledTags(active, tc.Tag), ""),
+			Href:   basePath + wissenQueryStringFull(typeKey, toggledTags(active, tc.Tag), "", status, nodeParam, "scope", scope),
 		})
+	}
+	var nodeOptions []webui.WissenNodeOption
+	if s.ListNodes.Nodes != nil {
+		nodes, nerr := s.ListNodes.Execute(r.Context(), u.ID)
+		if nerr != nil {
+			return webui.WissenVM{}, nil, "", nerr
+		}
+		for _, n := range nodes {
+			nodeOptions = append(nodeOptions, webui.WissenNodeOption{ID: n.ID, Name: n.Name})
+		}
 	}
 	return webui.WissenVM{
 		User:         u.Username,
 		AllTags:      chips,
 		ActiveTags:   active,
 		SearchQ:      q,
-		Query:        wissenQueryString(typeKey, active, q),
+		Query:        wissenQueryStringFull(typeKey, active, q, status, nodeParam, "scope", scope),
 		SearchAction: basePath,
-		ResetHref:    basePath + wissenQueryString(typeKey, nil, ""),
+		ResetHref:    basePath + wissenQueryStringFull(typeKey, nil, "", status, nodeParam, "scope", scope),
 		TypeParam:    typeKey,
+		Status:       status,
+		NodeParam:    nodeParam,
+		Scope:        scope,
+		NodeOptions:  nodeOptions,
+		FilterAction: basePath,
 	}, active, q, nil
+}
+
+func (s *Server) wissenDocuments(ctx context.Context, ownerID, nodeParam, scope string, tags []string) ([]domain.Document, []domain.Document, error) {
+	if scope == "subtree" {
+		allowed, err := s.wissenSubtreeIDs(ctx, ownerID, nodeParam)
+		if err != nil {
+			return nil, nil, err
+		}
+		active, err := s.ListDocuments.Execute(ctx, ownerID, nil, tags)
+		if err != nil {
+			return nil, nil, err
+		}
+		active = filterWissenDocumentsByNodeIDs(active, allowed)
+		if s.ListArchived.Docs == nil {
+			return active, nil, nil
+		}
+		archived, err := s.ListArchived.Execute(ctx, ownerID)
+		if err != nil {
+			return nil, nil, err
+		}
+		archived = filterWissenDocumentsByNodeIDs(archived, allowed)
+		return active, filterWissenDocuments(archived, "", tags), nil
+	}
+	active, err := s.ListDocuments.Execute(ctx, ownerID, wissenNodeFilter(nodeParam), tags)
+	if err != nil {
+		return nil, nil, err
+	}
+	if s.ListArchived.Docs == nil {
+		return active, nil, nil
+	}
+	archived, err := s.ListArchived.Execute(ctx, ownerID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return active, filterWissenDocuments(archived, nodeParam, tags), nil
+}
+
+func (s *Server) wissenSearch(ctx context.Context, ownerID, q, nodeParam, scope string, tags []string) ([]domain.SearchHit, error) {
+	if scope != "subtree" {
+		return s.SearchDocuments.Execute(ctx, ownerID, q, wissenNodeFilter(nodeParam), tags)
+	}
+	allowed, err := s.wissenSubtreeIDs(ctx, ownerID, nodeParam)
+	if err != nil {
+		return nil, err
+	}
+	hits, err := s.SearchDocuments.Execute(ctx, ownerID, q, nil, tags)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.SearchHit, 0, len(hits))
+	for _, hit := range hits {
+		if hit.NodeID != nil && allowed[*hit.NodeID] {
+			out = append(out, hit)
+		}
+	}
+	return out, nil
+}
+
+func (s *Server) wissenSubtreeIDs(ctx context.Context, ownerID, nodeID string) (map[string]bool, error) {
+	if s.ListNodes.Nodes == nil {
+		return nil, fmt.Errorf("wissen subtree: node store unavailable")
+	}
+	nodes, err := s.ListNodes.Nodes.Subtree(ctx, ownerID, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make(map[string]bool, len(nodes))
+	for _, node := range nodes {
+		ids[node.ID] = true
+	}
+	return ids, nil
+}
+
+func withWissenStatusHrefs(vm webui.WissenVM, typeKey string) webui.WissenVM {
+	vm.StatusActiveHref = vm.FilterAction + wissenQueryStringFull(typeKey, vm.ActiveTags, vm.SearchQ, "active", vm.NodeParam, "scope", vm.Scope)
+	vm.StatusArchivedHref = vm.FilterAction + wissenQueryStringFull(typeKey, vm.ActiveTags, vm.SearchQ, "archived", vm.NodeParam, "scope", vm.Scope)
+	vm.StatusAllHref = vm.FilterAction + wissenQueryStringFull(typeKey, vm.ActiveTags, vm.SearchQ, "all", vm.NodeParam, "scope", vm.Scope)
+	return vm
 }
 
 func (s *Server) handleWebWissenHome(w http.ResponseWriter, r *http.Request) {
@@ -274,6 +416,10 @@ func atoiDefault(s string, def int) int {
 // filter, empty on the overview page), the active tag filters, and the
 // free-text query.
 func wissenQueryString(typeKey string, tags []string, q string) string {
+	return wissenQueryStringFull(typeKey, tags, q, "active", "")
+}
+
+func wissenQueryStringFull(typeKey string, tags []string, q, status, node string, extra ...string) string {
 	v := url.Values{}
 	if typeKey != "" {
 		v.Set("type", typeKey)
@@ -284,11 +430,116 @@ func wissenQueryString(typeKey string, tags []string, q string) string {
 	if q != "" {
 		v.Set("q", q)
 	}
+	if status != "" && status != "active" {
+		v.Set("status", status)
+	}
+	if node != "" {
+		v.Set("node", node)
+	}
+	for i := 0; i+1 < len(extra); i += 2 {
+		if extra[i] != "" && extra[i+1] != "" {
+			v.Set(extra[i], extra[i+1])
+		}
+	}
 	enc := v.Encode()
 	if enc == "" {
 		return ""
 	}
 	return "?" + enc
+}
+
+func wissenStatus(v string) string {
+	switch v {
+	case "archived", "all":
+		return v
+	default:
+		return "active"
+	}
+}
+
+func wissenScope(v, node string) string {
+	if v == "subtree" && node != "" && node != "none" {
+		return "subtree"
+	}
+	return ""
+}
+
+func wissenNodeFilter(node string) *string {
+	if node == "" {
+		return nil
+	}
+	return &node
+}
+
+func wissenDocumentsForStatus(status string, active, archived []domain.Document) []domain.Document {
+	switch status {
+	case "archived":
+		return archived
+	case "all":
+		return webui.SortedDocuments(append(append([]domain.Document(nil), active...), archived...))
+	default:
+		return active
+	}
+}
+
+func filterWissenDocuments(docs []domain.Document, node string, tags []string) []domain.Document {
+	wantTags := domain.NormalizeTags(tags)
+	out := make([]domain.Document, 0, len(docs))
+	for _, d := range docs {
+		if node == "none" && d.NodeID != nil {
+			continue
+		}
+		if node != "" && node != "none" && (d.NodeID == nil || *d.NodeID != node) {
+			continue
+		}
+		have := make(map[string]bool, len(d.Tags))
+		for _, tag := range domain.NormalizeTags(d.Tags) {
+			have[tag] = true
+		}
+		matches := true
+		for _, tag := range wantTags {
+			if !have[tag] {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func filterWissenDocumentsByNodeIDs(docs []domain.Document, allowed map[string]bool) []domain.Document {
+	out := make([]domain.Document, 0, len(docs))
+	for _, d := range docs {
+		if d.NodeID != nil && allowed[*d.NodeID] {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func wissenDocumentMatches(d domain.Document, q string) bool {
+	q = strings.ToLower(strings.TrimSpace(q))
+	return q == "" || strings.Contains(strings.ToLower(d.Title+"\n"+d.Path+"\n"+d.Body), q)
+}
+
+func wissenArchiveSnippet(d domain.Document, q string) string {
+	source := strings.TrimSpace(d.Body)
+	if source == "" {
+		source = d.Path
+	}
+	const max = 180
+	runes := []rune(source)
+	if len(runes) > max {
+		source = string(runes[:max]) + "…"
+	}
+	lower, needle := strings.ToLower(source), strings.ToLower(strings.TrimSpace(q))
+	if i := strings.Index(lower, needle); needle != "" && i >= 0 && i+len(needle) <= len(source) {
+		return source[:i] + domain.HighlightStart + source[i:i+len(needle)] + domain.HighlightEnd + source[i+len(needle):]
+	}
+	return source
 }
 
 // toggledTags returns active with tag removed if present, or appended if not

@@ -68,10 +68,220 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		RetryEmbedding:    usecase.RetryEmbedding{Docs: docs},
 		NodeAncestors:     usecase.NodeAncestors{Nodes: projects},
 		SetPinned:         usecase.SetPinned{Docs: docs},
+		SetArchived:       usecase.SetArchived{Docs: docs},
+		ListArchived:      usecase.ListArchived{Docs: docs},
 		SetContextMode:    usecase.SetContextMode{Docs: docs},
 		ListArtifacts:     usecase.ListArtifacts{Nodes: projects, Artifacts: artifacts},
 	}
 	return srv, codec, docs, projects
+}
+
+func TestWebWissenArchiveFilterIsVisibleAndOwnerScoped(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "active-mine", OwnerID: "u1", Type: domain.DocMemory, Path: "memory/active", Title: "Active Mine", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "archived-mine", OwnerID: "u1", Type: domain.DocMemory, Path: "memory/archived", Title: "Archived Mine", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "archived-theirs", OwnerID: "u2", Type: domain.DocMemory, Path: "memory/theirs", Title: "Archived Theirs", Body: "body", CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := docs.SetArchived(ctx, "u1", "archived-mine", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := docs.SetArchived(ctx, "u2", "archived-theirs", true); err != nil {
+		t.Fatal(err)
+	}
+
+	body, status := getWissenAs(t, wissenTestMux(srv), "/wissen?status=archived", codec, "u1")
+	if status != http.StatusOK {
+		t.Fatalf("GET archived Wissen status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{
+		`data-wissen-status="archived"`, "Archived Mine", "Archiviert", "1 aktiv", "1 archiviert",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("archived Wissen missing %q in %.1800s", want, body)
+		}
+	}
+	for _, notWant := range []string{"Active Mine", "Archived Theirs"} {
+		if strings.Contains(body, notWant) {
+			t.Errorf("archived Wissen leaked %q in %.1800s", notWant, body)
+		}
+	}
+}
+
+func TestWebWissenArchiveFiltersByNodeAndTag(t *testing.T) {
+	srv, codec, docs, nodes := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for _, node := range []domain.Node{
+		{ID: "n1", OwnerID: "u1", Name: "Flow", Slug: "flow", Kind: domain.KindRepo, Status: domain.NodeActive},
+		{ID: "n2", OwnerID: "u1", Name: "Other", Slug: "other", Kind: domain.KindRepo, Status: domain.NodeActive},
+	} {
+		if _, err := nodes.Create(ctx, node); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n1, n2 := "n1", "n2"
+	for _, doc := range []domain.Document{
+		{ID: "match", OwnerID: "u1", NodeID: &n1, Type: domain.DocMemory, Path: "memory/match", Title: "Flow Ops", Body: "body", Tags: []string{"ops"}, CreatedAt: now, UpdatedAt: now},
+		{ID: "wrong-tag", OwnerID: "u1", NodeID: &n1, Type: domain.DocMemory, Path: "memory/design", Title: "Flow Design", Body: "body", Tags: []string{"design"}, CreatedAt: now, UpdatedAt: now},
+		{ID: "wrong-node", OwnerID: "u1", NodeID: &n2, Type: domain.DocMemory, Path: "memory/other", Title: "Other Ops", Body: "body", Tags: []string{"ops"}, CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+		if err := docs.SetArchived(ctx, "u1", doc.ID, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen?status=archived&node=n1&tag=ops", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET filtered archive status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{"Flow Ops", `name="node"`, `value="n1" selected`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("filtered archive missing %q in %.1800s", want, body)
+		}
+	}
+	for _, notWant := range []string{"Flow Design", "Other Ops"} {
+		if strings.Contains(body, notWant) {
+			t.Errorf("filtered archive contains %q in %.1800s", notWant, body)
+		}
+	}
+}
+
+func TestWebWissenSubtreeScopeMatchesCockpitInventoryAndStaysOwnerScoped(t *testing.T) {
+	srv, codec, docs, nodes := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	engID := "eng"
+	for _, node := range []domain.Node{
+		{ID: engID, OwnerID: "u1", Name: "Engagement", Slug: "engagement", Kind: domain.KindEngagement, Status: domain.NodeActive},
+		{ID: "repo", OwnerID: "u1", ParentID: &engID, Name: "Flow", Slug: "flow", Kind: domain.KindRepo, Status: domain.NodeActive},
+		{ID: "other", OwnerID: "u1", Name: "Other", Slug: "other", Kind: domain.KindRepo, Status: domain.NodeActive},
+	} {
+		if _, err := nodes.Create(ctx, node); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repoID, otherID := "repo", "other"
+	for _, doc := range []domain.Document{
+		{ID: "child-active", OwnerID: "u1", NodeID: &repoID, Type: domain.DocMemory, Path: "memory/child", Title: "Child Active", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "child-archived", OwnerID: "u1", NodeID: &repoID, Type: domain.DocMemory, Path: "memory/archive", Title: "Child Archived", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "outside", OwnerID: "u1", NodeID: &otherID, Type: domain.DocMemory, Path: "memory/outside", Title: "Outside", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "foreign-collision", OwnerID: "u2", NodeID: &repoID, Type: domain.DocMemory, Path: "memory/foreign", Title: "Foreign Collision", Body: "body", CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := docs.SetArchived(ctx, "u1", "child-archived", true); err != nil {
+		t.Fatal(err)
+	}
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen?node=eng&scope=subtree&status=all", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET subtree Wissen status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{"Child Active", "Child Archived", "1 aktiv", "1 archiviert", `name="scope" value="subtree"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("subtree Wissen missing %q in %.2200s", want, body)
+		}
+	}
+	for _, notWant := range []string{"Outside", "Foreign Collision"} {
+		if strings.Contains(body, notWant) {
+			t.Errorf("subtree Wissen leaked %q in %.2200s", notWant, body)
+		}
+	}
+
+	searchBody, searchStatus := getWissen(t, wissenTestMux(srv), "/wissen?node=eng&scope=subtree&q=Child", codec)
+	if searchStatus != http.StatusOK {
+		t.Fatalf("GET subtree search status=%d body=%.500s", searchStatus, searchBody)
+	}
+	if !strings.Contains(searchBody, "Child Active") || strings.Contains(searchBody, "Outside") || strings.Contains(searchBody, "Foreign Collision") {
+		t.Errorf("subtree search scope mismatch in %.2200s", searchBody)
+	}
+}
+
+func TestWebWissenTypeStatusCountsAreShelfScopedAndNewKeepsNode(t *testing.T) {
+	srv, codec, docs, nodes := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	nodeID := "n1"
+	if _, err := nodes.Create(ctx, domain.Node{ID: nodeID, OwnerID: "u1", Name: "Flow", Slug: "flow", Kind: domain.KindRepo, Status: domain.NodeActive}); err != nil {
+		t.Fatal(err)
+	}
+	for _, doc := range []domain.Document{
+		{ID: "daily-active", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocDaily, Path: "daily/active", Title: "Daily Active", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "daily-archived", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocDaily, Path: "daily/archive", Title: "Daily Archived", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "free-active", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocFree, Path: "free/active", Title: "Free Active", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "free-archived", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocFree, Path: "free/archive", Title: "Free Archived", Body: "body", CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []string{"daily-archived", "free-archived"} {
+		if err := docs.SetArchived(ctx, "u1", id, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=daily&node=n1&status=all", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET daily shelf status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{"Daily Active", "Daily Archived", "Aktiv 1", "Archiv 1", `href="/wissen/neu?node=n1&amp;type=daily"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("daily shelf missing %q in %.2200s", want, body)
+		}
+	}
+	for _, notWant := range []string{"Free Active", "Free Archived", "Aktiv 2", "Archiv 2"} {
+		if strings.Contains(body, notWant) {
+			t.Errorf("daily shelf contains cross-shelf value %q in %.2200s", notWant, body)
+		}
+	}
+
+	overviewBody, overviewStatus := getWissen(t, wissenTestMux(srv), "/wissen?node=n1", codec)
+	if overviewStatus != http.StatusOK {
+		t.Fatalf("GET node-scoped overview status=%d body=%.500s", overviewStatus, overviewBody)
+	}
+	if !strings.Contains(overviewBody, `href="/wissen/neu?node=n1"`) {
+		t.Errorf("node-scoped overview new-document link lost node in %.2200s", overviewBody)
+	}
+}
+
+func TestWebWissenAllAndArchivedSearch(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "active", OwnerID: "u1", Type: domain.DocFree, Path: "notes/active", Title: "Active Alpha", Body: "alpha active", CreatedAt: now, UpdatedAt: now},
+		{ID: "archived", OwnerID: "u1", Type: domain.DocFree, Path: "notes/archived", Title: "Archived Alpha", Body: "alpha archived", CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := docs.SetArchived(ctx, "u1", "archived", true); err != nil {
+		t.Fatal(err)
+	}
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen?status=all&q=alpha", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET all search status=%d body=%.500s", status, body)
+	}
+	for _, want := range []string{"Active Alpha", "Archived Alpha", "<mark>alpha</mark>", "Archiviert"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("all search missing %q in %.1800s", want, body)
+		}
+	}
 }
 
 func TestWebWissenHomeShelvesAndRecent(t *testing.T) {

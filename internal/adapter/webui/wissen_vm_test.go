@@ -150,9 +150,9 @@ func TestBuildWissenType(t *testing.T) {
 
 func TestWissenSummary(t *testing.T) {
 	ctx := testCtx(t)
-	got := WissenSummary(ctx, WissenOverviewVM{TotalCount: 264, PinnedCount: 12})
-	if got != "264 Dokumente · 12 angepinnt" {
-		t.Errorf("WissenSummary = %q, want %q", got, "264 Dokumente · 12 angepinnt")
+	got := WissenSummary(ctx, WissenOverviewVM{TotalCount: 264, WissenVM: WissenVM{ActiveCount: 252, ArchivedCount: 12}})
+	if got != "264 Dokumente · 252 aktiv · 12 archiviert" {
+		t.Errorf("WissenSummary = %q, want %q", got, "264 Dokumente · 252 aktiv · 12 archiviert")
 	}
 }
 

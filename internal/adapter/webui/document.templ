@@ -45,7 +45,7 @@ templ documentOuter(vm DocumentVM) {
 // + Anpinnen) and the same L2 doctrine already applied to nodes ("Move/
 // Status/Delete auf der Edit-Seite").
 templ DocumentFragment(vm DocumentVM) {
-	<article id="document-fragment">
+	<article id="document-fragment" data-document-archived={ fmt.Sprintf("%t", vm.Archived) }>
 		<div class="spine">
 			<div class="up">
 				for _, c := range vm.Crumbs {
@@ -57,6 +57,20 @@ templ DocumentFragment(vm DocumentVM) {
 			<div class="spine-main">
 				<h1>{ vm.Title }</h1>
 			</div>
+			if vm.Archived {
+				<div data-archive-banner class="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-line bg-sunken px-4 py-3">
+					<div>
+						<strong>{ components.T(ctx, "document.archive.banner") }</strong>
+						<span class="ml-2 text-sm text-muted">{ components.T(ctx, "document.archive.hint") }</span>
+					</div>
+					<button type="button" class="btn btn-q btn-s"
+						hx-post={ "/wissen/" + vm.ID + "/archive" }
+						hx-target="#document-fragment" hx-swap="outerHTML"
+						name="archived" value="false">
+						{ components.T(ctx, "document.restore") }
+					</button>
+				</div>
+			}
 			<div class="prov">
 				if vm.UpdatedByKind == "agent" {
 					@components.AgentAvatar(Initials(vm.UpdatedByRef), "av-28")
@@ -75,23 +89,28 @@ templ DocumentFragment(vm DocumentVM) {
 				<span class="dotsep">&middot;</span>
 				<span>{ fmt.Sprintf("%d ", vm.ReadMinutes) }{ components.T(ctx, "document.readtime") }</span>
 				<span class="dotsep">&middot;</span>
-				<a class="btn btn-q btn-s" href={ templ.SafeURL("/wissen/" + vm.ID + "/bearbeiten") } hx-boost="false">
-					{ components.T(ctx, "wissen.edit") }
-				</a>
-				<button
-					type="button"
-					class="btn btn-q btn-s"
-					hx-post={ "/wissen/" + vm.ID + "/pin" }
-					hx-target="#document-fragment"
-					hx-swap="outerHTML"
-					title={ components.T(ctx, "document.pin.hint") }
-				>
-					if vm.Pinned {
-						{ components.T(ctx, "document.pinned") }
-					} else {
-						{ components.T(ctx, "document.pin") }
-					}
-				</button>
+				if !vm.Archived {
+					<a class="btn btn-q btn-s" href={ templ.SafeURL("/wissen/" + vm.ID + "/bearbeiten") } hx-boost="false">
+						{ components.T(ctx, "wissen.edit") }
+					</a>
+					<button
+						type="button"
+						class="btn btn-q btn-s"
+						hx-post={ "/wissen/" + vm.ID + "/pin" }
+						hx-target="#document-fragment"
+						hx-swap="outerHTML"
+						title={ components.T(ctx, "document.pin.hint") }
+					>
+						if vm.Pinned {
+							{ components.T(ctx, "document.pinned") }
+						} else {
+							{ components.T(ctx, "document.pin") }
+						}
+					</button>
+					<button type="button" class="btn btn-q btn-s text-danger" data-dialog-open={ "archive-" + vm.ID }>
+						{ components.T(ctx, "document.archive") }
+					</button>
+				}
 			</div>
 			if vm.Embed != nil {
 				@DocumentEmbedBadge(vm.ID, *vm.Embed)
@@ -141,6 +160,21 @@ templ DocumentFragment(vm DocumentVM) {
 				}
 			</aside>
 		</div>
+		if !vm.Archived {
+			@components.ConfirmDialog(components.ConfirmSpec{
+				ID: "archive-" + vm.ID,
+				TitleKey: "document.archive.title",
+				BodyKey: "document.archive.body",
+				ConfirmLabelKey: "document.archive",
+				ConfirmAttrs: templ.Attributes{
+					"hx-post": "/wissen/" + vm.ID + "/archive",
+					"hx-target": "#document-fragment",
+					"hx-swap": "outerHTML",
+					"name": "archived",
+					"value": "true",
+				},
+			})
+		}
 	</article>
 }
 

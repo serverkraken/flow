@@ -14,13 +14,13 @@ type DocCrumb struct {
 
 // DocumentVM is the Lesesaal document-page view model: Spine (path
 // breadcrumb + title), Provenance row (actor/time/path/reading time/
-// pin/edit/delete), the rendered prose, the ToC rail, and the Verweise rail
+// pin/edit/archive), the rendered prose, the ToC rail, and the Verweise rail
 // (Outgoing/Backlinks, Task 6).
 type DocumentVM struct {
-	ID      string
-	Title   string
-	Path    string
-	Crumbs  []DocCrumb
+	ID     string
+	Title  string
+	Path   string
+	Crumbs []DocCrumb
 	// UpdatedByKind/UpdatedByRef mirror domain.Document — both empty means
 	// unknown/pre-provenance (Task 3): the Prov row then renders a neutral
 	// avatar without a bold actor name, just time+path+reading time.
@@ -29,6 +29,7 @@ type DocumentVM struct {
 	UpdatedRel    string // pre-formatted relative time, e.g. "vor 3 Min"
 	ReadMinutes   int
 	Pinned        bool
+	Archived      bool
 	HTML          template.HTML
 	// Outgoing/Backlinks feed the docrail's Verweise `.blk` (Task 6, Mockup
 	// Z.788-793): Outgoing are this document's own resolved wikilinks ("von

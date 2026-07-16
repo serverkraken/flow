@@ -5,6 +5,7 @@ package webui
 // snippet HTML (server-escaped with <mark> highlights, see renderSnippet).
 type SearchRow struct {
 	ID, Title, ChipClass, ChipLabel, Path, Snippet string
+	Archived                                       bool
 }
 
 // TagChip is one tag in the filter bar.

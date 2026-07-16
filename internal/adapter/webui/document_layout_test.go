@@ -25,15 +25,17 @@ func TestDocumentFragment_LesesaalSpineProvAndRail(t *testing.T) {
 			t.Fatalf("doc fragment misses %q:\n%s", want, out)
 		}
 	}
-	// Fixed after review: Delete moved off the document page entirely (to the
-	// edit page, editor.templ — see TestEditorEditModeHasDeleteConfirmDialog),
-	// matching the Mockup (Z.688–695: only Bearbeiten + Anpinnen). No
-	// ConfirmDialog/BtnDanger lives here anymore, so the whole fragment can be
-	// checked directly without any scoping.
-	for _, gone := range []string{"glass", "shadow-soft", "font-display", "kindToneClass", "data-dialog-open=\"del-", "<dialog"} {
-		if strings.Contains(out, gone) {
+	// Delete remains on the edit page. The document page now legitimately has
+	// a reversible archive ConfirmDialog, but must not regain the delete dialog
+	// or old Kristall chrome.
+	main := strings.Split(out, "<dialog")[0]
+	for _, gone := range []string{"glass", "shadow-soft", "font-display", "kindToneClass"} {
+		if strings.Contains(main, gone) {
 			t.Fatalf("kristall/delete remnant %q still present:\n%s", gone, out)
 		}
+	}
+	if strings.Contains(out, `data-dialog-open="del-`) {
+		t.Fatalf("delete dialog must remain off the document page:\n%s", out)
 	}
 }
 
@@ -126,6 +128,7 @@ func TestDocumentFragmentRefsRailShowsOutgoingAndBacklinks(t *testing.T) {
 		Backlinks: []RefRow{{Title: "Karpenter Rollout", Href: "/wissen/d3", Dir: "document.ref.to"}},
 	}
 	out := renderToBuf(t, testCtx(t), DocumentFragment(vm))
+	main := strings.Split(out, "<dialog")[0]
 	for _, want := range []string{
 		`class="krow"`, `href="/wissen/d2"`, "Backstage Probleme", "von hier",
 		`href="/wissen/d3"`, "Karpenter Rollout", "hierher",
@@ -135,7 +138,7 @@ func TestDocumentFragmentRefsRailShowsOutgoingAndBacklinks(t *testing.T) {
 		}
 	}
 	for _, gone := range []string{"glass", "shadow-soft"} {
-		if strings.Contains(out, gone) {
+		if strings.Contains(main, gone) {
 			t.Fatalf("refs rail must not resurrect Kristall chrome %q:\n%s", gone, out)
 		}
 	}

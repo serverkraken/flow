@@ -72,6 +72,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		BindNode:          usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
 		UnbindNode:        usecase.UnbindNode{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
+		ListArchived:      usecase.ListArchived{Docs: ds},
 		GetDocument:       usecase.GetDocument{Docs: ds},
 		SetPinned:         usecase.SetPinned{Docs: ds},
 		SetContextMode:    usecase.SetContextMode{Docs: ds},
@@ -382,11 +383,25 @@ func TestCockpitWissen_ListsNodeDocs(t *testing.T) {
 		UpdatedAt: c.clk.Now(),
 	}
 	_, _ = c.ds.Create(context.Background(), doc)
+	archived := doc
+	archived.ID = "d2"
+	archived.Path = "archiv"
+	archived.Title = "Alte Architektur"
+	_, _ = c.ds.Create(context.Background(), archived)
+	_ = c.ds.SetArchived(context.Background(), "u1", archived.ID, true)
 
 	rec := c.do(t, "GET", "/nodes/n1/main", nil)
 	body := rec.Body.String()
 	if !strings.Contains(body, "Architektur") || !strings.Contains(body, "/wissen/neu?node=n1") {
 		t.Errorf("wissen section missing doc / scoped-new link: %.300s", body)
+	}
+	for _, want := range []string{`href="/wissen?node=n1"`, "1 aktiv", "1 archiviert", "Verwalten"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("wissen section missing manager summary %q: %.900s", want, body)
+		}
+	}
+	if strings.Contains(body, "Alte Architektur") {
+		t.Errorf("cockpit active preview must not render archived rows: %.900s", body)
 	}
 }
 
@@ -412,6 +427,9 @@ func TestCockpitWissen_EngagementDefaultShowsSubtreeDocs(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "doc-on-repo-title") {
 		t.Errorf("engagement wissen section must include subtree (child) docs: %.600s", body)
+	}
+	if !strings.Contains(body, `href="/wissen?node=eng&amp;scope=subtree"`) {
+		t.Errorf("engagement wissen manager must preserve subtree scope: %.900s", body)
 	}
 	if !strings.Contains(body, "scope=self") || !strings.Contains(body, "scope=subtree") {
 		t.Errorf("engagement wissen section missing the subtree/self scope toggle: %.600s", body)
