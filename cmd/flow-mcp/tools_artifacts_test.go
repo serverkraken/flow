@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -207,6 +209,36 @@ func TestLoopback_ArtifactTools_Advertised(t *testing.T) {
 	}
 }
 
+func TestLoopback_UploadArtifactSchemaSupportsPathWithoutRequiringInlineData(t *testing.T) {
+	sess := authedArtifactServer(t)
+	tools, err := sess.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name != "flow_upload_artifact" {
+			continue
+		}
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("input schema type = %T, want map", tool.InputSchema)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok || properties["path"] == nil || properties["base64"] == nil {
+			t.Fatalf("upload schema properties = %#v, want path and base64", properties)
+		}
+		if required, ok := schema["required"].([]any); ok {
+			for _, raw := range required {
+				if raw == "path" || raw == "base64" || raw == "name" || raw == "mime" {
+					t.Fatalf("upload schema required = %#v, source/name/mime must be mode-dependent", required)
+				}
+			}
+		}
+		return
+	}
+	t.Fatal("flow_upload_artifact not advertised")
+}
+
 func TestLoopback_UploadListDeleteArtifact(t *testing.T) {
 	sess := authedArtifactServer(t)
 	b64 := base64.StdEncoding.EncodeToString([]byte("hello world"))
@@ -247,6 +279,16 @@ func TestLoopback_UploadArtifact_InvalidBase64(t *testing.T) {
 	}
 }
 
+func TestLoopback_UploadArtifact_EmptyBase64RemainsSupported(t *testing.T) {
+	sess := authedArtifactServer(t)
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{
+		"name": "empty.txt", "mime": "text/plain", "base64": "",
+	})
+	if res.IsError || !strings.Contains(out, "0 bytes") {
+		t.Fatalf("empty base64 upload = (IsError=%v, %q), want zero-byte upload", res.IsError, out)
+	}
+}
+
 func TestDecodeArtifactBase64_RejectsOversizedInputBeforeDecode(t *testing.T) {
 	t.Parallel()
 	raw := strings.Repeat("A", base64.StdEncoding.EncodedLen(int(domain.MaxArtifactBytes))+4)
@@ -261,6 +303,96 @@ func TestLoopback_UploadArtifact_MissingFields(t *testing.T) {
 	if !res.IsError || !strings.Contains(out, "required") {
 		t.Fatalf("upload without name/mime = (IsError=%v, %q), want a 'required' error", res.IsError, out)
 	}
+}
+
+func TestLoopback_UploadArtifact_Path_Node(t *testing.T) {
+	sess := authedArtifactServer(t)
+	path := filepath.Join(t.TempDir(), "picture.png")
+	if err := os.WriteFile(path, []byte("hello world"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"path": path})
+	if res.IsError {
+		t.Fatalf("path upload errored: %s", out)
+	}
+	if !strings.Contains(out, "picture.png") || !strings.Contains(out, "image/png") || !strings.Contains(out, "11 bytes") {
+		t.Fatalf("path upload result = %q, want basename, guessed mime and size", out)
+	}
+}
+
+func TestLoopback_UploadArtifact_Path_Free(t *testing.T) {
+	sess := unboundArtifactServer(t)
+	path := filepath.Join(t.TempDir(), "document.pdf")
+	if err := os.WriteFile(path, []byte("%PDF-1.4"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"path": path, "free": true})
+	if res.IsError || !strings.Contains(out, "document.pdf") || !strings.Contains(out, "application/pdf") || !strings.Contains(out, "free library") {
+		t.Fatalf("free path upload = (IsError=%v, %q)", res.IsError, out)
+	}
+}
+
+func TestLoopback_UploadArtifact_PathOverridesNameAndMime(t *testing.T) {
+	sess := authedArtifactServer(t)
+	path := filepath.Join(t.TempDir(), "picture.png")
+	if err := os.WriteFile(path, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{
+		"path": path, "name": "custom.bin", "mime": "application/octet-stream",
+	})
+	if res.IsError || !strings.Contains(out, "custom.bin") || !strings.Contains(out, "application/octet-stream") {
+		t.Fatalf("path overrides = (IsError=%v, %q)", res.IsError, out)
+	}
+}
+
+func TestLoopback_UploadArtifact_RequiresExactlyOneSource(t *testing.T) {
+	sess := authedArtifactServer(t)
+	path := filepath.Join(t.TempDir(), "picture.png")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range []map[string]any{
+		{"path": path, "base64": "eA=="},
+		{"name": "x.png", "mime": "image/png"},
+	} {
+		res, out := callText(t, sess, "flow_upload_artifact", args)
+		if !res.IsError || !strings.Contains(out, "exactly one") {
+			t.Fatalf("sources %#v = (IsError=%v, %q), want exact-one error", args, res.IsError, out)
+		}
+	}
+}
+
+func TestLoopback_UploadArtifact_RejectsEmptyPath(t *testing.T) {
+	sess := authedArtifactServer(t)
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"path": "  "})
+	if !res.IsError || !strings.Contains(out, "must not be empty") {
+		t.Fatalf("empty path = (IsError=%v, %q), want empty-path error", res.IsError, out)
+	}
+}
+
+func TestLoopback_UploadArtifact_PathReadFailures(t *testing.T) {
+	sess := authedArtifactServer(t)
+	t.Run("missing", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing.png")
+		res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"path": path})
+		if !res.IsError || !strings.Contains(out, "read ") {
+			t.Fatalf("missing path = (IsError=%v, %q), want read error", res.IsError, out)
+		}
+	})
+	t.Run("oversized", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "large.bin")
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Truncate(path, domain.MaxArtifactBytes+1); err != nil {
+			t.Fatal(err)
+		}
+		res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"path": path})
+		if !res.IsError || !strings.Contains(out, "exceeds") {
+			t.Fatalf("oversized path = (IsError=%v, %q), want size error", res.IsError, out)
+		}
+	})
 }
 
 func TestLoopback_DeleteArtifact_UnknownSlug(t *testing.T) {
