@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -85,5 +86,27 @@ func TestSetActiveContext_NodeOverride(t *testing.T) {
 	got, _ := docs.Get(ctx, "u1", id)
 	if got.NodeID == nil || *got.NodeID != "N1" {
 		t.Fatalf("expected doc at node N1, got %+v", got)
+	}
+}
+
+func TestSetActiveContext_NodeOverrideRejectsAmbiguousSlug(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	workID, privateID := "work", "private"
+	for _, n := range []domain.Node{
+		{ID: "work", OwnerID: "u1", Kind: domain.KindEngagement, Name: "Work", Slug: "work"},
+		{ID: "private", OwnerID: "u1", Kind: domain.KindEngagement, Name: "Private", Slug: "private"},
+		{ID: "work-api", OwnerID: "u1", Kind: domain.KindRepo, ParentID: &workID, Name: "API", Slug: "api"},
+		{ID: "private-api", OwnerID: "u1", Kind: domain.KindRepo, ParentID: &privateID, Name: "API", Slug: "api"},
+	} {
+		if _, err := nodes.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	uc := usecase.SetActiveContext{Nodes: nodes, Docs: testutil.NewFakeDocumentStore(), Tags: testutil.NewFakeTagStore()}
+	_, _, err := uc.Execute(ctx, "u1", usecase.ContextResolveInput{NodeOverride: "api"}, "", "must not write", nil)
+	if err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("ambiguous NodeOverride error = %v, want fail-closed ambiguity", err)
 	}
 }

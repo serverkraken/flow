@@ -239,6 +239,100 @@ VALUES ($1, $2, $3, 'remote', $4, $5, $6)`
 	}
 }
 
+func TestNodeStore_DeleteRejectsProjectDocuments(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	u, _ := domain.NewUser("u-del-doc", "sub-del-doc", "deldoc", "deldoc@x.de", "Delete Doc")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	nodes := pgstore.NewNodeStore(pool)
+	node, _ := domain.NewNode("node-del-doc", u.ID, "Delete Doc", "delete-doc", time.Now().UTC())
+	node.Kind = domain.KindEngagement
+	if _, err := nodes.Create(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+	docs := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "project-doc", OwnerID: u.ID, NodeID: &node.ID, Type: domain.DocProject,
+		Path: "readme", Title: "README", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := nodes.Delete(ctx, u.ID, node.ID); !errors.Is(err, ports.ErrNodeHasProjectDocuments) {
+		t.Fatalf("Delete error = %v, want ErrNodeHasProjectDocuments", err)
+	}
+	if _, err := nodes.Get(ctx, u.ID, node.ID); err != nil {
+		t.Fatalf("node changed after blocked delete: %v", err)
+	}
+	got, err := docs.Get(ctx, u.ID, "project-doc")
+	if err != nil || got.NodeID == nil || *got.NodeID != node.ID || got.Type != domain.DocProject {
+		t.Fatalf("project document changed after blocked delete: doc=%+v err=%v", got, err)
+	}
+}
+
+func TestNodeStore_DeleteWaitsForConcurrentProjectDocument(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	u, _ := domain.NewUser("u-del-race", "sub-del-race", "delrace", "delrace@x.de", "Delete Race")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	nodes := pgstore.NewNodeStore(pool)
+	node, _ := domain.NewNode("node-del-race", u.ID, "Delete Race", "delete-race", time.Now().UTC())
+	node.Kind = domain.KindEngagement
+	if _, err := nodes.Create(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	now := time.Now().UTC()
+	if _, err := tx.Exec(ctx, `INSERT INTO documents
+		(id, owner_id, node_id, type, path, title, body, extra, created_at, updated_at)
+		VALUES ($1,$2,$3,'project','readme','README','','{}',$4,$4)`,
+		"project-doc-race", u.ID, node.ID, now); err != nil {
+		t.Fatal(err)
+	}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- nodes.Delete(ctx, u.ID, node.ID) }()
+	select {
+	case err := <-errCh:
+		t.Fatalf("delete did not wait for concurrent FK insert: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-errCh; !errors.Is(err, ports.ErrNodeHasProjectDocuments) {
+		t.Fatalf("delete after concurrent insert = %v, want ErrNodeHasProjectDocuments", err)
+	}
+	if _, err := nodes.Get(ctx, u.ID, node.ID); err != nil {
+		t.Fatalf("node changed after concurrent blocked delete: %v", err)
+	}
+}
+
 func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))

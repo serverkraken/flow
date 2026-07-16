@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/clientmachine"
 	"github.com/serverkraken/flow/internal/gitremote"
+	"github.com/serverkraken/flow/internal/noderef"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +31,7 @@ func contextCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&path, "path", "", "directory to resolve (default: cwd)")
-	cmd.Flags().StringVar(&repo, "repo", "", "explicit node slug override")
+	cmd.Flags().StringVar(&repo, "repo", "", "explicit node id, unique slug, or qualified path override")
 	cmd.Flags().StringVar(&profile, "profile", "standard", "context profile: handoff, standard or full")
 	cmd.Flags().IntVar(&capN, "cap", 0, "token budget override")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit the raw compose JSON")
@@ -48,6 +50,19 @@ func runContext(ctx context.Context, out interface{ Write([]byte) (int, error) }
 	q := apiclient.ContextQuery{Remote: remote, Machine: m.ID, Path: dir, Node: repo, Profile: profile, Cap: capN}
 
 	c, err := clientFromStore(ctx)
+	explicitResolved := repo == ""
+	if err == nil && repo != "" {
+		resolved, resolveErr := resolveContextNodeRef(ctx, c, repo)
+		switch {
+		case resolveErr == nil:
+			q.Node = resolved
+			explicitResolved = true
+		case errors.Is(resolveErr, noderef.ErrNotFound), errors.Is(resolveErr, noderef.ErrAmbiguous):
+			return resolveErr
+		default:
+			err = resolveErr
+		}
+	}
 	if err == nil {
 		cc, cerr := c.ComposeContext(ctx, q)
 		if cerr == nil {
@@ -56,6 +71,10 @@ func runContext(ctx context.Context, out interface{ Write([]byte) (int, error) }
 		}
 		err = cerr
 	}
+	if !explicitResolved {
+		_, _ = fmt.Fprintf(out, "# flow context\n\n_(offline — explicit node reference %q could not be resolved; %v)_\n", repo, err)
+		return nil
+	}
 	// Network/auth failure → offline cache (SessionStart must never hard-fail).
 	if cc, stamp, ok := readContextCache(q); ok {
 		_ = emit(out, cc, true, stamp, asJSON) // swallow stdout error: the hook must not break
@@ -63,6 +82,14 @@ func runContext(ctx context.Context, out interface{ Write([]byte) (int, error) }
 	}
 	_, _ = fmt.Fprintf(out, "# flow context\n\n_(offline — no cached context for this repo; %v)_\n", err)
 	return nil // exit 0: do not break the hook
+}
+
+func resolveContextNodeRef(ctx context.Context, c *apiclient.Client, ref string) (string, error) {
+	nodes, err := c.ListNodes(ctx)
+	if err != nil {
+		return "", err
+	}
+	return resolveNodeRef(nodes, ref)
 }
 
 func emit(out interface{ Write([]byte) (int, error) }, cc usecase.ComposedContext, offline bool, stamp string, asJSON bool) error {

@@ -413,6 +413,18 @@ func TestWebNodeFormErrorPaths(t *testing.T) {
 	if _, err := ns.Get(context.Background(), "u1", eng.ID); err != nil {
 		t.Errorf("engagement should still exist after failed delete: %v", err)
 	}
+
+	// Project documents block deletion with a distinct actionable redirect.
+	ns.SetDeleteError(ports.ErrNodeHasProjectDocuments)
+	res = postN(t, ts, c, "/nodes/repo1/delete", url.Values{})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("delete-with-project-documents = %d, want 303", res.StatusCode)
+	}
+	loc = res.Header.Get("Location")
+	_ = res.Body.Close()
+	if !strings.Contains(loc, "err=documents") {
+		t.Errorf("delete-with-project-documents redirect = %q, want ?err=documents", loc)
+	}
 }
 
 // TestWebNodeForm exercises the NodeForm-based create / edit / status / delete

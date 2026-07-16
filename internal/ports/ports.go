@@ -58,6 +58,9 @@ type EventBus interface {
 var (
 	ErrNodeNotFound    = errors.New("project not found")
 	ErrNodeHasChildren = errors.New("node has children")
+	// ErrNodeHasProjectDocuments prevents ON DELETE SET NULL from producing a
+	// project document that violates the domain's mandatory-node invariant.
+	ErrNodeHasProjectDocuments = errors.New("node has project documents")
 	// ErrNodeSlugTaken marks a slug collision: another node under the same parent
 	// (or another root, for engagements) already uses this slug. Slugs are unique
 	// per sibling set, not globally — the same name may repeat across the tree.
@@ -114,7 +117,8 @@ type NodeStore interface {
 	SetRate(ctx context.Context, ownerID, id string, rate *domain.Money) error
 	// Delete removes a project. Owner-scoped; returns ErrNodeNotFound if absent
 	// or foreign. Returns ErrNodeHasChildren if the node still has children
-	// (FK RESTRICT on parent_id).
+	// (FK RESTRICT on parent_id), or ErrNodeHasProjectDocuments when deletion
+	// would orphan a document whose type requires a node.
 	Delete(ctx context.Context, ownerID, id string) error
 	// Children returns the direct children of parentID (nil = roots) for the
 	// given owner, ordered by name.

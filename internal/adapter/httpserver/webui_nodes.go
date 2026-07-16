@@ -420,6 +420,10 @@ func (s *Server) handleWebNodeDelete(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/nodes/"+id+"?err=children", http.StatusSeeOther)
 			return
 		}
+		if errors.Is(err, ports.ErrNodeHasProjectDocuments) {
+			http.Redirect(w, r, "/nodes/"+id+"?err=documents", http.StatusSeeOther)
+			return
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

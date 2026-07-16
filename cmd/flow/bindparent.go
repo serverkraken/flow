@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/noderef"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 )
@@ -16,11 +17,10 @@ import (
 // vorhaben), each path-labeled (so duplicate names stay distinguishable) and
 // sorted, for the bind-create parent picker.
 func repoParentItems(nodes []domain.Node) []fuzzylist.Item {
-	byID := indexByID(nodes)
 	var items []fuzzylist.Item
 	for _, n := range nodes {
 		if n.Kind == domain.KindEngagement || n.Kind == domain.KindVorhaben {
-			items = append(items, fuzzylist.Item{ID: n.ID, Label: nodePathOf(byID, n)})
+			items = append(items, fuzzylist.Item{ID: n.ID, Label: noderef.QualifiedPath(nodes, n)})
 		}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Label < items[j].Label })

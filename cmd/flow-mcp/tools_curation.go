@@ -120,11 +120,11 @@ func (h *handlers) contextQuery(ctx context.Context, repo string, cap int, profi
 		if err != nil {
 			return apiclient.ContextQuery{}, err
 		}
-		q.Node = node.Slug
+		q.Node = node.ID
 		return q, nil
 	}
 	if proj, matched := h.resolved(); matched {
-		q.Node = proj.Slug
+		q.Node = proj.ID
 		return q, nil
 	}
 	return apiclient.ContextQuery{}, errGuard{err: fmt.Errorf("no project is bound to this directory; use flow_bind_project or pass repo explicitly")}

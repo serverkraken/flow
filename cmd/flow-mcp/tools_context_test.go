@@ -98,9 +98,10 @@ func TestLoopback_GetContext_ReturnsJSON(t *testing.T) {
 	if !strings.Contains(got, "alpha") || !strings.Contains(got, "do the thing") {
 		t.Fatalf("flow_get_context = %q, want JSON with 'alpha' and 'do the thing'", got)
 	}
-	// Default resolution uses the resolved project slug (option B).
-	if capturedNode != "alpha" {
-		t.Fatalf("GET /api/v1/context got node=%q, want 'alpha' (resolved project slug)", capturedNode)
+	// Default resolution forwards the already-resolved ID, never the possibly
+	// sibling-colliding slug.
+	if capturedNode != "p1" {
+		t.Fatalf("GET /api/v1/context got node=%q, want resolved id p1", capturedNode)
 	}
 }
 
@@ -139,8 +140,8 @@ func TestLoopback_GetContext_RepoOverride(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("flow_get_context (repo override) IsError: %s", got)
 	}
-	if capturedNode != "beta" {
-		t.Fatalf("GET /api/v1/context got node=%q, want 'beta' (repo override)", capturedNode)
+	if capturedNode != "p2" {
+		t.Fatalf("GET /api/v1/context got node=%q, want resolved id p2", capturedNode)
 	}
 }
 
@@ -152,8 +153,8 @@ func TestLoopback_GetContext_RepoOverrideByUpstreamGit(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("flow_get_context (upstream override) IsError: %s", got)
 	}
-	if capturedNode != "github-com-serverkraken-flow" {
-		t.Fatalf("GET /api/v1/context got node=%q, want canonical node slug", capturedNode)
+	if capturedNode != "p-flow" {
+		t.Fatalf("GET /api/v1/context got node=%q, want resolved id p-flow", capturedNode)
 	}
 }
 
@@ -168,8 +169,8 @@ func TestLoopback_SetActiveContext_RepoOverrideByUpstreamGit(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("flow_set_active_context (upstream override) IsError: %s", got)
 	}
-	if capturedNode != "github-com-serverkraken-flow" {
-		t.Fatalf("PUT /api/v1/context/active got node=%q, want canonical node slug", capturedNode)
+	if capturedNode != "p-flow" {
+		t.Fatalf("PUT /api/v1/context/active got node=%q, want resolved id p-flow", capturedNode)
 	}
 }
 

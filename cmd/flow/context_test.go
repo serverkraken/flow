@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -38,6 +43,29 @@ func TestRenderContext_BodiesAndFooter(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("render missing %q\n---\n%s", want, out)
 		}
+	}
+}
+
+func TestResolveContextNodeRefUsesStableIDAndRejectsAmbiguousSlug(t *testing.T) {
+	workID, privateID := "work", "private"
+	nodes := []domain.Node{
+		{ID: workID, Slug: "work"},
+		{ID: privateID, Slug: "private"},
+		{ID: "work-api", Slug: "api", ParentID: &workID},
+		{ID: "private-api", Slug: "api", ParentID: &privateID},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(nodes)
+	}))
+	defer srv.Close()
+	client := apiclient.New(srv.URL, "token")
+
+	got, err := resolveContextNodeRef(context.Background(), client, "private/api")
+	if err != nil || got != "private-api" {
+		t.Fatalf("qualified context ref = (%q, %v), want private-api", got, err)
+	}
+	if _, err := resolveContextNodeRef(context.Background(), client, "api"); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("ambiguous context ref error = %v", err)
 	}
 }
 

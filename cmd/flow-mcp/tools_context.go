@@ -17,8 +17,8 @@ type getContextIn struct {
 
 // getContext handles flow_get_context: composes the cross-device start-context
 // for the resolved (or caller-supplied) repo and returns the JSON payload.
-// Resolution: when repo is empty, the already-resolved project slug is passed as
-// q.Node (option B — reuses the cached resolved() state, avoids extra imports).
+// Resolution: the already-resolved stable node ID is passed as q.Node so a
+// sibling-colliding slug cannot be re-resolved to a different node server-side.
 func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in getContextIn) (*mcp.CallToolResult, any, error) {
 	var out string
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
@@ -28,9 +28,9 @@ func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in 
 			if err != nil {
 				return err
 			}
-			q.Node = node.Slug
+			q.Node = node.ID
 		} else if proj, matched := h.resolved(); matched {
-			q.Node = proj.Slug
+			q.Node = proj.ID
 		}
 		cc, err := c.ComposeContext(ctx, q)
 		if err != nil {
@@ -65,10 +65,10 @@ func (h *handlers) setActiveContext(ctx context.Context, req *mcp.CallToolReques
 			if err != nil {
 				return err
 			}
-			input.Node = node.Slug
+			input.Node = node.ID
 			project = node.Slug
 		} else if proj, matched := h.resolved(); matched {
-			input.Node = proj.Slug
+			input.Node = proj.ID
 			project = proj.Slug
 		} else {
 			return errGuard{err: fmt.Errorf("no project is bound to this directory; use flow_bind_project or pass repo explicitly")}

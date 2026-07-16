@@ -11,6 +11,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/noderef"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -29,7 +30,7 @@ type SetActiveContext struct {
 	Tags      ports.TagStore
 }
 
-// Execute resolves the leaf (NodeOverride slug lookup OR Resolve.Execute),
+// Execute resolves the leaf (NodeOverride id/unique-slug/path lookup OR Resolve.Execute),
 // returns ErrContextUnresolved when no bound node is found, then atomically
 // upserts the active-context memory doc and its links/tags when Aggregate is
 // configured.
@@ -38,16 +39,7 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 	var ok bool
 	var err error
 	if in.NodeOverride != "" {
-		all, e := uc.Nodes.List(ctx, ownerID)
-		if e != nil {
-			return "", time.Time{}, e
-		}
-		for _, n := range all {
-			if n.Slug == in.NodeOverride {
-				leaf, ok = n, true
-				break
-			}
-		}
+		leaf, ok, err = resolveContextNodeOverride(ctx, uc.Nodes, ownerID, in.NodeOverride)
 	} else {
 		leaf, ok, err = uc.Resolve.Execute(ctx, ownerID, in.RemoteSlug, in.MachineID, in.Cwd)
 	}
@@ -579,7 +571,7 @@ type ContextResolveInput struct {
 	RemoteSlug   string
 	MachineID    string
 	Cwd          string
-	NodeOverride string // explicit node slug; bypasses binding resolution
+	NodeOverride string // explicit node id, unique slug, or qualified path; bypasses binding resolution
 	Client       string // agent client name used to select global instructions
 }
 
@@ -654,22 +646,28 @@ func (uc ComposeContext) composeForChain(ctx context.Context, ownerID string, ch
 	return ComposeForClient(chain, docs, allowed, cap, client), nil
 }
 
-// resolveLeaf returns the leaf node using either an explicit slug override or the
-// binding registry (remote slug → machine ID → cwd longest-prefix).
+// resolveLeaf returns the leaf node using either an explicit stable/qualified
+// reference or the binding registry (remote slug → machine ID → cwd longest-prefix).
 func (uc ComposeContext) resolveLeaf(ctx context.Context, ownerID string, in ContextResolveInput) (domain.Node, bool, error) {
 	if in.NodeOverride != "" {
-		all, err := uc.Nodes.List(ctx, ownerID)
-		if err != nil {
-			return domain.Node{}, false, err
-		}
-		for _, n := range all {
-			if n.Slug == in.NodeOverride {
-				return n, true, nil
-			}
-		}
-		return domain.Node{}, false, nil
+		return resolveContextNodeOverride(ctx, uc.Nodes, ownerID, in.NodeOverride)
 	}
 	return uc.Resolve.Execute(ctx, ownerID, in.RemoteSlug, in.MachineID, in.Cwd)
+}
+
+func resolveContextNodeOverride(ctx context.Context, nodes ports.NodeStore, ownerID, ref string) (domain.Node, bool, error) {
+	all, err := nodes.List(ctx, ownerID)
+	if err != nil {
+		return domain.Node{}, false, err
+	}
+	node, err := noderef.Resolve(all, ref)
+	if errors.Is(err, noderef.ErrNotFound) {
+		return domain.Node{}, false, nil
+	}
+	if err != nil {
+		return domain.Node{}, false, err
+	}
+	return node, true, nil
 }
 
 // globalAllowed computes the set of global-document IDs permitted to cross into

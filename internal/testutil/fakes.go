@@ -89,8 +89,15 @@ func (v FakeVerifier) Verify(context.Context, string) (ports.Identity, error) {
 
 // FakeNodeStore is an in-memory ports.NodeStore.
 type FakeNodeStore struct {
-	mu sync.Mutex
-	m  map[string]domain.Node // keyed by id
+	mu        sync.Mutex
+	m         map[string]domain.Node // keyed by id
+	deleteErr error
+}
+
+func (s *FakeNodeStore) SetDeleteError(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deleteErr = err
 }
 
 func NewFakeNodeStore() *FakeNodeStore {
@@ -183,6 +190,9 @@ func (s *FakeNodeStore) SetRate(_ context.Context, ownerID, id string, rate *dom
 func (s *FakeNodeStore) Delete(_ context.Context, ownerID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
 	n, ok := s.m[id]
 	if !ok || n.OwnerID != ownerID {
 		return ports.ErrNodeNotFound

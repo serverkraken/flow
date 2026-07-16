@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/noderef"
 )
 
 // scope is a tool call's resolved project filter: the apiclient nodeID pointer
@@ -68,15 +70,19 @@ func (h *handlers) lookupNode(ctx context.Context, ref string) (domain.Node, err
 	if err != nil {
 		return domain.Node{}, fmt.Errorf("flow server error listing projects: %w", err)
 	}
-	if p, ok := matchNode(ps, ref); ok {
+	if p, err := matchNodeRef(ps, ref); err == nil {
 		return p, nil
+	} else if !errors.Is(err, noderef.ErrNotFound) {
+		return domain.Node{}, errGuard{err}
 	}
 	ps, err = h.nodeList(ctx, true) // refresh once, then retry
 	if err != nil {
 		return domain.Node{}, fmt.Errorf("flow server error listing projects: %w", err)
 	}
-	if p, ok := matchNode(ps, ref); ok {
+	if p, err := matchNodeRef(ps, ref); err == nil {
 		return p, nil
+	} else if !errors.Is(err, noderef.ErrNotFound) {
+		return domain.Node{}, errGuard{err}
 	}
 	return domain.Node{}, errGuard{fmt.Errorf("unknown project %q. Use 'global' (all projects), 'none' (unassigned), or a known slug: %s", ref, slugList(ps))}
 }
@@ -117,11 +123,31 @@ func (h *handlers) projectName(ctx context.Context, id *string) string {
 }
 
 func matchNode(ps []domain.Node, ref string) (domain.Node, bool) {
+	node, err := matchNodeRef(ps, ref)
+	return node, err == nil
+}
+
+func matchNodeRef(ps []domain.Node, ref string) (domain.Node, error) {
 	ref = strings.TrimSpace(ref)
+	if node, err := noderef.Resolve(ps, ref); err == nil {
+		return node, nil
+	} else if !errors.Is(err, noderef.ErrNotFound) {
+		return domain.Node{}, err
+	}
+
+	var nameMatch domain.Node
+	nameMatches := 0
 	for _, p := range ps {
-		if p.ID == ref || strings.EqualFold(p.Slug, ref) || strings.EqualFold(p.Name, ref) {
-			return p, true
+		if strings.EqualFold(p.Name, ref) {
+			nameMatch = p
+			nameMatches++
 		}
+	}
+	if nameMatches == 1 {
+		return nameMatch, nil
+	}
+	if nameMatches > 1 {
+		return domain.Node{}, fmt.Errorf("%w: name %q matches multiple nodes; use an id or qualified slug path", noderef.ErrAmbiguous, ref)
 	}
 
 	remoteSlug := strings.ToLower(ref)
@@ -139,10 +165,10 @@ func matchNode(ps []domain.Node, ref string) (domain.Node, bool) {
 		matches++
 	}
 	if matches == 1 {
-		return match, true
+		return match, nil
 	}
 	if matches > 1 {
-		return domain.Node{}, false
+		return domain.Node{}, fmt.Errorf("%w: remote %q matches multiple nodes; use an id or qualified slug path", noderef.ErrAmbiguous, ref)
 	}
 
 	for _, p := range ps {
@@ -157,9 +183,12 @@ func matchNode(ps []domain.Node, ref string) (domain.Node, bool) {
 		matches++
 	}
 	if matches == 1 {
-		return match, true
+		return match, nil
 	}
-	return domain.Node{}, false
+	if matches > 1 {
+		return domain.Node{}, fmt.Errorf("%w: remote %q matches multiple nodes; use an id or qualified slug path", noderef.ErrAmbiguous, ref)
+	}
+	return domain.Node{}, fmt.Errorf("%w: %q", noderef.ErrNotFound, ref)
 }
 
 func slugList(ps []domain.Node) string {

@@ -124,8 +124,36 @@ func (s *NodeStore) SetRate(ctx context.Context, ownerID, id string, rate *domai
 }
 
 func (s *NodeStore) Delete(ctx context.Context, ownerID, id string) error {
-	const q = `DELETE FROM nodes WHERE owner_id=$1 AND id=$2`
-	tag, err := s.pool.Exec(ctx, q, ownerID, id)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pgstore: begin delete node: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Lock the owner-scoped node before checking dependent project documents.
+	// A concurrent document FK insert must finish before this lock is acquired,
+	// or wait until the delete commits and then fail its FK check. This closes
+	// the check/delete race without changing the schema.
+	var lockedID string
+	if err := tx.QueryRow(ctx, `SELECT id FROM nodes WHERE owner_id=$1 AND id=$2 FOR UPDATE`, ownerID, id).Scan(&lockedID); errors.Is(err, pgx.ErrNoRows) {
+		return ports.ErrNodeNotFound
+	} else if err != nil {
+		return fmt.Errorf("pgstore: lock node for delete: %w", err)
+	}
+
+	var hasProjectDocuments bool
+	// Deliberately check all owners: the FK targets the globally unique node ID,
+	// so even a legacy/corrupt foreign-owner reference would otherwise be
+	// mutated by ON DELETE SET NULL. The caller learns only that deletion is
+	// blocked, never which owner or document caused it.
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM documents WHERE node_id=$1 AND type=$2)`, id, string(domain.DocProject)).Scan(&hasProjectDocuments); err != nil {
+		return fmt.Errorf("pgstore: check node project documents: %w", err)
+	}
+	if hasProjectDocuments {
+		return ports.ErrNodeHasProjectDocuments
+	}
+
+	_, err = tx.Exec(ctx, `DELETE FROM nodes WHERE owner_id=$1 AND id=$2`, ownerID, id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
@@ -133,8 +161,8 @@ func (s *NodeStore) Delete(ctx context.Context, ownerID, id string) error {
 		}
 		return fmt.Errorf("pgstore: delete node: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return ports.ErrNodeNotFound
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("pgstore: commit delete node: %w", err)
 	}
 	return nil
 }

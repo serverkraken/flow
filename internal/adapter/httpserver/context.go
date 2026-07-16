@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/noderef"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -33,6 +34,8 @@ func (s *Server) handlePutContextActive(w http.ResponseWriter, r *http.Request) 
 		usecase.ContextResolveInput{RemoteSlug: req.Remote, MachineID: req.Machine, Cwd: req.Path, NodeOverride: req.Node},
 		req.Title, req.Body, req.Tags)
 	switch {
+	case errors.Is(err, noderef.ErrAmbiguous):
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, usecase.ErrContextUnresolved):
 		http.Error(w, "repo not bound", http.StatusConflict)
 	case err != nil:
@@ -96,6 +99,10 @@ func (s *Server) handleGetContext(w http.ResponseWriter, r *http.Request) {
 	}
 	cc, err := s.ComposeContext.Execute(r.Context(), u.ID, in, budget)
 	if err != nil {
+		if errors.Is(err, noderef.ErrAmbiguous) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

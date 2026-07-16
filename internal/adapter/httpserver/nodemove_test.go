@@ -3,6 +3,7 @@ package httpserver_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,16 +30,16 @@ func newNodesSrv(t *testing.T) (do func(method, path, body string) *http.Respons
 
 	bus := sse.NewBus()
 	srv := &httpserver.Server{
-		Verifier:   testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:     usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:        bus,
-		Emitter:    sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
-		Clock:      clk,
-		CreateNode: usecase.CreateNode{Nodes: ns, IDs: ids, Clock: clk},
-		ListNodes:  usecase.ListNodes{Nodes: ns},
-		GetNode:    usecase.GetNode{Nodes: ns},
-		DeleteNode: usecase.DeleteNode{Nodes: ns},
-		MoveNode:   usecase.MoveNode{Nodes: ns},
+		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:            usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:               bus,
+		Emitter:           sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
+		Clock:             clk,
+		CreateNode:        usecase.CreateNode{Nodes: ns, IDs: ids, Clock: clk},
+		ListNodes:         usecase.ListNodes{Nodes: ns},
+		GetNode:           usecase.GetNode{Nodes: ns},
+		DeleteNode:        usecase.DeleteNode{Nodes: ns},
+		MoveNode:          usecase.MoveNode{Nodes: ns},
 		NodeAncestors:     usecase.NodeAncestors{Nodes: ns},
 		ResolveEngagement: usecase.ResolveEngagement{Resolve: usecase.ResolveNode{Bindings: bs, Nodes: ns}, Nodes: ns},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
@@ -142,5 +143,21 @@ func TestDeleteNode_WithChildren409(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusConflict {
 		t.Fatalf("delete-with-children status %d, want 409", res.StatusCode)
+	}
+}
+
+func TestDeleteNode_WithProjectDocuments409(t *testing.T) {
+	do, ns, owner := newNodesSrv(t)
+	seedNode(t, ns, owner, "eng1", domain.KindEngagement, nil)
+	ns.SetDeleteError(ports.ErrNodeHasProjectDocuments)
+
+	res := do("DELETE", "/api/v1/nodes/eng1", "")
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusConflict {
+		t.Fatalf("delete-with-project-documents status %d, want 409", res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "project documents") {
+		t.Fatalf("delete conflict body = %q, want project-document guidance", body)
 	}
 }

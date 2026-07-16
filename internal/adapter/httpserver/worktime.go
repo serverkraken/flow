@@ -278,6 +278,9 @@ func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ports.ErrNodeHasChildren):
 		http.Error(w, "node has children; move or remove them first", http.StatusConflict)
 		return
+	case errors.Is(err, ports.ErrNodeHasProjectDocuments):
+		http.Error(w, "node has project documents; move or reclassify them first", http.StatusConflict)
+		return
 	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return

@@ -135,6 +135,38 @@ func TestMatchNode_AmbiguousUpstreamGitDoesNotChooseArbitrarily(t *testing.T) {
 	}
 }
 
+func TestMatchNode_AmbiguousBareSlugDoesNotChooseArbitrarily(t *testing.T) {
+	workID, privateID := "work", "private"
+	ps := []domain.Node{
+		{ID: "one", Slug: "api", ParentID: &workID},
+		{ID: "two", Slug: "api", ParentID: &privateID},
+	}
+	if got, ok := matchNode(ps, "api"); ok {
+		t.Fatalf("ambiguous slug resolved to %q", got.ID)
+	}
+}
+
+func TestLookupNode_AmbiguousBareSlugReturnsGuidanceWithoutRefresh(t *testing.T) {
+	workID, privateID := "work", "private"
+	calls := 0
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {
+		calls++
+		return []domain.Node{
+			{ID: workID, Slug: "work"},
+			{ID: privateID, Slug: "private"},
+			{ID: "one", Slug: "api", ParentID: &workID},
+			{ID: "two", Slug: "api", ParentID: &privateID},
+		}, nil
+	}}
+	_, err := h.lookupNode(context.Background(), "api")
+	if err == nil || !strings.Contains(err.Error(), "ambiguous") || !strings.Contains(err.Error(), "work/api") || !strings.Contains(err.Error(), "private/api") {
+		t.Fatalf("lookup ambiguity error = %v, want both qualified paths", err)
+	}
+	if calls != 1 {
+		t.Fatalf("ambiguous lookup refreshed %d times, want one authoritative list", calls)
+	}
+}
+
 func TestResolveScope_UnknownRefreshesOnceThenErrors(t *testing.T) {
 	calls := 0
 	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {

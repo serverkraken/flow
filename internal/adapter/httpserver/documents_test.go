@@ -118,6 +118,38 @@ func TestHandleMoveDocument_ReclassifiesDailyMetadata(t *testing.T) {
 	}
 }
 
+func TestContextNodeOverride_AmbiguousSlugReturns400(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	primeUser(t, ts.URL)
+	workID, privateID := "work", "private"
+
+	for _, n := range []domain.Node{
+		{ID: "work", OwnerID: "id-1", Kind: domain.KindEngagement, Name: "Work", Slug: "work"},
+		{ID: "private", OwnerID: "id-1", Kind: domain.KindEngagement, Name: "Private", Slug: "private"},
+		{ID: "work-api", OwnerID: "id-1", Kind: domain.KindRepo, ParentID: &workID, Name: "API", Slug: "api"},
+		{ID: "private-api", OwnerID: "id-1", Kind: domain.KindRepo, ParentID: &privateID, Name: "API", Slug: "api"},
+	} {
+		if _, err := srv.ComposeContext.Nodes.Create(context.Background(), n); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, req := range []struct {
+		method, path, body string
+	}{
+		{method: http.MethodGet, path: "/api/v1/context?node=api"},
+		{method: http.MethodPut, path: "/api/v1/context/active", body: `{"node":"api","body":"must not write"}`},
+	} {
+		res := doDoc(t, ts, req.method, req.path, req.body)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("%s %s status = %d, want 400", req.method, req.path, res.StatusCode)
+		}
+	}
+}
+
 func TestHandleSearchDocuments_FiltersTypeBeforeLimit(t *testing.T) {
 	srv, _ := newDocServer(t)
 	ts := httptest.NewServer(srv.Routes())
