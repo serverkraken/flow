@@ -284,11 +284,22 @@ func instructionRank(it ContextItem, tier map[string]string) int {
 	}
 }
 
+func instructionModeRank(mode domain.ContextMode) int {
+	if mode.OrAuto() == domain.ContextModeImmer {
+		return 0
+	}
+	return 1
+}
+
 // dedupeInstructions prefers the most specific scope when identical
 // instruction bodies exist globally and on the repo chain.
 func dedupeInstructions(items []ContextItem, tier map[string]string) ([]ContextItem, int) {
 	sort.SliceStable(items, func(i, j int) bool {
-		return instructionRank(items[i], tier) < instructionRank(items[j], tier)
+		leftScope, rightScope := instructionRank(items[i], tier), instructionRank(items[j], tier)
+		if leftScope != rightScope {
+			return leftScope < rightScope
+		}
+		return instructionModeRank(items[i].ContextMode) < instructionModeRank(items[j].ContextMode)
 	})
 	seen := make(map[string]bool, len(items))
 	out := make([]ContextItem, 0, len(items))
@@ -305,6 +316,40 @@ func dedupeInstructions(items []ContextItem, tier map[string]string) ([]ContextI
 	return out, deduped
 }
 
+func clientFamily(raw string) string {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	for _, family := range []string{"codex", "claude", "gemini"} {
+		if strings.Contains(normalized, family) {
+			return family
+		}
+	}
+	return normalized
+}
+
+func instructionClient(path string) string {
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(path)), "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	switch parts[0] {
+	case "codex", "claude", "gemini":
+		return parts[0]
+	case "clients":
+		if len(parts) > 1 {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
+func instructionMatchesClient(d domain.Document, client string) bool {
+	target := instructionClient(d.Path)
+	if target == "" || strings.TrimSpace(client) == "" {
+		return true
+	}
+	return target == clientFamily(client)
+}
+
 // Compose classifies docs, ranks all memories into one pool
 // (pinned desc, priority desc, tierRank asc, updatedAt desc), and fills until
 // the token cap. Priority is a manual curation override: it lifts a doc's
@@ -316,6 +361,14 @@ func dedupeInstructions(items []ContextItem, tier map[string]string) ([]ContextI
 // immer memories; these priority tiers may be truncated but never exceed the
 // hard cap. A pinned global memory bypasses the D7 tag-gate. Pure: no I/O.
 func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[string]bool, cap int) ComposedContext {
+	return ComposeForClient(chain, docs, globalAllowed, cap, "")
+}
+
+// ComposeForClient composes context for one agent client. Global instructions
+// under a client-qualified path (for example codex/... or claude/...) are only
+// included for that client; repo-scoped and generic global instructions remain
+// shared. An empty client preserves the complete administrative/WebUI view.
+func ComposeForClient(chain []domain.Node, docs []domain.Document, globalAllowed map[string]bool, cap int, client string) ComposedContext {
 	out := ComposedContext{Memories: map[string][]ContextItem{}}
 	out.Budget.Cap = cap
 	if len(chain) > 0 {
@@ -356,6 +409,9 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 
 	for _, d := range docs {
 		if d.Archived {
+			continue
+		}
+		if d.Type == domain.DocInstruction && d.NodeID == nil && !instructionMatchesClient(d, client) {
 			continue
 		}
 		switch d.Type {
@@ -524,6 +580,7 @@ type ContextResolveInput struct {
 	MachineID    string
 	Cwd          string
 	NodeOverride string // explicit node slug; bypasses binding resolution
+	Client       string // agent client name used to select global instructions
 }
 
 // ComposeContext orchestrates resolution, doc gathering, tag-gating, and Compose.
@@ -549,14 +606,14 @@ func (uc ComposeContext) Execute(ctx context.Context, ownerID string, in Context
 		if err != nil {
 			return ComposedContext{}, err
 		}
-		return Compose(nil, docs, map[string]bool{}, cap), nil
+		return ComposeForClient(nil, docs, map[string]bool{}, cap, in.Client), nil
 	}
 
 	chain, err := uc.Nodes.Ancestors(ctx, ownerID, leaf.ID)
 	if err != nil {
 		return ComposedContext{}, err
 	}
-	return uc.composeForChain(ctx, ownerID, chain, cap)
+	return uc.composeForChain(ctx, ownerID, chain, cap, in.Client)
 }
 
 // ExecuteForNode composes the context of a node addressed by ID (not slug —
@@ -573,13 +630,13 @@ func (uc ComposeContext) ExecuteForNode(ctx context.Context, ownerID, nodeID str
 	if len(chain) == 0 || chain[0].ID != leaf.ID {
 		chain = append([]domain.Node{leaf}, chain...)
 	}
-	return uc.composeForChain(ctx, ownerID, chain, cap)
+	return uc.composeForChain(ctx, ownerID, chain, cap, "")
 }
 
 // composeForChain is the post-resolve tail shared by Execute and
 // ExecuteForNode: gather docs for the chain, apply the D7 tag-gate for
 // global memories, and call the pure Compose function.
-func (uc ComposeContext) composeForChain(ctx context.Context, ownerID string, chain []domain.Node, cap int) (ComposedContext, error) {
+func (uc ComposeContext) composeForChain(ctx context.Context, ownerID string, chain []domain.Node, cap int, client string) (ComposedContext, error) {
 	chainIDs := make([]string, len(chain))
 	for i, n := range chain {
 		chainIDs[i] = n.ID
@@ -594,7 +651,7 @@ func (uc ComposeContext) composeForChain(ctx context.Context, ownerID string, ch
 	if err != nil {
 		return ComposedContext{}, err
 	}
-	return Compose(chain, docs, allowed, cap), nil
+	return ComposeForClient(chain, docs, allowed, cap, client), nil
 }
 
 // resolveLeaf returns the leaf node using either an explicit slug override or the

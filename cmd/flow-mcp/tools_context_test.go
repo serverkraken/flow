@@ -105,11 +105,12 @@ func TestLoopback_GetContext_ReturnsJSON(t *testing.T) {
 }
 
 func TestLoopback_GetContext_ForwardsHardCapAndProfile(t *testing.T) {
-	var gotCap, gotProfile string
+	var gotCap, gotProfile, gotClient string
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/context", func(w http.ResponseWriter, r *http.Request) {
 		gotCap = r.URL.Query().Get("cap")
 		gotProfile = r.URL.Query().Get("profile")
+		gotClient = r.URL.Query().Get("client")
 		_ = json.NewEncoder(w).Encode(usecase.ComposedContext{Budget: usecase.ContextBudget{Cap: 2200, Used: 2200}})
 	})
 	be := httptest.NewServer(mux)
@@ -124,6 +125,9 @@ func TestLoopback_GetContext_ForwardsHardCapAndProfile(t *testing.T) {
 	}
 	if gotCap != "2200" || gotProfile != "handoff" {
 		t.Fatalf("context query cap=%q profile=%q, want 2200/handoff", gotCap, gotProfile)
+	}
+	if gotClient != "test" {
+		t.Fatalf("context query client=%q, want MCP ClientInfo name test", gotClient)
 	}
 }
 

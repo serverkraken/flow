@@ -433,6 +433,33 @@ func TestLoopback_BindProject(t *testing.T) {
 	}
 }
 
+func TestLoopback_SearchForwardsTypeAndLimitToServer(t *testing.T) {
+	var gotType, gotLimit string
+	be := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/documents":
+			gotType, gotLimit = r.URL.Query().Get("type"), r.URL.Query().Get("limit")
+			_ = json.NewEncoder(w).Encode([]domain.SearchHit{{Document: domain.Document{ID: "m1", Type: domain.DocMemory, Path: "memory/hit", Title: "Hit"}, Snippet: "needle"}})
+		case "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{{ID: "p1", Name: "Alpha", Slug: "alpha"}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer be.Close()
+	client := apiclient.New(be.URL, "tok")
+	_, h := managerFor(t, client, domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"})
+	sess := connect(t, h.srv)
+
+	res, out := callText(t, sess, "flow_search_docs", map[string]any{"query": "needle", "type": "memory", "limit": 7})
+	if res.IsError || !strings.Contains(out, "memory/hit") {
+		t.Fatalf("typed search = (IsError=%v, %q)", res.IsError, out)
+	}
+	if gotType != "memory" || gotLimit != "7" {
+		t.Fatalf("backend query type=%q limit=%q, want memory/7", gotType, gotLimit)
+	}
+}
+
 // authedReadServer builds an MCP server authed and scoped to project Alpha (p1).
 func authedReadServer(t *testing.T) *mcp.ClientSession {
 	t.Helper()

@@ -130,6 +130,9 @@ func patchMarkdown(body string, in patchDocIn) (string, error) {
 		if strings.TrimSpace(in.Checkbox) == "" || in.Checked == nil {
 			return "", fmt.Errorf("set_checkbox requires checkbox and checked")
 		}
+		if in.Label != nil && strings.TrimSpace(*in.Label) == "" {
+			return "", fmt.Errorf("set_checkbox label must not be empty")
+		}
 		lines := strings.Split(body, "\n")
 		match := -1
 		for i, line := range lines {
@@ -145,6 +148,10 @@ func patchMarkdown(body string, in patchDocIn) (string, error) {
 				lines[i] = line[:markAt] + "x" + line[markAt+1:]
 			} else {
 				lines[i] = line[:markAt] + " " + line[markAt+1:]
+			}
+			if in.Label != nil {
+				labelAt := len(lines[i]) - len(label)
+				lines[i] = lines[i][:labelAt] + " " + strings.TrimSpace(*in.Label)
 			}
 		}
 		if match < 0 {

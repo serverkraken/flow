@@ -90,7 +90,7 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.updateDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_patch_doc",
-		Description: "CAS-safe Markdown mutation without loading a large document into model context: replace_section, append_section, or set_checkbox. Returns id, canonical project, version, updatedAt, and hash.",
+		Description: "CAS-safe Markdown mutation without loading a large document into model context: replace_section, append_section, or set_checkbox (optionally changing checkbox label/status atomically). Returns id, canonical project, version, updatedAt, and hash.",
 	}, h.patchDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_move_doc",

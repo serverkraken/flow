@@ -77,6 +77,46 @@ func TestCompose_HardCapPrioritizesActiveContextAndDeduplicatesInstructions(t *t
 	}
 }
 
+func TestComposeForClient_GlobalInstructionsAreClientSpecific(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "codex", Type: domain.DocInstruction, Path: "codex/global-agents-md", UpdatedAt: t0, Body: "codex rules"},
+		{ID: "claude", Type: domain.DocInstruction, Path: "claude/global-claude-md", UpdatedAt: t0, Body: "claude rules"},
+		{ID: "shared", Type: domain.DocInstruction, Path: "instructions/shared", UpdatedAt: t0, Body: "shared rules"},
+		{ID: "repo", NodeID: &leaf, Type: domain.DocInstruction, Path: "instructions/repo", UpdatedAt: t0, Body: "repo rules"},
+	}
+
+	got := usecase.ComposeForClient(chain, docs, map[string]bool{}, 100000, "codex")
+	want := []string{"repo", "codex", "shared"}
+	if len(got.Instructions) != len(want) {
+		t.Fatalf("instructions = %+v, want ids %v", got.Instructions, want)
+	}
+	for i, id := range want {
+		if got.Instructions[i].ID != id {
+			t.Fatalf("instructions[%d] = %q, want %q; all=%+v", i, got.Instructions[i].ID, id, got.Instructions)
+		}
+	}
+}
+
+func TestComposeForClient_ImmerInstructionPrecedesAutoWithinScope(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "auto", NodeID: &leaf, Type: domain.DocInstruction, Path: "instructions/auto", ContextMode: domain.ContextModeAuto, UpdatedAt: t0, Body: "auto rules"},
+		{ID: "immer", NodeID: &leaf, Type: domain.DocInstruction, Path: "instructions/immer", ContextMode: domain.ContextModeImmer, UpdatedAt: t0, Body: "immer rules"},
+	}
+
+	got := usecase.ComposeForClient(chain, docs, map[string]bool{}, 100000, "codex")
+	if len(got.Instructions) != 2 || got.Instructions[0].ID != "immer" || got.Instructions[1].ID != "auto" {
+		t.Fatalf("same-scope instructions = %+v, want immer before auto", got.Instructions)
+	}
+}
+
 func TestCompose_DiagnosticItemsDoNotDuplicateDocumentBodies(t *testing.T) {
 	t.Parallel()
 	leaf := "L"

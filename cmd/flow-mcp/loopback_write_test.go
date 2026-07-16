@@ -510,13 +510,14 @@ func TestLoopback_UpdateTagsOnlyAndPatchCheckbox(t *testing.T) {
 	}
 
 	res, out = callText(t, sess, "flow_patch_doc", map[string]any{
-		"id": "d-human", "operation": "set_checkbox", "checkbox": "F40 context", "checked": true, "confirm": true,
+		"id": "d-human", "operation": "set_checkbox", "checkbox": "F40 context", "checked": true,
+		"label": "F40 — Behoben: CAS-safe", "confirm": true,
 	})
 	if res.IsError || !strings.Contains(out, `"action":"patched"`) {
 		t.Fatalf("checkbox patch = (IsError=%v, %q)", res.IsError, out)
 	}
 	_, got = callText(t, sess, "flow_get_doc", map[string]any{"id": "d-human"})
-	if !strings.Contains(got, "- [x] F40 context") {
+	if !strings.Contains(got, "- [x] F40 — Behoben: CAS-safe") || strings.Contains(got, "F40 context") {
 		t.Fatalf("checkbox was not patched: %q", got)
 	}
 }
@@ -536,6 +537,31 @@ func TestLoopback_UpdateConflictReturnsStructuredError(t *testing.T) {
 	})
 	if !res.IsError || !strings.Contains(out, `"code":"document_conflict"`) || !strings.Contains(out, `"httpStatus":409`) || !strings.Contains(out, `"retryable":true`) || !strings.Contains(out, `"conflictVersion":"2026-07-15T12:00:00.000001Z"`) {
 		t.Fatalf("stale update = (IsError=%v, %q), want structured conflict", res.IsError, out)
+	}
+}
+
+func TestLoopback_PatchCheckboxLabelConflictLeavesWinningBody(t *testing.T) {
+	sess := authedWriteServer(t)
+	baseVersion := "2026-07-15T12:00:00Z"
+
+	res, out := callText(t, sess, "flow_patch_doc", map[string]any{
+		"id": "d-human", "operation": "set_checkbox", "checkbox": "F40 context", "checked": true,
+		"label": "F40 — Behoben", "expectedUpdatedAt": baseVersion, "confirm": true,
+	})
+	if res.IsError {
+		t.Fatalf("winning checkbox patch errored: %s", out)
+	}
+
+	res, out = callText(t, sess, "flow_patch_doc", map[string]any{
+		"id": "d-human", "operation": "set_checkbox", "checkbox": "F40 — Behoben", "checked": false,
+		"label": "F40 — Wieder offen", "expectedUpdatedAt": baseVersion, "confirm": true,
+	})
+	if !res.IsError || !strings.Contains(out, `"code":"document_conflict"`) {
+		t.Fatalf("stale checkbox patch = (IsError=%v, %q), want structured conflict", res.IsError, out)
+	}
+	_, got := callText(t, sess, "flow_get_doc", map[string]any{"id": "d-human"})
+	if !strings.Contains(got, "- [x] F40 — Behoben") || strings.Contains(got, "Wieder offen") {
+		t.Fatalf("stale patch changed the winning body: %q", got)
 	}
 }
 

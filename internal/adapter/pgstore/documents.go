@@ -863,6 +863,11 @@ var headlineOpts = "StartSel=" + domain.HighlightStart + ",StopSel=" + domain.Hi
 	",MaxFragments=1,MinWords=5,MaxWords=18,HighlightAll=false"
 
 func (s *DocumentStore) Search(ctx context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error) {
+	return s.SearchQuery(ctx, ownerID, ports.DocumentSearchQuery{Text: q, NodeID: nodeID, Tags: tags, Limit: 100})
+}
+
+func (s *DocumentStore) SearchQuery(ctx context.Context, ownerID string, query ports.DocumentSearchQuery) ([]domain.SearchHit, error) {
+	q, nodeID, tags := query.Text, query.NodeID, query.Tags
 	sb := `SELECT ` + prefixedDocCols + `,
   ts_headline('simple', coalesce(d.title,'')||' '||coalesce(d.body,''), ftsq || pq.prefixq, $3) AS snippet
 FROM documents d,
@@ -876,13 +881,22 @@ WHERE d.owner_id = $1 AND NOT d.archived`
 	args := []any{ownerID, q, headlineOpts}
 	sb = appendNodeFilter(sb, "d.node_id", &args, nodeID)
 	sb = appendTagFilter(sb, &args, ownerID, tags)
+	if query.Type != "" {
+		args = append(args, string(query.Type))
+		sb += fmt.Sprintf("\n  AND d.type = $%d", len(args))
+	}
+	limit := query.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	args = append(args, limit)
 	sb += `
   AND (d.search @@ ftsq OR $2 <% (coalesce(d.title,'')||' '||coalesce(d.body,'')))
 ORDER BY (d.search @@ ftsq) DESC,
          ts_rank(d.search, ftsq) DESC,
          GREATEST(word_similarity($2, d.title), word_similarity($2, d.body)) DESC,
-         d.updated_at DESC
-LIMIT 100`
+         d.updated_at DESC`
+	sb += fmt.Sprintf("\nLIMIT $%d", len(args))
 
 	rows, err := s.pool.Query(ctx, sb, args...)
 	if err != nil {
@@ -986,6 +1000,10 @@ func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID, snaps
 }
 
 func (s *DocumentStore) SemanticSearch(ctx context.Context, ownerID string, query []float32, nodeID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
+	return s.SemanticSearchQuery(ctx, ownerID, query, ports.DocumentSearchQuery{NodeID: nodeID, Tags: tags, Limit: limit})
+}
+
+func (s *DocumentStore) SemanticSearchQuery(ctx context.Context, ownerID string, embedding []float32, query ports.DocumentSearchQuery) ([]domain.SemanticHit, error) {
 	q := `SELECT ` + prefixedDocCols + `, x.content, x.dist
 FROM (
   SELECT DISTINCT ON (c.document_id) c.document_id AS did, c.content AS content,
@@ -996,9 +1014,17 @@ FROM (
 ) x
 JOIN documents d ON d.id = x.did AND d.owner_id = $1
 WHERE NOT d.archived`
-	args := []any{ownerID, vectorLiteral(query)}
-	q = appendNodeFilter(q, "d.node_id", &args, nodeID)
-	q = appendTagFilter(q, &args, ownerID, tags)
+	args := []any{ownerID, vectorLiteral(embedding)}
+	q = appendNodeFilter(q, "d.node_id", &args, query.NodeID)
+	q = appendTagFilter(q, &args, ownerID, query.Tags)
+	if query.Type != "" {
+		args = append(args, string(query.Type))
+		q += fmt.Sprintf("\n  AND d.type = $%d", len(args))
+	}
+	limit := query.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
 	args = append(args, limit)
 	q += fmt.Sprintf("\nORDER BY x.dist\nLIMIT $%d", len(args))
 	rows, err := s.pool.Query(ctx, q, args...)

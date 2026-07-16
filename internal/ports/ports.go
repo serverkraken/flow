@@ -356,6 +356,17 @@ type DocumentLibraryQuery struct {
 	Offset    int
 }
 
+// DocumentSearchQuery is the complete bounded filter contract shared by the
+// keyword and semantic search arms. Type must be applied before Limit so rare
+// document kinds cannot disappear behind a larger unfiltered candidate set.
+type DocumentSearchQuery struct {
+	Text   string
+	NodeID *string
+	Tags   []string
+	Type   domain.DocumentType
+	Limit  int
+}
+
 type DocumentLibraryPage struct {
 	Documents     []domain.Document
 	Results       []domain.SearchHit
@@ -411,12 +422,10 @@ type DocumentStore interface {
 	// Backlinks returns the owner's documents whose recorded outbound links
 	// include targetPath (candidate sources; the use case re-resolves scope).
 	Backlinks(ctx context.Context, ownerID, targetPath string) ([]domain.Document, error)
-	// Search returns owner documents matching q (FTS + fuzzy), ranked, each with
-	// a highlighted snippet. When tags are given, results are AND-filtered to
-	// documents carrying all of them. Empty q is not expected here (callers use
-	// List for the no-query path).
-	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
-	Search(ctx context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error)
+	// SearchQuery returns owner documents matching the complete bounded query
+	// (FTS + fuzzy), ranked, each with a highlighted snippet. All filters are
+	// applied before Limit.
+	SearchQuery(ctx context.Context, ownerID string, query DocumentSearchQuery) ([]domain.SearchHit, error)
 
 	// SetPinned sets (pinned=true) or clears (pinned=false) the pinned flag on
 	// one document. Owner-scoped; returns ErrDocumentNotFound if absent or foreign.
@@ -471,11 +480,10 @@ type DocumentStore interface {
 	// the current content no longer matches snapshotHash.
 	ReplaceChunks(ctx context.Context, docID, ownerID, snapshotHash string, contents []string, embeddings [][]float32) error
 
-	// SemanticSearch returns the owner's documents whose chunks are nearest to the
-	// query vector (cosine), best chunk per document, optionally AND-filtered by
-	// tags, each with that chunk's text as Snippet. Ordered nearest-first.
-	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
-	SemanticSearch(ctx context.Context, ownerID string, query []float32, nodeID *string, tags []string, limit int) ([]domain.SemanticHit, error)
+	// SemanticSearchQuery returns the owner's documents whose chunks are nearest
+	// to the query vector (cosine), best chunk per document, under the same
+	// pre-limit filter contract as SearchQuery. Ordered nearest-first.
+	SemanticSearchQuery(ctx context.Context, ownerID string, embedding []float32, query DocumentSearchQuery) ([]domain.SemanticHit, error)
 
 	// RecordEmbedFailure upserts the per-document embed-failure state used for
 	// backoff and dead-lettering only if snapshotHash is still current.

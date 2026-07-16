@@ -83,6 +83,7 @@ func (s *Server) handleGetContext(w http.ResponseWriter, r *http.Request) {
 		MachineID:    strings.TrimSpace(q.Get("machine")),
 		Cwd:          strings.TrimSpace(q.Get("path")),
 		NodeOverride: strings.TrimSpace(q.Get("node")),
+		Client:       strings.TrimSpace(q.Get("client")),
 	}
 	budget := s.ContextBudget
 	if budget <= 0 {

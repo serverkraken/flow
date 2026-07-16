@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -125,10 +126,20 @@ func (c *Client) Search(ctx context.Context, q string, tags ...string) ([]domain
 
 // SearchScoped is Search, optionally scoped to a project (see ListDocumentsScoped).
 func (c *Client) SearchScoped(ctx context.Context, q string, nodeID *string, tags ...string) ([]domain.SearchHit, error) {
+	return c.SearchScopedFiltered(ctx, q, nodeID, "", 0, tags...)
+}
+
+func (c *Client) SearchScopedFiltered(ctx context.Context, q string, nodeID *string, typ domain.DocumentType, limit int, tags ...string) ([]domain.SearchHit, error) {
 	v := url.Values{}
 	v.Set("q", q)
 	if nodeID != nil {
 		v.Set("projectId", *nodeID)
+	}
+	if typ != "" {
+		v.Set("type", string(typ))
+	}
+	if limit > 0 {
+		v.Set("limit", strconv.Itoa(limit))
 	}
 	for _, t := range tags {
 		v.Add("tag", t)

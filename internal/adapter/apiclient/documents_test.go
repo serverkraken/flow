@@ -329,12 +329,12 @@ func TestSearch_QueryAndTags(t *testing.T) {
 	defer srv.Close()
 
 	c := apiclient.New(srv.URL, "tok")
-	hits, err := c.Search(context.Background(), "kompend", "go")
+	hits, err := c.SearchScopedFiltered(context.Background(), "kompend", nil, domain.DocMemory, 7, "go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotQuery != "q=kompend&tag=go" {
-		t.Fatalf("query = %q, want q=kompend&tag=go", gotQuery)
+	if gotQuery != "limit=7&q=kompend&tag=go&type=memory" {
+		t.Fatalf("query = %q, want server-side type and limit", gotQuery)
 	}
 	if len(hits) != 1 || hits[0].ID != "a" || hits[0].Snippet != "hi" {
 		t.Fatalf("decode failed: %#v", hits)

@@ -119,14 +119,15 @@ func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in u
 }
 
 type patchDocIn struct {
-	ID                string `json:"id" jsonschema:"the document id to patch"`
-	Operation         string `json:"operation" jsonschema:"replace_section, append_section, or set_checkbox"`
-	Section           string `json:"section,omitempty" jsonschema:"exact Markdown heading title for section operations; omit leading # characters"`
-	Body              string `json:"body,omitempty" jsonschema:"replacement or appended Markdown for section operations"`
-	Checkbox          string `json:"checkbox,omitempty" jsonschema:"exact checklist label for set_checkbox, without the marker"`
-	Checked           *bool  `json:"checked,omitempty" jsonschema:"new checkbox state; required for set_checkbox"`
-	ExpectedUpdatedAt string `json:"expectedUpdatedAt,omitempty" jsonschema:"optional RFC3339 document version; the patch fails with a conflict if stale"`
-	Confirm           bool   `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
+	ID                string  `json:"id" jsonschema:"the document id to patch"`
+	Operation         string  `json:"operation" jsonschema:"replace_section, append_section, or set_checkbox"`
+	Section           string  `json:"section,omitempty" jsonschema:"exact Markdown heading title for section operations; omit leading # characters"`
+	Body              string  `json:"body,omitempty" jsonschema:"replacement or appended Markdown for section operations"`
+	Checkbox          string  `json:"checkbox,omitempty" jsonschema:"exact checklist label for set_checkbox, without the marker"`
+	Checked           *bool   `json:"checked,omitempty" jsonschema:"new checkbox state; required for set_checkbox"`
+	Label             *string `json:"label,omitempty" jsonschema:"optional replacement checklist label applied atomically with checked"`
+	ExpectedUpdatedAt string  `json:"expectedUpdatedAt,omitempty" jsonschema:"optional RFC3339 document version; the patch fails with a conflict if stale"`
+	Confirm           bool    `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
 }
 
 func (h *handlers) patchDoc(ctx context.Context, req *mcp.CallToolRequest, in patchDocIn) (*mcp.CallToolResult, any, error) {

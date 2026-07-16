@@ -33,8 +33,9 @@ func TestPatchMarkdownSectionsAndCheckboxes(t *testing.T) {
 	}
 
 	checked := true
-	toggled, err := patchMarkdown(base, patchDocIn{Operation: "set_checkbox", Checkbox: "F40 context", Checked: &checked})
-	if err != nil || !strings.Contains(toggled, "- [x] F40 context") {
+	newLabel := "F40 — Behoben: context is CAS-safe"
+	toggled, err := patchMarkdown(base, patchDocIn{Operation: "set_checkbox", Checkbox: "F40 context", Checked: &checked, Label: &newLabel})
+	if err != nil || !strings.Contains(toggled, "- [x] F40 — Behoben: context is CAS-safe") || strings.Contains(toggled, "F40 context") {
 		t.Fatalf("set checkbox = %q, %v", toggled, err)
 	}
 }
@@ -46,6 +47,10 @@ func TestPatchMarkdownRejectsAmbiguousOrMissingTargets(t *testing.T) {
 	}
 	if _, err := patchMarkdown("- [ ] other\n", patchDocIn{Operation: "set_checkbox", Checkbox: "missing", Checked: &checked}); err == nil {
 		t.Fatal("missing checkbox should be rejected")
+	}
+	empty := "  "
+	if _, err := patchMarkdown("- [ ] other\n", patchDocIn{Operation: "set_checkbox", Checkbox: "other", Checked: &checked, Label: &empty}); err == nil {
+		t.Fatal("empty replacement checkbox label should be rejected")
 	}
 	if _, err := patchMarkdown("body", patchDocIn{Operation: "bogus"}); err == nil {
 		t.Fatal("unknown operation should be rejected")

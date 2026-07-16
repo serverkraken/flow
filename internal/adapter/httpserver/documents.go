@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,7 +65,31 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		nodeID = &v
 	}
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
-		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, nodeID, tags)
+		var typ domain.DocumentType
+		if rawType := strings.TrimSpace(r.URL.Query().Get("type")); rawType != "" {
+			for _, candidate := range domain.DocumentTypes() {
+				if string(candidate) == rawType {
+					typ = candidate
+					break
+				}
+			}
+			if typ == "" {
+				http.Error(w, "invalid document type", http.StatusBadRequest)
+				return
+			}
+		}
+		limit := 100
+		if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+			parsed, parseErr := strconv.Atoi(rawLimit)
+			if parseErr != nil || parsed <= 0 || parsed > 100 {
+				http.Error(w, "limit must be between 1 and 100", http.StatusBadRequest)
+				return
+			}
+			limit = parsed
+		}
+		hits, err := s.SearchDocuments.ExecuteFiltered(r.Context(), u.ID, ports.DocumentSearchQuery{
+			Text: q, NodeID: nodeID, Tags: tags, Type: typ, Limit: limit,
+		})
 		if err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return

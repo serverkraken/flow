@@ -118,6 +118,36 @@ func TestHandleMoveDocument_ReclassifiesDailyMetadata(t *testing.T) {
 	}
 }
 
+func TestHandleSearchDocuments_FiltersTypeBeforeLimit(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	for _, body := range []string{
+		`{"type":"free","path":"notes/free-match","title":"Needle free","body":"needle"}`,
+		`{"type":"memory","path":"memory/wanted","title":"Needle memory","body":"needle"}`,
+	} {
+		res := doDoc(t, ts, http.MethodPost, "/api/v1/documents", body)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusCreated {
+			t.Fatalf("create status=%d", res.StatusCode)
+		}
+	}
+
+	res := doDoc(t, ts, http.MethodGet, "/api/v1/documents?q=needle&type=memory&limit=1", "")
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("search status=%d", res.StatusCode)
+	}
+	var hits []domain.SearchHit
+	if err := json.NewDecoder(res.Body).Decode(&hits); err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Type != domain.DocMemory || hits[0].Path != "memory/wanted" {
+		t.Fatalf("typed limited search = %+v, want the memory hit", hits)
+	}
+}
+
 func TestHandleMoveDocument_RejectsUnknownFields(t *testing.T) {
 	srv, _ := newDocServer(t)
 	ts := httptest.NewServer(srv.Routes())
@@ -711,6 +741,10 @@ func (s *failingDocStore) List(_ context.Context, _ string, _ *string, _ ...stri
 }
 
 func (s *failingDocStore) Search(_ context.Context, _, _ string, _ *string, _ []string) ([]domain.SearchHit, error) {
+	return nil, s.searchErr
+}
+
+func (s *failingDocStore) SearchQuery(_ context.Context, _ string, _ ports.DocumentSearchQuery) ([]domain.SearchHit, error) {
 	return nil, s.searchErr
 }
 

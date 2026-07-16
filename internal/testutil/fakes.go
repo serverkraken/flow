@@ -1243,12 +1243,16 @@ func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath str
 }
 
 func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error) {
+	return s.SearchQuery(context.Background(), ownerID, ports.DocumentSearchQuery{Text: q, NodeID: nodeID, Tags: tags})
+}
+
+func (s *FakeDocumentStore) SearchQuery(_ context.Context, ownerID string, query ports.DocumentSearchQuery) ([]domain.SearchHit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ql := strings.ToLower(q)
+	ql := strings.ToLower(query.Text)
 	var out []domain.SearchHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || d.Archived || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || d.Archived || !matchesNode(d.NodeID, query.NodeID) || !hasAllTags(d.Tags, query.Tags) || (query.Type != "" && d.Type != query.Type) {
 			continue
 		}
 		hay := strings.ToLower(d.Title + " " + d.Body)
@@ -1256,7 +1260,7 @@ func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, nodeID 
 		if ql == "" || idx < 0 {
 			continue
 		}
-		out = append(out, domain.SearchHit{Document: d, Snippet: fakeSnippet(d.Title+" "+d.Body, idx, len(q))})
+		out = append(out, domain.SearchHit{Document: d, Snippet: fakeSnippet(d.Title+" "+d.Body, idx, len(query.Text))})
 	}
 	for i := 0; i < len(out); i++ {
 		for j := i + 1; j < len(out); j++ {
@@ -1264,6 +1268,9 @@ func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, nodeID 
 				out[i], out[j] = out[j], out[i]
 			}
 		}
+	}
+	if query.Limit > 0 && len(out) > query.Limit {
+		out = out[:query.Limit]
 	}
 	return out, nil
 }
@@ -1374,17 +1381,21 @@ func (s *FakeDocumentStore) EmbedStatus(_ context.Context, ownerID, docID string
 }
 
 func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, query []float32, nodeID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
+	return s.SemanticSearchQuery(context.Background(), ownerID, query, ports.DocumentSearchQuery{NodeID: nodeID, Tags: tags, Limit: limit})
+}
+
+func (s *FakeDocumentStore) SemanticSearchQuery(_ context.Context, ownerID string, embedding []float32, query ports.DocumentSearchQuery) ([]domain.SemanticHit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var hits []domain.SemanticHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || d.Archived || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || d.Archived || !matchesNode(d.NodeID, query.NodeID) || !hasAllTags(d.Tags, query.Tags) || (query.Type != "" && d.Type != query.Type) {
 			continue
 		}
 		best := -1.0
 		bestContent := ""
 		for _, c := range s.chunks[d.ID] {
-			sim := cosine(query, c.emb)
+			sim := cosine(embedding, c.emb)
 			if sim > best {
 				best = sim
 				bestContent = c.content
@@ -1396,8 +1407,8 @@ func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, qu
 		hits = append(hits, domain.SemanticHit{Document: d, Snippet: bestContent, Distance: float32(1 - best)})
 	}
 	sort.Slice(hits, func(i, j int) bool { return hits[i].Distance < hits[j].Distance })
-	if len(hits) > limit {
-		hits = hits[:limit]
+	if query.Limit > 0 && len(hits) > query.Limit {
+		hits = hits[:query.Limit]
 	}
 	return hits, nil
 }

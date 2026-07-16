@@ -599,13 +599,19 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	}
 	mk("srch-a", "a", "Kompendium", "notes about the compendium", "go")
 	mk("srch-b", "b", "Anderes", "etwas ganz anderes")
+	if _, err := st.Create(ctx, domain.Document{
+		ID: "srch-memory", OwnerID: owner, Type: domain.DocMemory, Path: "memory-hit",
+		Title: "Andere Erinnerung", Body: "kompendium steht nur im body", CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	hits, err := st.Search(ctx, owner, "kompend", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 1 || hits[0].Path != "a" {
-		t.Fatalf(`search "kompend" = %#v, want [a]`, hits)
+	if len(hits) != 2 || hits[0].Path != "a" {
+		t.Fatalf(`search "kompend" = %#v, want a first plus the memory regression fixture`, hits)
 	}
 	// prefix/partial hit must also be highlighted (prefix tsquery union in ts_headline)
 	if !strings.Contains(hits[0].Snippet, domain.HighlightStart) {
@@ -635,6 +641,13 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	}
 	if len(none) != 0 {
 		t.Fatalf("tag-filtered search = %d, want 0", len(none))
+	}
+	typed, err := st.SearchQuery(ctx, owner, ports.DocumentSearchQuery{Text: "kompendium", Type: domain.DocMemory, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(typed) != 1 || typed[0].ID != "srch-memory" {
+		t.Fatalf("typed limited keyword search = %#v, want memory hit", typed)
 	}
 }
 
@@ -786,6 +799,9 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	}
 	mkDoc("near", "Near", "near doc", "go")
 	mkDoc("far", "Far", "far doc")
+	if _, err := s.Create(ctx, domain.Document{ID: "memory", OwnerID: owner, Type: domain.DocMemory, Path: "memory", Title: "Memory", Body: "memory doc", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := s.ReplaceChunks(ctx, "near", owner, snapshotHash(t, s, "near"), []string{"near chunk"}, [][]float32{vec(0.9)}); err != nil {
 		t.Fatal(err)
@@ -793,12 +809,15 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	if err := s.ReplaceChunks(ctx, "far", owner, snapshotHash(t, s, "far"), []string{"far chunk"}, [][]float32{vec(-0.9)}); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.ReplaceChunks(ctx, "memory", owner, snapshotHash(t, s, "memory"), []string{"memory chunk"}, [][]float32{vec(-0.5)}); err != nil {
+		t.Fatal(err)
+	}
 
 	hits, err := s.SemanticSearch(ctx, owner, vec(1.0), nil, nil, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 2 || hits[0].Path != "near" {
+	if len(hits) != 3 || hits[0].Path != "near" {
 		t.Fatalf("want near first, got %#v", hits)
 	}
 	if hits[0].Snippet != "near chunk" {
@@ -807,6 +826,10 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	tagged, _ := s.SemanticSearch(ctx, owner, vec(1.0), nil, []string{"go"}, 10)
 	if len(tagged) != 1 || tagged[0].Path != "near" {
 		t.Fatalf("tag-filtered semantic = %#v, want [near]", tagged)
+	}
+	typed, err := s.SemanticSearchQuery(ctx, owner, vec(1.0), ports.DocumentSearchQuery{Type: domain.DocMemory, Limit: 1})
+	if err != nil || len(typed) != 1 || typed[0].ID != "memory" {
+		t.Fatalf("typed limited semantic search = %#v, %v; want memory hit", typed, err)
 	}
 	if err := s.SetArchived(ctx, owner, "near", true); err != nil {
 		t.Fatal(err)
@@ -817,7 +840,7 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if library.Total != 2 || library.ActiveTotal != 1 || library.ArchivedTotal != 1 || len(library.Results) != 2 {
+	if library.Total != 3 || library.ActiveTotal != 2 || library.ArchivedTotal != 1 || len(library.Results) != 3 {
 		t.Fatalf("semantic-only library search = %+v, want active+archived result set", library)
 	}
 	if library.Results[0].ID != "near" || !library.Results[0].Archived || library.Results[0].Snippet != "near chunk" {

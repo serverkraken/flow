@@ -39,6 +39,25 @@ func TestFormatSearchHits(t *testing.T) {
 	}
 }
 
+func TestFormatSearchHitsCentersAndBoundsTheActualMatch(t *testing.T) {
+	farPrefix := strings.Repeat("irrelevant opening paragraph ", 40)
+	hits := []domain.SearchHit{{
+		Document: domain.Document{ID: "d1", Title: "Review", Path: "reviews/main", Type: domain.DocMemory, Body: farPrefix + "the decisive F70 checkbox finding is here " + strings.Repeat("tail ", 80)},
+		Snippet:  farPrefix,
+	}}
+
+	out := formatSearchHits(hits, "F70 checkbox", scope{label: "in project Flow"})
+	if !strings.Contains(out, "F70 checkbox") {
+		t.Fatalf("snippet missed actual match: %q", out)
+	}
+	if !strings.Contains(out, "\n    …") {
+		t.Fatalf("snippet was not centered away from the unrelated beginning: %q", out)
+	}
+	if len(out) > 700 {
+		t.Fatalf("search output is not bounded: len=%d output=%q", len(out), out)
+	}
+}
+
 func TestFormatDoc(t *testing.T) {
 	d := domain.Document{ID: "d1", Title: "Arch", Path: "notes/arch", Type: domain.DocMemory, Body: "BODY", Tags: []string{"go"}, Role: strp("brief")}
 	out := formatDoc(d, "Alpha")

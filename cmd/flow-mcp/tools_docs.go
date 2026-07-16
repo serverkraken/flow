@@ -11,6 +11,7 @@ import (
 )
 
 const defaultSearchLimit = 20
+const maxSearchLimit = 100
 
 type searchDocsIn struct {
 	Query   string   `json:"query" jsonschema:"the search query (hybrid keyword + semantic)"`
@@ -29,21 +30,24 @@ func (h *handlers) searchDocs(ctx context.Context, req *mcp.CallToolRequest, in 
 		return errorResult(err.Error()), nil, nil
 	}
 	var out string
+	limit := in.Limit
+	if limit <= 0 {
+		limit = defaultSearchLimit
+	}
+	if limit > maxSearchLimit {
+		return errorResult(fmt.Sprintf("limit must not exceed %d", maxSearchLimit)), nil, nil
+	}
 	err = h.do(ctx, req, func(c *apiclient.Client) error {
 		sc, err := h.resolveScope(ctx, in.Project)
 		if err != nil {
 			return err
 		}
-		hits, err := c.SearchScoped(ctx, in.Query, sc.nodeID, in.Tags...)
+		hits, err := c.SearchScopedFiltered(ctx, in.Query, sc.nodeID, typ, limit, in.Tags...)
 		if err != nil {
 			return err
 		}
 		if typ != "" {
 			hits = filterHitsByType(hits, typ)
-		}
-		limit := in.Limit
-		if limit <= 0 {
-			limit = defaultSearchLimit
 		}
 		if len(hits) > limit {
 			hits = hits[:limit]

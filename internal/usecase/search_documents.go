@@ -25,7 +25,21 @@ type SearchDocuments struct {
 }
 
 func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error) {
-	keyword, err := uc.Docs.Search(ctx, ownerID, q, nodeID, tags)
+	return uc.ExecuteFiltered(ctx, ownerID, ports.DocumentSearchQuery{Text: q, NodeID: nodeID, Tags: tags})
+}
+
+// ExecuteFiltered applies one complete filter and limit contract to keyword
+// and semantic candidates before reciprocal-rank fusion.
+func (uc SearchDocuments) ExecuteFiltered(ctx context.Context, ownerID string, query ports.DocumentSearchQuery) ([]domain.SearchHit, error) {
+	limit := query.Limit
+	if limit <= 0 {
+		limit = uc.Limit
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	query.Limit = limit
+	keyword, err := uc.Docs.SearchQuery(ctx, ownerID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -38,21 +52,21 @@ func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, nodeID
 	}
 	embedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	vecs, err := uc.Embedder.Embed(embedCtx, []string{q})
+	vecs, err := uc.Embedder.Embed(embedCtx, []string{query.Text})
 	if err != nil || len(vecs) == 0 {
 		uc.warn("semantic search degraded; keyword-only", err)
 		return keyword, nil
 	}
-	limit := uc.Limit
-	if limit <= 0 {
-		limit = 50
-	}
-	semantic, err := uc.Docs.SemanticSearch(ctx, ownerID, vecs[0], nodeID, tags, limit)
+	semantic, err := uc.Docs.SemanticSearchQuery(ctx, ownerID, vecs[0], query)
 	if err != nil {
 		uc.warn("semantic search failed; keyword-only", err)
 		return keyword, nil
 	}
-	return rrfFuse(keyword, semantic, rrfK), nil
+	fused := rrfFuse(keyword, semantic, rrfK)
+	if len(fused) > limit {
+		fused = fused[:limit]
+	}
+	return fused, nil
 }
 
 func (uc SearchDocuments) warn(msg string, err error) {

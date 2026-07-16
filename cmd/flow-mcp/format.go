@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -40,12 +41,93 @@ func formatSearchHits(hits []domain.SearchHit, query string, sc scope) string {
 	fmt.Fprintf(&b, "%d match(es) for %q %s:\n", len(hits), query, sc.label)
 	for _, h := range hits {
 		b.WriteString(formatDocLine(h.Document))
-		if s := strings.TrimSpace(h.Snippet); s != "" {
+		if s := conciseSearchSnippet(h, query); s != "" {
 			fmt.Fprintf(&b, "\n    %s", s)
 		}
 		b.WriteByte('\n')
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+const maxMCPSearchSnippetRunes = 320
+
+func conciseSearchSnippet(hit domain.SearchHit, query string) string {
+	snippet := domain.StripHighlightSentinels(strings.TrimSpace(hit.Snippet))
+	body := domain.StripHighlightSentinels(hit.Body)
+	term := bestSearchTerm(query, snippet)
+	source := snippet
+	if term == "" {
+		if bodyTerm := bestSearchTerm(query, body); bodyTerm != "" {
+			source, term = body, bodyTerm
+		}
+	}
+	if strings.TrimSpace(source) == "" {
+		return ""
+	}
+	return centeredSnippet(source, term, maxMCPSearchSnippetRunes)
+}
+
+func bestSearchTerm(query, text string) string {
+	lower := strings.ToLower(text)
+	candidates := []string{strings.TrimSpace(query)}
+	for _, field := range strings.Fields(query) {
+		field = strings.TrimFunc(field, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
+		if field != "" {
+			candidates = append(candidates, field)
+		}
+	}
+	best := ""
+	for _, candidate := range candidates {
+		if len([]rune(candidate)) <= len([]rune(best)) {
+			continue
+		}
+		if strings.Contains(lower, strings.ToLower(candidate)) {
+			best = candidate
+		}
+	}
+	return best
+}
+
+func centeredSnippet(source, term string, limit int) string {
+	runes := []rune(source)
+	if len(runes) <= limit {
+		return strings.Join(strings.Fields(source), " ")
+	}
+	center := 0
+	if term != "" {
+		if runeAt := equalFoldRuneIndex(runes, []rune(term)); runeAt >= 0 {
+			center = runeAt + len([]rune(term))/2
+		}
+	}
+	start := center - limit/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + limit
+	if end > len(runes) {
+		end = len(runes)
+		start = end - limit
+	}
+	out := strings.Join(strings.Fields(string(runes[start:end])), " ")
+	if start > 0 {
+		out = "…" + out
+	}
+	if end < len(runes) {
+		out += "…"
+	}
+	return out
+}
+
+func equalFoldRuneIndex(text, term []rune) int {
+	if len(term) == 0 || len(term) > len(text) {
+		return -1
+	}
+	for i := 0; i+len(term) <= len(text); i++ {
+		if strings.EqualFold(string(text[i:i+len(term)]), string(term)) {
+			return i
+		}
+	}
+	return -1
 }
 
 // formatDoc renders a full document for flow_get_doc.

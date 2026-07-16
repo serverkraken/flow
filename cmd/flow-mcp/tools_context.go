@@ -22,7 +22,7 @@ type getContextIn struct {
 func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in getContextIn) (*mcp.CallToolResult, any, error) {
 	var out string
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
-		q := apiclient.ContextQuery{Cap: in.Cap, Profile: in.Profile}
+		q := apiclient.ContextQuery{Cap: in.Cap, Profile: in.Profile, Client: clientName(req)}
 		if in.Repo != "" {
 			node, err := h.lookupNode(ctx, in.Repo)
 			if err != nil {

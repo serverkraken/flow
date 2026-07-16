@@ -130,11 +130,12 @@ func (h *handlers) contextQuery(ctx context.Context, repo string, cap int, profi
 	return apiclient.ContextQuery{}, errGuard{err: fmt.Errorf("no project is bound to this directory; use flow_bind_project or pass repo explicitly")}
 }
 
-func (h *handlers) loadContextInventory(ctx context.Context, c *apiclient.Client, repo string, cap int) (usecase.ComposedContext, contextInventoryResult, error) {
+func (h *handlers) loadContextInventory(ctx context.Context, c *apiclient.Client, repo string, cap int, client string) (usecase.ComposedContext, contextInventoryResult, error) {
 	q, err := h.contextQuery(ctx, repo, cap, string(usecase.ContextProfileFull))
 	if err != nil {
 		return usecase.ComposedContext{}, contextInventoryResult{}, err
 	}
+	q.Client = client
 	cc, err := c.ComposeContext(ctx, q)
 	if err != nil {
 		return usecase.ComposedContext{}, contextInventoryResult{}, err
@@ -145,7 +146,7 @@ func (h *handlers) loadContextInventory(ctx context.Context, c *apiclient.Client
 func (h *handlers) contextInventory(ctx context.Context, req *mcp.CallToolRequest, in contextInventoryIn) (*mcp.CallToolResult, any, error) {
 	var out contextInventoryResult
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
-		_, inventory, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap)
+		_, inventory, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap, clientName(req))
 		out = inventory
 		return err
 	})
@@ -264,7 +265,7 @@ func (h *handlers) curateContext(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 	var out curateContextResult
 	err = h.do(ctx, req, func(c *apiclient.Client) error {
-		cc, inventory, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap)
+		cc, inventory, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap, clientName(req))
 		if err != nil {
 			return err
 		}
@@ -308,7 +309,7 @@ func (h *handlers) curateContext(ctx context.Context, req *mcp.CallToolRequest, 
 		} else if action == curateArchive {
 			h.addResource(ctx, updated)
 		}
-		_, after, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap)
+		_, after, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap, clientName(req))
 		if err != nil {
 			return err
 		}
@@ -359,7 +360,7 @@ func (h *handlers) reorderContext(ctx context.Context, req *mcp.CallToolRequest,
 	}
 	var out reorderContextResult
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
-		cc, inventory, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap)
+		cc, inventory, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap, clientName(req))
 		if err != nil {
 			return err
 		}
@@ -369,7 +370,7 @@ func (h *handlers) reorderContext(ctx context.Context, req *mcp.CallToolRequest,
 		if err := c.ReorderContext(ctx, in.IDs); err != nil {
 			return err
 		}
-		_, after, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap)
+		_, after, err := h.loadContextInventory(ctx, c, in.Repo, in.Cap, clientName(req))
 		if err != nil {
 			return err
 		}

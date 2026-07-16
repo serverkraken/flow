@@ -14,6 +14,7 @@ import (
 // ContextQuery carries the resolution hints for GET /api/v1/context.
 type ContextQuery struct {
 	Remote, Machine, Path, Node string
+	Client                      string
 	Profile                     string
 	Cap                         int
 }
@@ -29,6 +30,7 @@ func (q ContextQuery) values() url.Values {
 	set("machine", q.Machine)
 	set("path", q.Path)
 	set("node", q.Node)
+	set("client", q.Client)
 	set("profile", q.Profile)
 	if q.Cap > 0 {
 		v.Set("cap", strconv.Itoa(q.Cap))
