@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/serverkraken/flow/internal/clientmachine"
+	"github.com/serverkraken/flow/internal/gitremote"
 )
 
 // noOrigin / withOrigin are injected git-origin lookups so the tests never run
@@ -25,6 +26,61 @@ func testBindEnv(t *testing.T, origin func(string) (string, bool, error)) bindEn
 		Machine: clientmachine.Machine{ID: "m1", Label: "notebook-a"},
 		Origin:  origin,
 	}
+}
+
+// TestLiveBindEnv exercises the production env builder itself (not the
+// test double). It doesn't just check err == nil: it verifies the specific
+// contract the doc comment on liveBindEnv promises — an absolute cwd, and an
+// Origin func that is actually wired to gitremote.OriginSlug rather than nil
+// or some other stub. Home/Machine are documented as best-effort, so the
+// only thing asserted about them is that their absence never turns into an
+// error.
+func TestLiveBindEnv(t *testing.T) {
+	env, err := liveBindEnv()
+	if err != nil {
+		t.Fatalf("liveBindEnv: %v", err)
+	}
+
+	wantCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.Cwd != wantCwd {
+		t.Fatalf("Cwd = %q, want the process cwd %q", env.Cwd, wantCwd)
+	}
+	if !filepath.IsAbs(env.Cwd) {
+		t.Fatalf("Cwd = %q, want an absolute path (resolveBindTarget joins relative paths against it)", env.Cwd)
+	}
+
+	if env.Origin == nil {
+		t.Fatal("Origin is nil, want gitremote.OriginSlug wired in")
+	}
+	// Cross-check env.Origin against the real gitremote.OriginSlug on two
+	// different directories rather than hardcoding an expected slug: a
+	// wiring mistake (nil check aside, e.g. swapping in noOrigin-style stub,
+	// or always-true/always-false) would disagree with the real function on
+	// at least one of these, whatever this checkout's actual remote is.
+	for _, dir := range []string{env.Cwd, t.TempDir()} {
+		wantSlug, wantOK, wantErr := gitremote.OriginSlug(dir)
+		gotSlug, gotOK, gotErr := env.Origin(dir)
+		if gotSlug != wantSlug || gotOK != wantOK || (gotErr == nil) != (wantErr == nil) {
+			t.Fatalf("Origin(%q) = (%q, %v, %v), want gitremote.OriginSlug's own result (%q, %v, %v)",
+				dir, gotSlug, gotOK, gotErr, wantSlug, wantOK, wantErr)
+		}
+	}
+	// This package's checkout must actually have a resolvable origin, or the
+	// loop above can't distinguish a correctly-wired Origin from a stub that
+	// always reports "no origin" — both would agree with gitremote.OriginSlug
+	// on a directory with no origin, but only the real thing agrees here too.
+	if _, ok, _ := gitremote.OriginSlug(env.Cwd); !ok {
+		t.Fatalf("gitremote.OriginSlug(%q) reported no origin; this test needs a checkout with a git origin to be meaningful", env.Cwd)
+	}
+
+	// Home and Machine are best-effort (doc comment on liveBindEnv): even
+	// when the process has no resolvable home or machine id, liveBindEnv
+	// must still return a nil error rather than propagating one.
+	_ = env.Home
+	_ = env.Machine
 }
 
 func TestResolveBindTarget_PathAndRemoteAreMutuallyExclusive(t *testing.T) {
