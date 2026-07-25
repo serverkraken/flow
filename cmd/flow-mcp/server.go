@@ -113,6 +113,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Create a node in the flow hierarchy (engagement → vorhaben → repo). An engagement is ALWAYS a root and must not get a parent; a vorhaben or repo REQUIRES a parent that is an engagement or a vorhaben. upstream and bind_path are repo-only. Pass bind_path to bind a directory to the new repo in the same atomic command; omit it for a node without any binding (to bind an engagement or vorhaben, create it first and use flow_node_binding). The slug is derived from the name — rename with flow_update_node; icon is set afterwards with flow_update_node. Call flow_list_projects first to pick a valid parent.",
 	}, h.createNode)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_move_node",
+		Description: "Reparent a node. Pass exactly ONE destination: parent (the new parent's id/slug/name — an engagement or vorhaben) or to_root=true (make it a root, which only an engagement may be). The server rejects cycles and slug collisions.",
+	}, h.moveNode)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_node",
 		Description: "Update a node's metadata (name, description, color, glyph, icon, upstream, status) and/or rate — only the fields you pass change. Scoped to the current project by default; pass node to target another. This is how an agent maintains a project's description without the TUI.",
 	}, h.updateNode)
