@@ -86,6 +86,11 @@ atomarer REST-Command bleiben (das war Finding 56 des Reviews vom 2026-07-15).
   `flow_node_binding`; weggelassen entsteht ein reiner Node ohne Binding. Ein
   relativer Pfad löst gegen das Working Directory des MCP-Prozesses auf, `"."`
   ist damit ohne Sonderfall das cwd.
+- `bind_path` ist **nur für `kind=repo` zulässig**: der atomare Usecase lehnt
+  alles andere mit „bound node must be a repo" ab
+  (`internal/usecase/create_bound_node.go:46-48`). Das Tool prüft das vor, damit
+  daraus keine unverständliche 400 vom Server wird, und verweist für ein
+  Vorhaben auf den Zweischritt — anlegen, dann `flow_node_binding`.
 - `counts_toward_target` ist ein `*bool` und damit dreiwertig: weggelassen bleibt
   der Server-Default, `true` und `false` setzen die Work-/Privat-Zuordnung
   explizit.
@@ -178,6 +183,22 @@ Vier Aktionen auf derselben Ziel-Adressierung:
 `ListBindings` ist owner-scoped und liefert die Bindings **aller Geräte** des
 Nutzers. Die Ausgabe von `list` weist deshalb Maschinen-Label und Maschinen-ID
 aus, sonst verwechselt ein Agent Notebook A mit Notebook B.
+
+Welche Nodes überhaupt ein Binding tragen dürfen, entscheidet
+`usecase.BindNode.validateTarget` (`internal/usecase/bind_node.go:58-79`), und die
+Matrix ist enger als man erwartet: ein Remote-Binding verlangt ein `repo`, ein
+Pfad-Binding erlaubt zusätzlich ein **kinderloses** `vorhaben`, und ein
+`engagement` ist nie bindbar. Das prüft der Client **bewusst nicht** vor — die
+Blatt-Eigenschaft erfordert eine `Children`-Abfrage, die nur der Server
+verlässlich beantwortet, und ein Client-Nachbau würde bei einer Server-Änderung
+falsch-grün bleiben. Der Fehler kommt daher als `ErrInvalidBindTarget` → 400 vom
+Server (`internal/adapter/httpserver/projectbindings.go:101`) und wird
+weitergegeben; ein Loopback-Test hält den Fall fest.
+
+Erwähnenswert, weil es überrascht: Binden ist ein `Upsert`
+(`internal/usecase/bind_node.go:54`). Ein erneutes Binden desselben Ziels
+verschiebt es **still** auf den neuen Node, ohne Fehler. Beide Tool-Descriptions
+sagen das ausdrücklich.
 
 ### flow_bind_project
 
