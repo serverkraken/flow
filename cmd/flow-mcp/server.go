@@ -106,7 +106,7 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.listProjectsTool)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_bind_project",
-		Description: "Bind the current working directory to a flow project so other tools auto-scope here. Pass project (existing id/slug/name) or create_name (to create one). Auto-detects a git-origin (remote) vs per-device (path) binding; override with kind.",
+		Description: "Bind a directory or a git remote to an EXISTING flow node so other tools auto-scope there. Pass project (id/slug/name) plus optionally path (a directory that must exist; ~ and relative paths resolve against the flow-mcp process) or remote (a clone URL or host/path slug, no local checkout needed); omit both to bind the process's working directory. Auto-detects a git-origin (remote) vs per-device (path) binding; override with kind. A target can only be bound to ONE node: binding a target that is already bound MOVES it to the new node — check with flow_node_binding action=resolve first. To create a node use flow_create_node; for unbind/list/resolve use flow_node_binding.",
 	}, h.bindProject)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_node",

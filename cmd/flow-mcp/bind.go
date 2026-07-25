@@ -4,28 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
-	"github.com/serverkraken/flow/internal/clientmachine"
 	"github.com/serverkraken/flow/internal/domain"
 )
-
-// validateBindRef enforces exactly one of project / create_name, and that a new
-// repo (create_name) is given a parent to nest under (create_parent) — a repo can
-// never be a root node.
-func validateBindRef(in bindNodeIn) error {
-	hasRef := strings.TrimSpace(in.Project) != ""
-	hasCreate := strings.TrimSpace(in.CreateName) != ""
-	if hasRef == hasCreate {
-		return errGuard{errors.New(`give either "project" (an existing project id/slug/name) or "create_name" (to create one), not both or neither`)}
-	}
-	if hasCreate && strings.TrimSpace(in.CreateParent) == "" {
-		return errGuard{errors.New(`"create_name" needs "create_parent" — the engagement or vorhaben (id/slug/name) to nest the new repo under`)}
-	}
-	return nil
-}
 
 // decideBindKind picks the binding kind. An explicit override wins ("remote"
 // requires a git origin); otherwise a git origin → remote, else path.
@@ -48,64 +31,41 @@ func decideBindKind(kindOverride string, originOK bool) (string, error) {
 	}
 }
 
-// bindNodeCore validates the request, resolves or creates the target
-// project, then binds the cwd to it (remote-slug or per-device path). It is a
-// method so it can reuse the cached project-ref lookup; all IO that needs the
-// environment (git origin, machine id, cwd) is passed in for testability.
-func (h *handlers) bindNodeCore(ctx context.Context, c *apiclient.Client, in bindNodeIn, originSlug string, originOK bool, machine clientmachine.Machine, cwd string) (domain.Node, string, error) {
-	if err := validateBindRef(in); err != nil {
-		return domain.Node{}, "", err
+// bindNodeCore resolves the node reference and commits the already-resolved
+// target as its binding. The create branch is gone: creating a node is
+// flow_create_node's job (Spec §3), which keeps this function to one job.
+func (h *handlers) bindNodeCore(ctx context.Context, c *apiclient.Client, nodeRef string, tgt bindTarget) (domain.Node, error) {
+	ref := strings.TrimSpace(nodeRef)
+	if ref == "" {
+		return domain.Node{}, errGuard{errors.New(`"project" is required: pass an existing node's id, slug, or name (flow_list_projects shows the tree); to create a node use flow_create_node`)}
 	}
-	kind, err := decideBindKind(in.Kind, originOK)
+	node, err := h.lookupNode(ctx, ref)
 	if err != nil {
-		return domain.Node{}, "", err
+		return domain.Node{}, err
 	}
-	if kind == "path" && machine.ID == "" {
-		return domain.Node{}, "", errGuard{errors.New("cannot determine this device's machine id for a path binding")}
+	if err := bindTargetTo(ctx, c, node.ID, tgt); err != nil {
+		return domain.Node{}, err
 	}
+	return node, nil
+}
 
-	creating := strings.TrimSpace(in.CreateName) != ""
-	var proj domain.Node
-	if creating {
-		parent, perr := h.lookupNode(ctx, strings.TrimSpace(in.CreateParent))
-		if perr != nil {
-			return domain.Node{}, "", fmt.Errorf("create_parent: %w", perr)
-		}
-		binding := apiclient.BindingFields{Kind: kind}
-		switch kind {
-		case "remote":
-			binding.RemoteSlug = originSlug
-		case "path":
-			binding.MachineID = machine.ID
-			binding.MachineLabel = machine.Label
-			binding.Path = filepath.Clean(cwd)
-		}
-		result, createErr := c.CreateBoundNode(ctx, apiclient.CreateBoundNodeInput{
-			Node: apiclient.CreateNodeFields{
-				Name:     strings.TrimSpace(in.CreateName),
-				Kind:     string(domain.KindRepo),
-				ParentID: &parent.ID,
-			},
-			Binding: binding,
-		})
-		proj, err = result.Node, createErr
-	} else {
-		proj, err = h.lookupNode(ctx, strings.TrimSpace(in.Project))
+// bindTargetTo commits a resolved target as a binding on nodeID.
+func bindTargetTo(ctx context.Context, c *apiclient.Client, nodeID string, tgt bindTarget) error {
+	if tgt.Kind == "remote" {
+		_, err := c.BindRemote(ctx, nodeID, tgt.RemoteSlug)
+		return err
 	}
-	if err != nil {
-		return domain.Node{}, "", err
+	_, err := c.BindPath(ctx, nodeID, tgt.MachineID, tgt.MachineLabel, tgt.Path)
+	return err
+}
+
+// unbindTarget deletes the binding a target addresses. Neither unbind call takes
+// a node id (internal/adapter/apiclient/projectbindings.go:82,96): a binding is
+// identified by its target alone, which is why flow_node_binding rejects a
+// `node` argument for unbind (Spec §3).
+func unbindTarget(ctx context.Context, c *apiclient.Client, tgt bindTarget) error {
+	if tgt.Kind == "remote" {
+		return c.UnbindRemote(ctx, tgt.RemoteSlug)
 	}
-	if !creating {
-		switch kind {
-		case "remote":
-			if _, err := c.BindRemote(ctx, proj.ID, originSlug); err != nil {
-				return domain.Node{}, "", err
-			}
-		case "path":
-			if _, err := c.BindPath(ctx, proj.ID, machine.ID, machine.Label, filepath.Clean(cwd)); err != nil {
-				return domain.Node{}, "", err
-			}
-		}
-	}
-	return proj, kind, nil
+	return c.UnbindPath(ctx, tgt.MachineID, tgt.Path)
 }

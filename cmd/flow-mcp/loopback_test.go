@@ -377,34 +377,32 @@ func TestLoopback_BindProject(t *testing.T) {
 		t.Fatalf("flow_list_projects = %q, want 'Alpha'/'alpha'", lpTxt)
 	}
 
-	// 3. create-then-bind: create_name + kind:remote (deterministic — the test process
-	// runs inside the flow-rebuild git checkout which has a git origin).
+	// 3. bind an existing node by slug; create-bound must NOT be used any more.
 	bindCalled, createBoundCalled = false, false
 	res, bindTxt := callText(t, sess, "flow_bind_project", map[string]any{
-		"create_name":   "Scratch",
-		"create_parent": "alpha", // nest the new repo under an existing node (repo can't be a root)
-		"kind":          "remote",
+		"project": "alpha",
+		"kind":    "remote", // deterministic: the test process runs inside a git checkout with an origin
 	})
 	if res.IsError {
-		t.Fatalf("create-then-bind IsError: %s", bindTxt)
+		t.Fatalf("bind existing IsError: %s", bindTxt)
 	}
-	if !strings.Contains(bindTxt, "Scratch") {
-		t.Fatalf("bind result = %q, want it to name 'Scratch'", bindTxt)
+	if !strings.Contains(bindTxt, "Alpha") {
+		t.Fatalf("bind result = %q, want it to name 'Alpha'", bindTxt)
 	}
-	if !createBoundCalled {
-		t.Fatal("POST /api/v1/nodes/create-bound was never called")
+	if !bindCalled {
+		t.Fatal("PUT /api/v1/nodes/{id}/bindings was never called")
 	}
-	if bindCalled {
-		t.Fatal("create_name used a second PUT binding commit")
+	if createBoundCalled {
+		t.Fatal("flow_bind_project must never create a node any more (create-bound was called)")
 	}
 
-	// 4. error case: neither project nor create_name.
+	// 4. error case: no project reference at all.
 	resErr, errTxt := callText(t, sess, "flow_bind_project", map[string]any{})
 	if !resErr.IsError {
 		t.Fatalf("no-ref bind: want IsError, got %q", errTxt)
 	}
-	if !strings.Contains(errTxt, "project") || !strings.Contains(errTxt, "create_name") {
-		t.Fatalf("no-ref error = %q, want mention of 'project' and 'create_name'", errTxt)
+	if !strings.Contains(errTxt, "project") || !strings.Contains(errTxt, "flow_create_node") {
+		t.Fatalf("no-ref error = %q, want mention of 'project' and 'flow_create_node'", errTxt)
 	}
 
 	// 5. Re-resolve after bind: set FLOW_PROJECT=beta so refreshResolved (triggered

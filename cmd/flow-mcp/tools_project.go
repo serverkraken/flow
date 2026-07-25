@@ -3,13 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
-	"github.com/serverkraken/flow/internal/clientmachine"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/gitremote"
 )
 
 // projectContextIn has no parameters.
@@ -68,42 +65,6 @@ func (h *handlers) listProjectsTool(ctx context.Context, req *mcp.CallToolReques
 		return h.resultErr(err), nil, nil
 	}
 	return textResult(formatNodeTree(ps)), nil, nil
-}
-
-// bindNodeIn binds the current working directory to a project.
-type bindNodeIn struct {
-	Project      string `json:"project,omitempty" jsonschema:"an existing project to bind: id, slug, or name"`
-	CreateName   string `json:"create_name,omitempty" jsonschema:"create a new repo with this name, then bind to it (requires create_parent)"`
-	CreateParent string `json:"create_parent,omitempty" jsonschema:"the engagement or vorhaben (id, slug, or name) to nest the new repo under; required with create_name"`
-	Kind         string `json:"kind,omitempty" jsonschema:"binding kind override: 'remote' (git origin) or 'path' (this directory); omit to auto-detect"`
-}
-
-// bindProject binds this directory to a project (remote-slug if a git origin is
-// present, else a per-device path binding), creating the project first when
-// create_name is given, then re-resolves so subsequent tools are scoped here.
-func (h *handlers) bindProject(ctx context.Context, req *mcp.CallToolRequest, in bindNodeIn) (*mcp.CallToolResult, any, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return errorResult("cannot determine the working directory: " + err.Error()), nil, nil
-	}
-	originSlug, originOK, _ := gitremote.OriginSlug(cwd)
-	machine, _ := clientmachine.Load() // best-effort; the path branch validates machine.ID
-	var bound domain.Node
-	var kind string
-	derr := h.do(ctx, req, func(c *apiclient.Client) error {
-		p, k, e := h.bindNodeCore(ctx, c, in, originSlug, originOK, machine, cwd)
-		if e != nil {
-			return e
-		}
-		bound, kind = p, k
-		h.refreshResolved(ctx, c)
-		return nil
-	})
-	if derr != nil {
-		return h.resultErr(derr), nil, nil
-	}
-	msg := fmt.Sprintf("Bound this directory to project %s (%s) via %s binding. flow_project_context now resolves here.", bound.Name, bound.Slug, kind)
-	return textResult(msg), nil, nil
 }
 
 // updateNodeIn holds node identification and partial metadata/rate fields to change.
