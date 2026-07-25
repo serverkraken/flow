@@ -67,7 +67,7 @@ func (h *handlers) listProjectsTool(ctx context.Context, req *mcp.CallToolReques
 	if err != nil {
 		return h.resultErr(err), nil, nil
 	}
-	return textResult(formatProjects(ps)), nil, nil
+	return textResult(formatNodeTree(ps)), nil, nil
 }
 
 // bindNodeIn binds the current working directory to a project.

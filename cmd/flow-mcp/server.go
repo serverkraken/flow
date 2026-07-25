@@ -102,7 +102,7 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.deleteDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_list_projects",
-		Description: "List all flow projects (id, name, slug). Use this to find an existing project before flow_bind_project, to avoid creating a duplicate.",
+		Description: "List the complete flow node hierarchy as an indented tree — kind glyph, name, slug, kind, status and id per line, two spaces per level. Use this to find an existing node before binding, and to pick a valid parent for flow_create_node (an engagement is always a root; a vorhaben or repo needs an engagement or vorhaben as parent).",
 	}, h.listProjectsTool)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_bind_project",
