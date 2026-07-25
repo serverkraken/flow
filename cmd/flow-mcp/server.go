@@ -109,6 +109,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Bind a directory or a git remote to an EXISTING flow node so other tools auto-scope there. Pass project (id/slug/name) plus optionally path (a directory that must exist; ~ and relative paths resolve against the flow-mcp process) or remote (a clone URL or host/path slug, no local checkout needed); omit both to bind the process's working directory. Auto-detects a git-origin (remote) vs per-device (path) binding; override with kind. A target can only be bound to ONE node: binding a target that is already bound MOVES it to the new node — check with flow_node_binding action=resolve first. To create a node use flow_create_node; for unbind/list/resolve use flow_node_binding.",
 	}, h.bindProject)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_create_node",
+		Description: "Create a node in the flow hierarchy (engagement → vorhaben → repo). An engagement is ALWAYS a root and must not get a parent; a vorhaben or repo REQUIRES a parent that is an engagement or a vorhaben. upstream and bind_path are repo-only. Pass bind_path to bind a directory to the new repo in the same atomic command; omit it for a node without any binding (to bind an engagement or vorhaben, create it first and use flow_node_binding). The slug is derived from the name — rename with flow_update_node; icon is set afterwards with flow_update_node. Call flow_list_projects first to pick a valid parent.",
+	}, h.createNode)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_node",
 		Description: "Update a node's metadata (name, description, color, glyph, icon, upstream, status) and/or rate — only the fields you pass change. Scoped to the current project by default; pass node to target another. This is how an agent maintains a project's description without the TUI.",
 	}, h.updateNode)
