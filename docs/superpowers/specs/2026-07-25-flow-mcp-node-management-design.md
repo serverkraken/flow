@@ -44,6 +44,24 @@ Ausdrücklich **nicht** in diesem Slice, jeweils mit eigener Spec später:
 `apiclient`-Methoden existieren; dieser Slice baut ausschließlich MCP-Oberfläche.
 Keine Migration, keine neue `apiclient`-Methode.
 
+**Zwei entschiedene Ausnahmen davon** (Soenne, 2026-07-25, im Pre-Flight-Scan des
+Plans), jede in einem eigenen Task mit eigenem Commit, damit sie in Review und
+Historie sichtbar getrennt bleibt:
+
+1. **Vorarbeit (Plan-Task 0):** `internal/tui/screen/worktime/wtfmt` wird nach
+   `internal/timefmt` hochgezogen. `cmd/flow-mcp` braucht die Minuten-Formatierung
+   für den Löschbericht und das Node-Detail, dürfte aber nicht in den Unterbaum
+   eines anderen Adapters importieren — das würde die hexagonale
+   Abhängigkeitsrichtung umdrehen. Ein Leaf-Package unterhalb der Adapter löst
+   das ohne Duplikation. Reiner Refactor, kein neues Verhalten.
+2. **Nachtrag (Plan-Task 12), nach dem Done-Gate:** zwei `Emit`-Aufrufe in
+   `internal/adapter/httpserver/projectbindings.go`. `PUT /nodes/{id}/bindings`
+   und `DELETE /nodes/bindings` emittieren heute kein SSE-Event, während create,
+   move, delete und tags es tun — dieser Slice macht Bindings erstmals zur
+   Alltagsoperation, also würde die WebUI-Anzeige ohne Reload veralten. Event-Typ
+   ist `node.updated`; die Konsumenten triggern auf den Typ und holen ihr
+   Fragment neu.
+
 ## 3. Tool-Fläche: 25 → 31
 
 ```
@@ -279,6 +297,7 @@ NEU  cmd/flow-mcp/tools_node_tags.go        flow_set_node_tags
 NEU  cmd/flow-mcp/tools_bindings.go         flow_node_binding + flow_bind_project (Umzug)
 NEU  cmd/flow-mcp/bindtarget.go             path | remote | cwd → Origin, Kind, Machine, Pfad
 NEU  cmd/flow-mcp/format_nodes.go           Baum, Node-Detail, Bindings, Löschfolgen
+MOD  cmd/flow-mcp/scope.go                  nodeTarget, prefixGuard, Cache-Invalidierung
 MOD  cmd/flow-mcp/bind.go                   bindNodeCore nutzt bindtarget, verliert den Create-Zweig
 MOD  cmd/flow-mcp/tools_project.go          behält project_context, list_projects, update_node
 MOD  cmd/flow-mcp/server.go                 sechs Registrierungen, zwei neue Descriptions

@@ -10,7 +10,8 @@
 
 ## Global Constraints
 
-- **Keine Backend-Änderung, keine Migration, keine neue `apiclient`-Methode.** Alle acht Server-Endpunkte und alle benötigten `apiclient`-Methoden existieren (Spec §2). Wer in diesem Slice `internal/` anfasst, ist vom Plan abgewichen.
+- **Keine Backend-Änderung, keine Migration, keine neue `apiclient`-Methode.** Alle acht Server-Endpunkte und alle benötigten `apiclient`-Methoden existieren (Spec §2). Wer in den Tasks 1 bis 11 `internal/` anfasst, ist vom Plan abgewichen.
+- **Genau zwei bewusste Ausnahmen von der Regel darüber**, beide von Soenne am 2026-07-25 entschieden und jeweils in einem eigenen Task mit eigenem Commit isoliert, damit sie in Review und Historie sichtbar getrennt bleiben: **Task 0** zieht `internal/tui/screen/worktime/wtfmt` nach `internal/timefmt` hoch (reiner Refactor, damit `cmd/flow-mcp` die Minuten-Formatierung importieren darf, statt sie zu duplizieren), und **Task 12** ergänzt zwei `Emit`-Aufrufe in `internal/adapter/httpserver/projectbindings.go` (die SSE-Bestandslücke bei bind/unbind). Ein Task-Reviewer der Tasks 0 und 12 prüft gegen diese Ausnahme, nicht gegen den Satz darüber; ein Task-Reviewer der Tasks 1 bis 11 prüft gegen den Satz darüber.
 - **Multi-Tenant ist bindend.** flow ist eine Multi-Tenant-App für Menschen UND AI-Agents (AGENTS.md Grundsätze). Jeder Datenzugriff läuft über `h.do` an den authentifizierten, owner-scoped `apiclient`; es entstehen keine neuen Store-Queries und keine neue Tenant-Fläche. „Ist nur ein User" ist als Begründung in Code, Kommentar, Commit und Trade-off UNZULÄSSIG. Kein neuer globaler Cache ohne Tenant-Schlüssel — der einzige Cache ist der bestehende, prozess-lokale `h.projects` hinter `h.projMu`, der zum authentifizierten Client eines einzigen Owners gehört.
 - **Keine Monolithen:** eine Verantwortung pro Datei, Tests in einer eigenen `_test.go`-Datei (AGENTS.md). Der Dateiplan unten ist verbindlich.
 - **TDD, wörtlich:** fehlschlagender Test → Fehlschlag mit exaktem Befehl bestätigen → minimale Implementierung → grün bestätigen → committen. Ein Commit pro Task, Conventional-Commit-Subject.
@@ -20,7 +21,7 @@
 - **Kein templ, kein Tailwind, kein i18n in diesem Slice.** Es entsteht keine `.templ`-Änderung (also kein `make generate`), keine `web/tailwind.css`-Änderung (also kein `make web`) und keine neue Nutzertext-Zeile in der WebUI (also kein Eintrag in `catalog_de.go`/`catalog_en.go`). MCP-Tool-Beschreibungen und Tool-Ausgaben sind Modell-gerichtete API-Strings, keine lokalisierten UI-Texte — genauso wie die bestehenden 25 Descriptions in `server.go`. Wer diesen Absatz überspringt und i18n-Keys anlegt, ist abgewichen.
 - **Keine Browser-Popups, keine Emoji-Piktogramme.** Für Kind-Marker in Textausgaben gilt der monospace-Glyph-Satz aus AGENTS.md (`● ◆ ⬡ ▶ ■`), nie ein Emoji.
 - **Zustände einer Textoberfläche.** Diese Oberfläche hat kein Viewport und keinen laufenden Timer, aber sie hat Zustände, und jeder Renderer-Task benennt sie: **leer** (jede Liste hat eine eigene „No …"-Meldung, die sagt, was als Nächstes zu tun ist — nie eine leere Antwort), **lang** und **Fehlerpfad**. Für „lang" gilt eine feste Regel: **Einzelwerte werden NIE gekürzt** — Name, Slug, ID und Binding-Pfad sind Adressen, die ein Modell direkt zurück in den nächsten Tool-Call schreibt, und ein abgeschnittener Slug ist eine kaputte Adresse. Gekürzt werden ausschließlich **Wiederholungen** (Aufzählungen im Löschbericht via `joinCapped`), wobei die exakte Anzahl im umgebenden Satz erhalten bleibt. Fehlerpfad heißt: Validierungsfehler nennen die gültigen Werte, Serverfehler kommen wörtlich durch `h.resultErr` beim Modell an.
-- **SSE:** Alle Mutationen dieses Slices laufen über REST-Endpunkte, die serverseitig bereits emittieren — `POST /api/v1/nodes` → `node.created` (`internal/adapter/httpserver/worktime.go:237`), `POST /api/v1/nodes/create-bound` → `node.created` (`projectbindings.go:54`), `POST /api/v1/nodes/{id}/move` → `node.moved` (`nodemove.go:37`), `DELETE /api/v1/nodes/{id}` → `node.deleted` (`worktime.go:294`), `PUT /api/v1/nodes/{id}/tags` → `node.updated` (`nodetags.go:51`). Konsument ist die WebUI (`hx-ext="sse"` + `hx-trigger="sse:node.created"` etc.) und der TUI-Nodetree. Der MCP-Prozess emittiert nichts selbst und darf das auch nicht. **Bekannte Bestandslücke:** `PUT /api/v1/nodes/{id}/bindings` und `DELETE /api/v1/nodes/bindings` emittieren KEIN Event (`projectbindings.go:83,113`) — siehe Offene Entscheidungen #1. Der Plan schließt sie nicht, weil das Backend-Arbeit wäre.
+- **SSE:** Alle Mutationen dieses Slices laufen über REST-Endpunkte, die serverseitig bereits emittieren — `POST /api/v1/nodes` → `node.created` (`internal/adapter/httpserver/worktime.go:237`), `POST /api/v1/nodes/create-bound` → `node.created` (`projectbindings.go:54`), `POST /api/v1/nodes/{id}/move` → `node.moved` (`nodemove.go:37`), `DELETE /api/v1/nodes/{id}` → `node.deleted` (`worktime.go:294`), `PUT /api/v1/nodes/{id}/tags` → `node.updated` (`nodetags.go:51`). Konsument ist die WebUI (`hx-ext="sse"` + `hx-trigger="sse:node.created"` etc.) und der TUI-Nodetree. Der MCP-Prozess emittiert nichts selbst und darf das auch nicht. **Bekannte Bestandslücke, in diesem Plan geschlossen:** `PUT /api/v1/nodes/{id}/bindings` und `DELETE /api/v1/nodes/bindings` emittieren heute KEIN Event (`projectbindings.go:83,113`). Weil dieser Slice Bindings erstmals bequem änderbar macht, würde die WebUI nach einem MCP-`bind` ohne Reload veralten. Soennes Entscheidung vom 2026-07-25: schließen, aber **nach** dem Done-Gate und in einem eigenen Commit — das ist **Task 12**. Für die Tasks 1 bis 11 gilt weiterhin: der MCP-Prozess emittiert nichts selbst und darf das auch nicht.
 - **Bestandsnamen nur aus dem Dossier.** Jeder Task, der einen Bestandsnamen tippt, hat vorher einen `rg`-Verifikationsstep. Bei Abweichung gewinnt der Bestand, nicht der Plan. Das gilt ausdrücklich auch für Test-Fixtures: die Felder von `domain.User`, `domain.Artifact`, `domain.Tag`, `domain.ProjectBinding` und `apiclient.CreateBoundNodeInput/Result`, die die Fake-Backends encodieren, sind Bestand und werden mitverifiziert.
 - **Binden ist ein Upsert, kein Konflikt.** Ein Ziel (Remote-Slug bzw. Maschine+Pfad) kann nur an EINEN Node gebunden sein: `BindNode.Execute` endet in `Bindings.Upsert` (`internal/usecase/bind_node.go:54`), und der Store konfliktet auf `(owner_id, remote_slug)` bzw. `(owner_id, machine_id, path)` und ersetzt **nur `node_id`** (`internal/adapter/pgstore/projectbindings.go:49`). Ein erneutes Binden verschiebt das Ziel also **still** auf den neuen Node — kein 409, keine Warnung. Weil dieser Slice Bindings erstmals bequem änderbar macht, sagen die Descriptions von `flow_bind_project` und `flow_node_binding` das ausdrücklich und empfehlen `action="resolve"` als Vorabprüfung; Task 10 beweist das Verhalten in der Kette. Serverseitig wird nichts geändert.
 - **Owner-Scoping der Löschfolgen-Abfrage:** `GetNode`, `ListArtifacts`, `ListDocumentsScoped`, `NodeStats`, `ListBindings` sind alle owner-scoped. `ListBindings` liefert die Bindings **aller Geräte** dieses Owners — deshalb weist jede Bindings-Zeile Maschinen-Label UND Maschinen-ID aus.
@@ -28,6 +29,14 @@
 ---
 
 ## File Structure
+
+**Verschoben (Task 0, reiner Refactor):**
+
+- `internal/tui/screen/worktime/wtfmt/` → `internal/timefmt/` — Minuten-Formatierung und HH:MM-/Dauer-Parsing als Leaf-Package unterhalb der Adapter, damit `cmd/flow-mcp` es importieren darf. Acht Importeure im TUI-Baum ziehen mit um. Kein neues Verhalten.
+
+**Geändert außerhalb von `cmd/flow-mcp` (Task 12, nach dem Done-Gate):**
+
+- `internal/adapter/httpserver/projectbindings.go` — zwei `Emit`-Aufrufe für bind und unbind, plus je ein Handler-Test. Schließt die SSE-Bestandslücke, die dieser Slice sichtbar macht.
 
 **Neu (je mit eigener Testdatei):**
 
@@ -58,6 +67,100 @@
 - `cmd/flow-mcp/loopback_test.go` — die Tool-Zahl-Assertion (`:353`) wandert 25 → 31, ein Schritt pro neuem Tool; `TestLoopback_BindProject` verliert den `create_name`-Zweig.
 
 `format_nodes.go` und `format_nodes_test.go` werden von mehreren Tasks **additiv** erweitert (Task 2 Baum, Task 6 Löschbericht + Minuten, Task 7 Detail, Task 8 Tags, Task 9 Bindings/Resolve). Das ist beabsichtigt: die Datei hat *eine* Verantwortung — Node-Rendering. Kein Task schreibt eine dort schon existierende Funktion um.
+
+---
+
+### Task 0: `wtfmt` nach `internal/timefmt` hochziehen (Vorarbeit, reiner Refactor)
+
+**Warum dieser Task existiert.** Task 6 und Task 7 brauchen eine Minuten-Formatierung (`"12h 30m"`). Die gibt es schon als `wtfmt.FormatMin`, aber `cmd/flow-mcp` dürfte sie nicht importieren: `internal/tui/screen/worktime/wtfmt` liegt im Unterbaum eines anderen Adapters, und ein Adapter-auf-Adapter-Import dreht die hexagonale Abhängigkeitsrichtung, die AGENTS.md festlegt. Soennes Entscheidung vom 2026-07-25: das Package hochziehen statt die Funktion zu kopieren (Offene Entscheidungen #2). Ergebnis ist ein Leaf-Package unterhalb der Adapter, das TUI und MCP gleichermaßen importieren dürfen.
+
+**Dies ist ein reiner Refactor: kein neues Verhalten, kein neuer Test.** Der TDD-Zyklus lautet hier deshalb nicht „failing test first", sondern: die vorhandenen Tests ziehen mit um und müssen unverändert grün bleiben, und danach darf es keine Referenz auf den alten Pfad mehr geben. Wer hier einen neuen Test schreibt, testet Bestandsverhalten doppelt.
+
+**Files:**
+- Move: `internal/tui/screen/worktime/wtfmt/wtfmt.go` → `internal/timefmt/timefmt.go`
+- Move: `internal/tui/screen/worktime/wtfmt/wtfmt_test.go` → `internal/timefmt/timefmt_test.go`
+- Move: `internal/tui/screen/worktime/wtfmt/timeparse.go` → `internal/timefmt/timeparse.go`
+- Move: `internal/tui/screen/worktime/wtfmt/timeparse_test.go` → `internal/timefmt/timeparse_test.go`
+- Modify (Importpfad + Qualifier `wtfmt.` → `timefmt.`): `internal/tui/screen/worktime/daydetail/dialogs.go`, `internal/tui/screen/worktime/daydetail/route.go`, `internal/tui/screen/worktime/dayoffs/route.go`, `internal/tui/screen/worktime/dialogs.go`, `internal/tui/screen/worktime/format_test.go`, `internal/tui/screen/worktime/statsrange/route.go`, `internal/tui/screen/worktime/week/route.go`, `internal/tui/screen/worktime/week/summary.go`
+
+**Interfaces:**
+- Consumes: nichts (erster Task).
+- Produces: Package `github.com/serverkraken/flow/internal/timefmt` mit unveränderten Signaturen — `func FormatMin(min int) string` (`"Xh YYm"`, negative Eingabe wird auf 0 geklemmt), `func FormatSaldo(min int) string` (`"+Xh YYm"` / `"-Xh YYm"`), `func ParseHM(s string) (time.Duration, error)`, `func NormalizeDurationArg(s string) string`, `func ParseStop(arg string, start, now time.Time) (time.Time, error)`. Task 6 und Task 7 rufen ausschließlich `timefmt.FormatMin`.
+
+- [ ] **Step 1: Bestand verifizieren** — diese Befehle:
+
+```bash
+cat internal/tui/screen/worktime/wtfmt/wtfmt.go
+rg -lN "worktime/wtfmt" --type go | sort
+rg -oN "wtfmt\.[A-Z][A-Za-z]*" --type go | sort | uniq -c | sort -rn
+ls internal/timefmt 2>&1
+```
+
+Erwartet: vier Dateien im Package, **zehn** Dateien mit dem Importpfad (die acht Importeure oben plus die zwei Testdateien des Packages selbst, die mit umziehen), die fünf Funktionsnamen aus dem Produces-Block, und `internal/timefmt` existiert noch **nicht**. Weicht die Importeurs-Liste ab, gewinnt der Bestand — dann gilt die Liste aus `rg`, nicht die aus diesem Plan.
+
+- [ ] **Step 2: Package verschieben** — `git mv` erhält die Historie:
+
+```bash
+mkdir -p internal/timefmt
+git mv internal/tui/screen/worktime/wtfmt/wtfmt.go      internal/timefmt/timefmt.go
+git mv internal/tui/screen/worktime/wtfmt/wtfmt_test.go internal/timefmt/timefmt_test.go
+git mv internal/tui/screen/worktime/wtfmt/timeparse.go      internal/timefmt/timeparse.go
+git mv internal/tui/screen/worktime/wtfmt/timeparse_test.go internal/timefmt/timeparse_test.go
+rmdir internal/tui/screen/worktime/wtfmt
+```
+
+- [ ] **Step 3: Package-Klausel und Package-Doc umschreiben** — in allen vier verschobenen Dateien `package wtfmt` → `package timefmt`:
+
+```bash
+sed -i '' 's/^package wtfmt$/package timefmt/' internal/timefmt/*.go
+```
+
+Dann den Doc-Kommentar am Kopf von `internal/timefmt/timefmt.go` ersetzen — der alte Text behauptet eine Worktime-Bindung, die nach dem Umzug nicht mehr stimmt:
+
+```go
+// Package timefmt holds minute-based duration formatting and HH:MM/duration
+// parsing. It imports only the standard library, so any layer may use it —
+// the TUI worktime routes and the MCP node tools both do.
+package timefmt
+```
+
+- [ ] **Step 4: Importeure umstellen** — Importpfad und Qualifier in einem Durchgang, über die von `rg` gefundene Menge (nicht über eine gepflegte Liste):
+
+```bash
+for f in $(rg -lN "worktime/wtfmt" --type go); do
+  sed -i '' \
+    -e 's|"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"|"github.com/serverkraken/flow/internal/timefmt"|' \
+    -e 's|\bwtfmt\.|timefmt.|g' "$f"
+done
+```
+
+- [ ] **Step 5: Keine Rückstände** — beide Befehle müssen leer bleiben:
+
+```bash
+rg -n "wtfmt" --type go
+rg -n "worktime/wtfmt" .
+```
+
+Ein Treffer heißt: eine Datei wurde übersehen (etwa weil sie den Import in einer ungewöhnlichen Form schreibt). Dann diese Datei von Hand nachziehen und den Befehl erneut laufen lassen.
+
+- [ ] **Step 6: Bestehende Tests grün bestätigen** — der Beweis, dass der Refactor verhaltensneutral war:
+
+```bash
+go build ./... && echo BUILD-OK
+go test ./internal/timefmt/ -v 2>&1 | tail -20
+go test ./internal/tui/... 2>&1 | tail -20
+```
+
+Erwartet: `BUILD-OK`, alle Tests des verschobenen Packages PASS (dieselben Testnamen wie vorher), und die TUI-Pakete unverändert grün. Schlägt hier etwas fehl, ist es ein Umzugsfehler und kein Bestandsfehler — Step 4 und 5 prüfen.
+
+- [ ] **Step 7: Lint** — `golangci-lint run ./internal/timefmt/... ./internal/tui/... 2>&1 | tail -20` → keine Funde. **Niemals `make fmt`** (Toolchain-Skew, AGENTS.md).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add -A internal/timefmt internal/tui
+git commit -m "refactor: hoist wtfmt to internal/timefmt so non-TUI callers may use it"
+```
 
 ---
 
@@ -2525,20 +2628,19 @@ func (h *handlers) moveNode(ctx context.Context, req *mcp.CallToolRequest, in mo
 **Files:**
 - Modify: `cmd/flow-mcp/tools_node_lifecycle.go` (anfügen: `deleteNodeIn`, `deleteImpact`, `deleteImpactOf`, `deleteNode`)
 - Modify: `cmd/flow-mcp/tools_node_lifecycle_test.go` (anfügen)
-- Modify: `cmd/flow-mcp/format_nodes.go` (anfügen: `formatMinutes`, `formatDeleteImpact`)
+- Modify: `cmd/flow-mcp/format_nodes.go` (anfügen: `formatDeleteImpact`, `joinCapped`, `maxDeleteImpactItems`; Minuten kommen aus `internal/timefmt`, siehe Task 0)
 - Modify: `cmd/flow-mcp/format_nodes_test.go` (anfügen)
 - Modify: `cmd/flow-mcp/server.go` (Registrierung `flow_delete_node`)
 - Modify: `cmd/flow-mcp/loopback_test.go` (`:353-355` Tool-Zahl 27 → 28)
 
 **Interfaces:**
-- Consumes: `c.GetNode(ctx, id string) (domain.Node, error)`; `c.DeleteNode(ctx, id string) error`; `c.ListArtifacts(ctx, nodeID string) ([]domain.Artifact, error)` mit `domain.Artifact{NodeID, Slug, Name string}`; `c.ListDocumentsScoped(ctx, nodeID *string, tags ...string) ([]domain.Document, error)` mit `domain.Document{Type domain.DocumentType, Path string}`; `domain.DocProject`; `c.NodeStats(ctx, id string) (apiclient.NodeRollup, error)` mit `NodeRollup{TotalMin, WeekMin, MonthMin int}`; `domain.Node.LogoRef`, `domain.Node.ParentID`; `h.lookupNode`, `h.nodeList`, `mcpLog()`.
+- Consumes: `timefmt.FormatMin(min int) string` aus `github.com/serverkraken/flow/internal/timefmt` (Task 0) — es gibt **kein** lokales `formatMinutes`; `c.GetNode(ctx, id string) (domain.Node, error)`; `c.DeleteNode(ctx, id string) error`; `c.ListArtifacts(ctx, nodeID string) ([]domain.Artifact, error)` mit `domain.Artifact{NodeID, Slug, Name string}`; `c.ListDocumentsScoped(ctx, nodeID *string, tags ...string) ([]domain.Document, error)` mit `domain.Document{Type domain.DocumentType, Path string}`; `domain.DocProject`; `c.NodeStats(ctx, id string) (apiclient.NodeRollup, error)` mit `NodeRollup{TotalMin, WeekMin, MonthMin int}`; `domain.Node.LogoRef`, `domain.Node.ParentID`; `h.lookupNode`, `h.nodeList`, `mcpLog()`.
 - Produces:
   - `type deleteNodeIn struct{ Node string; Confirm bool }`
   - `type deleteImpact struct{ Node domain.Node; Children []domain.Node; ProjectDocs []domain.Document; OwnArtifacts int; HasLogo bool; Rollup apiclient.NodeRollup }`
   - `func (d deleteImpact) blocked() bool`
   - `func (h *handlers) deleteImpactOf(ctx context.Context, c *apiclient.Client, nodeID string) (deleteImpact, error)`
   - `func (h *handlers) deleteNode(ctx context.Context, req *mcp.CallToolRequest, in deleteNodeIn) (*mcp.CallToolResult, any, error)`
-  - `func formatMinutes(min int) string`
   - `func formatDeleteImpact(d deleteImpact) string`
   - `const maxDeleteImpactItems = 10`
   - `func joinCapped(items []string, max int) string`
@@ -2561,17 +2663,6 @@ Erwartet: `ListArtifacts` hängt `ListFree(owner)` an (Free-Artefakte haben `Nod
 - [ ] **Step 2: Failing Renderer-Test schreiben** — an `cmd/flow-mcp/format_nodes_test.go` anfügen:
 
 ```go
-func TestFormatMinutes(t *testing.T) {
-	cases := []struct{ in int; want string }{
-		{0, "0h 00m"}, {5, "0h 05m"}, {60, "1h 00m"}, {750, "12h 30m"}, {-5, "0h 00m"},
-	}
-	for _, c := range cases {
-		if got := formatMinutes(c.in); got != c.want {
-			t.Errorf("formatMinutes(%d) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}
-
 func TestFormatDeleteImpact_DeletableNodeReportsMinutesAndOwnArtifactsOnly(t *testing.T) {
 	out := formatDeleteImpact(deleteImpact{
 		Node:         domain.Node{ID: "l1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo, LogoRef: "sha256:abc"},
@@ -2674,22 +2765,11 @@ func TestDeleteImpactBlocked(t *testing.T) {
 
 > `format_nodes_test.go` braucht dafür zusätzlich die Imports `"fmt"` und `"github.com/serverkraken/flow/internal/adapter/apiclient"`.
 
-- [ ] **Step 3: Renderer-Test laufen lassen, Fehlschlag bestätigen** — `go test ./cmd/flow-mcp/ -run 'TestFormatMinutes|TestFormatDeleteImpact|TestJoinCapped|TestDeleteImpactBlocked' 2>&1 | head -20` → FAIL mit `undefined: formatMinutes`, `undefined: formatDeleteImpact`, `undefined: deleteImpact`, `undefined: joinCapped`, `undefined: maxDeleteImpactItems`.
+- [ ] **Step 3: Renderer-Test laufen lassen, Fehlschlag bestätigen** — `go test ./cmd/flow-mcp/ -run 'TestFormatDeleteImpact|TestJoinCapped|TestDeleteImpactBlocked' 2>&1 | head -20` → FAIL mit `undefined: formatDeleteImpact`, `undefined: deleteImpact`, `undefined: joinCapped`, `undefined: maxDeleteImpactItems`. Die Minuten-Formatierung wird hier **nicht** getestet — sie ist `timefmt.FormatMin` und hat ihre Tests in `internal/timefmt/timefmt_test.go` (Task 0).
 
-- [ ] **Step 4: Renderer an `format_nodes.go` anfügen** — am Ende von `cmd/flow-mcp/format_nodes.go` (der Import `apiclient` kommt hinzu, sobald `deleteImpact` in `tools_node_lifecycle.go` definiert ist — der Renderer selbst braucht ihn nicht):
+- [ ] **Step 4: Renderer an `format_nodes.go` anfügen** — am Ende von `cmd/flow-mcp/format_nodes.go`. Der Import `github.com/serverkraken/flow/internal/timefmt` kommt hier hinzu (Task 0 hat das Package angelegt); `apiclient` kommt hinzu, sobald `deleteImpact` in `tools_node_lifecycle.go` definiert ist — der Renderer selbst braucht ihn nicht:
 
 ```go
-// formatMinutes renders a non-negative minute count as "Xh YYm". Deliberately a
-// local four-liner rather than an import of internal/tui/.../wtfmt.FormatMin:
-// cmd/flow-mcp importing another adapter's subtree would invert the hexagonal
-// dependency direction (see Offene Entscheidungen #2).
-func formatMinutes(min int) string {
-	if min < 0 {
-		min = 0
-	}
-	return fmt.Sprintf("%dh %02dm", min/60, min%60)
-}
-
 // maxDeleteImpactItems caps how many child slugs / document paths the report
 // enumerates. A node can legitimately have hundreds of children, and a single
 // unbounded comma-joined line is the text-output equivalent of an unbreakable
@@ -2737,7 +2817,7 @@ func formatDeleteImpact(d deleteImpact) string {
 	if d.Rollup.TotalMin > 0 {
 		// NodeStats rolls up the SUBTREE, but a node with children is never
 		// deletable — so in exactly the deletable case the number is exact.
-		fmt.Fprintf(&b, "  %s of booked worktime would lose its node.\n", formatMinutes(d.Rollup.TotalMin))
+		fmt.Fprintf(&b, "  %s of booked worktime would lose its node.\n", timefmt.FormatMin(d.Rollup.TotalMin))
 	} else {
 		b.WriteString("  No booked worktime.\n")
 	}
@@ -3085,7 +3165,7 @@ func (h *handlers) deleteNode(ctx context.Context, req *mcp.CallToolRequest, in 
 - Modify: `cmd/flow-mcp/loopback_test.go` (`:353-355` Tool-Zahl 28 → 29)
 
 **Interfaces:**
-- Consumes: `h.nodeTarget(ctx context.Context, ref string) (domain.Node, error)` (Task 1); `c.GetNode(ctx, id string) (domain.Node, error)`; `c.Ancestors(ctx, id string) ([]domain.Node, error)` — **leaf→root**; `c.NodeTags(ctx, id string) ([]domain.Tag, error)` mit `domain.Tag{Slug, Display string}`; `c.ListBindings(ctx) ([]domain.ProjectBinding, error)`; `c.NodeStats(ctx, id string) (apiclient.NodeRollup, error)`; `domain.ProjectBinding{NodeID string; Kind domain.BindingKind; RemoteSlug, MachineID, MachineLabel, Path string}`; `domain.BindingRemote`; `formatMinutes`, `nodeKindGlyph` (Tasks 2, 6).
+- Consumes: `h.nodeTarget(ctx context.Context, ref string) (domain.Node, error)` (Task 1); `c.GetNode(ctx, id string) (domain.Node, error)`; `c.Ancestors(ctx, id string) ([]domain.Node, error)` — **leaf→root**; `c.NodeTags(ctx, id string) ([]domain.Tag, error)` mit `domain.Tag{Slug, Display string}`; `c.ListBindings(ctx) ([]domain.ProjectBinding, error)`; `c.NodeStats(ctx, id string) (apiclient.NodeRollup, error)`; `domain.ProjectBinding{NodeID string; Kind domain.BindingKind; RemoteSlug, MachineID, MachineLabel, Path string}`; `domain.BindingRemote`; `timefmt.FormatMin` aus `github.com/serverkraken/flow/internal/timefmt` (Task 0), `nodeKindGlyph` (Task 2).
 - Produces:
   - `type getNodeIn struct{ Node string }`
   - `func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in getNodeIn) (*mcp.CallToolResult, any, error)`
@@ -3212,7 +3292,7 @@ func formatNodeDetail(d nodeDetail) string {
 	}
 	fmt.Fprintf(&b, "tags: %s\n", tags)
 	fmt.Fprintf(&b, "worktime (subtree): total %s · this week %s · this month %s\n",
-		formatMinutes(d.Rollup.TotalMin), formatMinutes(d.Rollup.WeekMin), formatMinutes(d.Rollup.MonthMin))
+		timefmt.FormatMin(d.Rollup.TotalMin), timefmt.FormatMin(d.Rollup.WeekMin), timefmt.FormatMin(d.Rollup.MonthMin))
 	if len(d.Bindings) == 0 {
 		b.WriteString("bindings: none\n")
 	} else {
@@ -5093,23 +5173,172 @@ Zusätzlich den zweiten Konsumenten prüfen: `flow` (TUI) im Nodetree-Screen off
 
 - [ ] **Step 7: Kontrakt-Doc nachziehen** — das flow-instruction-Doc `claude-code-flow-kontrakt` beschreibt heute `flow_bind_project` als den Weg zum Anlegen. Über MCP: erst `flow_search_docs(query="claude-code-flow-kontrakt")`, dann `flow_get_doc`, dann `flow_patch_doc` (`operation="replace_section"`) auf den betroffenen Abschnitt. Der neue Text muss sagen: Anlegen ist `flow_create_node`; `flow_bind_project` bindet nur; Umhängen/Löschen/Detail/Tags/Bindings sind `flow_move_node`, `flow_delete_node`, `flow_get_node`, `flow_set_node_tags`, `flow_node_binding`. **Nicht im Repo committen** — das Doc lebt in flow.
 
-- [ ] **Step 8: Backlog-Nachtrag** — die offenen Enden aus Spec §9 in `notes/backlog-offene-slices` (flow-Doc) ergänzen: Worktime per MCP, Day-offs und Settings per MCP, `ImportDocument` mit `path`, Logo-Upload (braucht erst eine `apiclient`-Methode), `NodeMRU` als Sortierhilfe für die Baum-Ausgabe, Tilde-Expansion für `flow_upload_artifact`, und die fehlenden SSE-Events für bind/unbind.
+- [ ] **Step 8: Backlog-Nachtrag** — die offenen Enden aus Spec §9 in `notes/backlog-offene-slices` (flow-Doc) ergänzen: Worktime per MCP, Day-offs und Settings per MCP, `ImportDocument` mit `path`, Logo-Upload (braucht erst eine `apiclient`-Methode), `NodeMRU` als Sortierhilfe für die Baum-Ausgabe, und Tilde-Expansion für `flow_upload_artifact`. **Nicht** in den Backlog gehören die fehlenden SSE-Events für bind/unbind — die schließt Task 12.
 
 - [ ] **Step 9: Abschluss-Verifikation und Commit** — `make ci 2>&1 | tail -5` noch einmal grün, dann `git status --short` prüfen (es darf nichts Ungewolltes offen sein). Falls Task 11 Code berührt hat (etwa einen Lint-Fund aus Step 1): `git add -A && git commit -m "chore(flow-mcp): close the node-management done gate"`. Hat er nur Dokumentation außerhalb des Repos berührt, gibt es hier keinen Commit.
 
-- [ ] **Step 10: Merge** — `node-mgmt` → `rebuild` erst nach Soennes Review. Der Plan-Ausführende merged nicht selbst.
+- [ ] **Step 10: Weiter zu Task 12** — der Slice selbst ist hier fertig. Es folgt **Task 12** (SSE für bind/unbind), Soennes Entscheidung vom 2026-07-25: nach dem Done-Gate, in einem eigenen Commit. **Merge** `node-mgmt` → `rebuild` erst danach und erst nach Soennes Review. Der Plan-Ausführende merged nicht selbst.
+
+---
+
+### Task 12: SSE für bind und unbind (nach dem Done-Gate, eigener Commit)
+
+**Warum dieser Task existiert.** `PUT /api/v1/nodes/{id}/bindings` und `DELETE /api/v1/nodes/bindings` emittieren heute kein Event, während create, create-bound, move, delete und tags es tun. Bis zu diesem Slice fiel das kaum auf, weil Bindings selten geändert wurden; mit `flow_node_binding` werden sie zur Alltagsoperation, und die WebUI-Bindings-Anzeige würde ohne Reload veralten. CLAUDE.md macht das zur Regel: wer eine Mutation ergänzt, emittiert das passende Event, sonst aktualisiert die UI nicht live.
+
+**Dies ist die zweite bewusste Ausnahme von „keine Backend-Änderung"** (siehe Global Constraints) und liegt deshalb hinter dem Done-Gate in einem eigenen Commit: die Tasks 1 bis 11 bleiben ein reiner MCP-Slice, und diese Änderung ist in Review und Historie klar davon getrennt.
+
+**Warum `node.updated` und kein neuer Event-Typ.** `domain` kennt genau vier Node-Events — `node.created`, `node.updated`, `node.moved`, `node.deleted` (`internal/domain/event.go`). Ein Binding ist kein neuer Node und kein Umhängen, also bleibt `node.updated`. Das ist semantisch etwas grob, weil der Node selbst unverändert bleibt — aber die Konsumenten triggern ausschließlich auf den Event-**Typ** und holen ihr Fragment neu (`hx-trigger="sse:node.updated"` in `internal/adapter/webui/nodes.templ:23` und `cockpit.templ:40,50,59`), lesen also kein Feld aus `Data`. Ein fünfter Event-Typ würde jeden dieser vier `hx-trigger`-Listen einen Eintrag hinzufügen, ohne dass ein Konsument etwas davon hätte.
+
+**Files:**
+- Modify: `internal/adapter/httpserver/projectbindings.go` (`handleBindNode` default-Zweig `:105-107`, `handleUnbindNode` Erfolgspfad `:123-127`)
+- Modify: `internal/adapter/httpserver/projectbindings_test.go` (zwei Tests anfügen)
+- Modify: `internal/adapter/httpserver/webui_nodes_test.go` (Lese-Helfer `all()` auf `captureEmitter` anfügen)
+
+**Interfaces:**
+- Consumes: `s.Emitter.Emit(ctx context.Context, ev domain.Event)` (`internal/ports/ports.go:539-541`); `domain.Event{Type domain.EventType; UserID string; Data map[string]any}`; `domain.EventNodeUpdated` (`internal/domain/event.go`, Wert `"node.updated"`); das Test-Harness `newBindingsSrvFull(t) *bindingsSrv` mit Feld `emitter *captureEmitter` (`projectbindings_test.go:26,95`); `captureEmitter{mu sync.Mutex; events []domain.Event}` (`webui_nodes_test.go:28-37`).
+- Produces: `func (e *captureEmitter) all() []domain.Event` — gesperrte Kopie der bisher emittierten Events, damit Tests sie ohne Datenrennen lesen können. Kein Produktionscode-Symbol; die zwei `Emit`-Aufrufe sind Verhalten, keine neue API.
+
+- [ ] **Step 1: Bestand verifizieren** — diese Befehle:
+
+```bash
+rg -n "EventNode" internal/domain/event.go
+rg -n -A6 "func \(s \*Server\) handleBindNode" internal/adapter/httpserver/projectbindings.go
+rg -n -A6 "func \(s \*Server\) handleUnbindNode" internal/adapter/httpserver/projectbindings.go
+rg -n "Emitter.Emit" internal/adapter/httpserver/nodetags.go internal/adapter/httpserver/nodemove.go
+rg -n "type captureEmitter" -A 10 internal/adapter/httpserver/webui_nodes_test.go
+rg -n "emitter" internal/adapter/httpserver/projectbindings_test.go
+```
+
+Erwartet: die vier `EventNode*`-Konstanten; `handleBindNode` schreibt im default-Zweig nur `writeJSON(w, http.StatusOK, b)`; `handleUnbindNode` schreibt nur `w.WriteHeader(http.StatusNoContent)`; die Nachbar-Handler emittieren im Muster `s.Emitter.Emit(r.Context(), domain.Event{Type: …, UserID: u.ID, Data: map[string]any{"id": id}})`; `captureEmitter` hat `mu` und `events`; das Binding-Harness hält `emitter` bereits als `*captureEmitter`. Weicht etwas ab, gewinnt der Bestand.
+
+- [ ] **Step 2: Lese-Helfer und zwei fehlschlagende Tests schreiben** — zuerst an `internal/adapter/httpserver/webui_nodes_test.go` direkt hinter die `Emit`-Methode anfügen:
+
+```go
+// all returns a copy of the captured events under the lock, so assertions in
+// tests never race with a concurrent Emit.
+func (e *captureEmitter) all() []domain.Event {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]domain.Event(nil), e.events...)
+}
+```
+
+Dann an `internal/adapter/httpserver/projectbindings_test.go` anfügen:
+
+```go
+func TestBindNode_EmitsNodeUpdated(t *testing.T) {
+	s := newBindingsSrvFull(t)
+	if _, err := s.ps.Create(context.Background(), domain.Node{
+		ID: "n1", OwnerID: "u1", Name: "Flow", Slug: "flow", Kind: domain.KindRepo,
+	}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+
+	res := s.do(http.MethodPut, "/api/v1/nodes/n1/bindings",
+		`{"kind":"remote","remoteSlug":"github.com/serverkraken/flow"}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+
+	events := s.emitter.all()
+	if len(events) != 1 {
+		t.Fatalf("emitted %d event(s), want exactly 1: %+v", len(events), events)
+	}
+	if events[0].Type != domain.EventNodeUpdated {
+		t.Errorf("event type = %q, want %q", events[0].Type, domain.EventNodeUpdated)
+	}
+	if events[0].UserID != "u1" {
+		t.Errorf("event UserID = %q, want %q", events[0].UserID, "u1")
+	}
+	if got := events[0].Data["id"]; got != "n1" {
+		t.Errorf("event Data[id] = %v, want %q", got, "n1")
+	}
+}
+
+func TestUnbindNode_EmitsNodeUpdated(t *testing.T) {
+	s := newBindingsSrvFull(t)
+	if _, err := s.ps.Create(context.Background(), domain.Node{
+		ID: "n1", OwnerID: "u1", Name: "Flow", Slug: "flow", Kind: domain.KindRepo,
+	}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	bindRes := s.do(http.MethodPut, "/api/v1/nodes/n1/bindings",
+		`{"kind":"remote","remoteSlug":"github.com/serverkraken/flow"}`)
+	_ = bindRes.Body.Close()
+
+	res := s.do(http.MethodDelete,
+		"/api/v1/nodes/bindings?kind=remote&slug=github.com/serverkraken/flow", "")
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", res.StatusCode)
+	}
+
+	events := s.emitter.all()
+	if len(events) != 2 {
+		t.Fatalf("emitted %d event(s), want 2 (bind + unbind): %+v", len(events), events)
+	}
+	// The unbind handler is addressed by binding target, not by node — UnbindNode.
+	// Execute returns only an error (internal/usecase/unbind_node.go), so the node
+	// id is genuinely unavailable here. Consumers trigger on the event TYPE and
+	// refetch, so an id-less node.updated still drives the live update.
+	if events[1].Type != domain.EventNodeUpdated {
+		t.Errorf("unbind event type = %q, want %q", events[1].Type, domain.EventNodeUpdated)
+	}
+	if events[1].UserID != "u1" {
+		t.Errorf("unbind event UserID = %q, want %q", events[1].UserID, "u1")
+	}
+}
+```
+
+- [ ] **Step 3: Tests laufen lassen, Fehlschlag bestätigen** — `go test ./internal/adapter/httpserver/ -run 'TestBindNode_EmitsNodeUpdated|TestUnbindNode_EmitsNodeUpdated' -v 2>&1 | tail -20` → beide FAIL mit `emitted 0 event(s), want exactly 1` beziehungsweise `emitted 1 event(s), want 2 (bind + unbind)`. Ein Compile-Fehler an dieser Stelle heißt, der Helfer aus Step 2 fehlt.
+
+- [ ] **Step 4: Die zwei `Emit`-Aufrufe ergänzen** — in `internal/adapter/httpserver/projectbindings.go`. Im default-Zweig von `handleBindNode`:
+
+```go
+	default:
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": nodeID}})
+		writeJSON(w, http.StatusOK, b)
+	}
+```
+
+Und im Erfolgspfad von `handleUnbindNode`, direkt vor dem `WriteHeader`:
+
+```go
+	if err := s.UnbindNode.Execute(r.Context(), u.ID, key); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	// Addressed by binding target, so the node id is not available here (see
+	// usecase.UnbindNode). Consumers trigger on the event type and refetch.
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID})
+	w.WriteHeader(http.StatusNoContent)
+```
+
+- [ ] **Step 5: Tests laufen lassen, grün bestätigen** — `go test ./internal/adapter/httpserver/ -run 'TestBindNode_EmitsNodeUpdated|TestUnbindNode_EmitsNodeUpdated' -v 2>&1 | tail -15` → beide PASS. Dann das ganze Paket mit Race, weil `captureEmitter` einen Mutex hat und viele Handler-Tests daneben laufen: `go test -race ./internal/adapter/httpserver/ 2>&1 | tail -5` → ok.
+
+- [ ] **Step 6: `make ci` grün bestätigen** — `make ci 2>&1 | tail -20`. Dieser Task berührt `internal/`, also fließt er anders als die Tasks 1 bis 11 wirklich ins Coverage-Gate ein (`COVER_PKG := ./internal/...`); die zwei Tests deckeln die zwei neuen Zeilen ab. Bei einem `golangci-lint`-Fund fixen, **nie** `make fmt`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add internal/adapter/httpserver/projectbindings.go internal/adapter/httpserver/projectbindings_test.go internal/adapter/httpserver/webui_nodes_test.go
+git commit -m "fix(httpserver): emit node.updated on bind and unbind so the WebUI live-updates"
+```
+
+- [ ] **Step 8: Live-Gegenprobe** — mit laufendem Dev-Stack aus Task 11 und offener Nodes-Seite im Browser: über `flow_node_binding` einmal `bind` und einmal `unbind` auslösen und beobachten, dass die Bindings-Anzeige **ohne Reload** nachzieht. Das ist der Beweis, den die Handler-Tests nicht führen können.
 
 ---
 
 ## Offene Entscheidungen
 
-Alles hier ist Soennes Wahl. Der Plan setzt jeweils die Empfehlung um, damit er ausführbar ist — eine andere Entscheidung ändert nur die genannte Stelle.
+Alles hier war Soennes Wahl. **Die Punkte 1, 2 und 6 hat er am 2026-07-25 im Pre-Flight-Scan entschieden — die Entscheidung steht jeweils fett am Anfang, und der Plan ist entsprechend geändert.** Die übrigen Punkte setzt der Plan wie empfohlen um; eine andere Entscheidung ändert nur die genannte Stelle.
 
-**1. bind/unbind emittieren kein SSE-Event (Bestandslücke).**
+**1. bind/unbind emittieren kein SSE-Event (Bestandslücke). — ENTSCHIEDEN: schließen, direkt nach Task 11, eigener Commit → das ist jetzt Task 12.** Soenne hat die Alternative gewählt, nicht die Empfehlung: die Lücke wird geschlossen, aber außerhalb des Slices, damit die Tasks 1 bis 11 ein reiner MCP-Slice bleiben. Event-Typ ist `node.updated`, Begründung in Task 12.
 `PUT /api/v1/nodes/{id}/bindings` und `DELETE /api/v1/nodes/bindings` rufen den `Emitter` nicht (`internal/adapter/httpserver/projectbindings.go:83,113`), während `create-bound`, create, move, delete und tags es tun. Folge: ein MCP-`bind`/`unbind` aktualisiert die Bindings-Anzeige der WebUI nicht live; die Seite braucht einen Reload.
 *Empfehlung:* in diesem Slice **nicht** schließen. Spec §2 sagt „Keine Backend-Änderung", und das wäre eine — plus die Frage, welcher Event-Typ passt (`node.updated` wäre naheliegend, aber semantisch schief, denn der Node ändert sich nicht). *Trade-off:* Die Lücke wird durch diesen Slice sichtbarer, weil Bindings jetzt viel leichter zu ändern sind. Sie steht als Nachtrag im Backlog (Task 11, Step 8). *Alternative:* jetzt einen Zweizeiler ins Backend (zwei `Emit`-Aufrufe mit `node.updated`) — bricht die Slice-Grenze, kostet aber ~10 Minuten und macht das Live-Verhalten konsistent.
 
-**2. `formatMinutes` dupliziert `wtfmt.FormatMin`.**
+**2. `formatMinutes` dupliziert `wtfmt.FormatMin`. — ENTSCHIEDEN: `wtfmt` hochziehen → das ist jetzt Task 0.** Soenne hat die Alternative gewählt, nicht die Empfehlung: keine Duplikation, stattdessen `internal/tui/screen/worktime/wtfmt` → `internal/timefmt` als Leaf-Package, das TUI und MCP gleichermaßen importieren dürfen. Task 6 und Task 7 rufen `timefmt.FormatMin`; ein lokales `formatMinutes` existiert nicht mehr.
 `internal/tui/screen/worktime/wtfmt/wtfmt.go:9` liefert bitgleich `"12h 30m"` und ist ein reines Leaf-Package (importiert nur `fmt`).
 *Empfehlung:* die lokale Vierzeiler-Kopie in `format_nodes.go` (so im Plan, Task 6). Grund: `cmd/flow-mcp` → `internal/tui/...` wäre ein Adapter→Adapter-Import und dreht die hexagonale Abhängigkeitsrichtung (AGENTS.md „Architecture"). *Trade-off:* eine 4-Zeilen-Duplikation. *Alternative:* `wtfmt` nach `internal/timefmt` (oder `internal/domain`) hochziehen und beide Stellen darauf ziehen — sauberer, aber ein Refactor an einem TUI-Package, den dieser Slice nicht angekündigt hat.
 
@@ -5125,7 +5354,7 @@ Der Plan setzt `● ◆ ⬡ ▶` (AGENTS.md-Satz) plus das Kind-Wort in jeder Ze
 Spec §3 schreibt `flow_delete_node(node, confirm?)` mit Pflicht-`node`, während die Lese- und Tag-Tools bei weggelassenem `node` den gebundenen Node nehmen.
 *Empfehlung:* genau so umsetzen (im Plan so). Löschen ist die einzige irreversible Aktion; „was auch immer dieses Verzeichnis gerade auflöst" ist als Default zu gefährlich. *Trade-off:* eine kleine Asymmetrie in der Tool-Familie, die ein Modell erklärt bekommen muss (die Description tut das). *Alternative:* auch hier `nodeTarget` nutzen und stattdessen auf `confirm` vertrauen.
 
-**6. `nodeTarget` und `prefixGuard` sitzen in `scope.go`, das Spec §6 nicht als MOD listet.**
+**6. `nodeTarget` und `prefixGuard` sitzen in `scope.go`, das Spec §6 nicht als MOD listet. — ENTSCHIEDEN: `scope.go` bleibt, und die Spec wurde nachgezogen.** Soenne folgte der Empfehlung; `cmd/flow-mcp/scope.go` steht jetzt im MOD-Block von Spec §6, damit Plan und Spec nicht auseinanderlaufen.
 *Empfehlung:* so (Task 1). `scope.go` ist die Node-Referenz-Auflösung dieses Pakets (`lookupNode`, `resolveScope`, `nodeList`), und fünf der sechs neuen Tools brauchen den Helfer — ihn in eine Tool-Datei zu legen, würde die anderen vier auf eine fremde Datei zeigen lassen. *Trade-off:* eine Datei mehr im Änderungsumfang als die Spec vorsah. *Alternative:* eine siebte neue Datei `nodetarget.go` — strenger am Spec-Dateiplan, aber eine Datei für 20 Zeilen.
 
 **7. `bind_path` bleibt beim Anlegen repo-only, obwohl ein blattförmiges Vorhaben bindbar wäre.**
@@ -5172,6 +5401,8 @@ Während des Schreibens zusätzlich verifiziert (über das Dossier hinaus): `int
 | §7 | Alle Unit-Test-Punkte | 1 (Ziel-Auflösung), 4 (Kind/Parent), 5 (Move), 9 (Bindings-Adressierung), 2/6/7/9 (Renderer) |
 | §7 | Loopback: Tool-Zahl, Kette, `create_name`-Regression, Hierarchie-Regression, Lösch-Fehlerfall | 10 (Kette, Surface, Schemas) · 3 (Schema-Regression) · 6 (409-Regression) |
 | §8 | Done-Gate: `make ci`, `go build`, Schema-Smoke, Live-Gate, Kontrakt-Doc, Merge | 11 |
+| §2 Ausnahme 1 | `wtfmt` → `internal/timefmt` hochziehen (Vorarbeit für die Minuten-Formatierung in Tasks 6 und 7) | 0 |
+| §2 Ausnahme 2 | SSE `node.updated` für bind und unbind (nach dem Done-Gate, eigener Commit) | 12 |
 | §9 | Offene Enden als Backlog-Nachtrag | 11, Step 8 |
 
 Keine Nichtzuordnung.
