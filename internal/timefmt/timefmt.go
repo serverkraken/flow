@@ -1,7 +1,7 @@
-// Package wtfmt holds minute-based duration formatters shared by the Worktime
-// sibling routes. It imports nothing from the worktime hub or its sibling
-// packages, so leaves can use it without forming an import cycle.
-package wtfmt
+// Package timefmt holds minute-based duration formatting and HH:MM/duration
+// parsing. It imports only the standard library, so any layer may use it —
+// the TUI worktime routes and the MCP node tools both do.
+package timefmt
 
 import "fmt"
 

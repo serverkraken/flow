@@ -11,7 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
+	"github.com/serverkraken/flow/internal/timefmt"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
@@ -120,14 +120,14 @@ func (r *Route) View(f shell.Frame) string {
 	s := r.stats
 	rows := [][2]string{
 		{"Zeitraum", label},
-		{"Total", wtfmt.FormatMin(s.TotalMin)},
-		{"⌀/Tag", wtfmt.FormatMin(s.AvgMin)},
-		{"Max", wtfmt.FormatMin(s.MaxMin)},
-		{"Min", wtfmt.FormatMin(s.MinMin)},
+		{"Total", timefmt.FormatMin(s.TotalMin)},
+		{"⌀/Tag", timefmt.FormatMin(s.AvgMin)},
+		{"Max", timefmt.FormatMin(s.MaxMin)},
+		{"Min", timefmt.FormatMin(s.MinMin)},
 		{"Arbeitstage", fmt.Sprintf("%d", s.Workdays)},
 		{"Treffer", fmt.Sprintf("%d/%d", s.Hits, s.Workdays)},
 		{"Streak", fmt.Sprintf("%d (best %d)", s.Streak, s.BestStreak)},
-		{"Saldo", wtfmt.FormatSaldo(s.OvertimeMin)},
+		{"Saldo", timefmt.FormatSaldo(s.OvertimeMin)},
 	}
 	var b strings.Builder
 	b.WriteString("\n")
@@ -136,8 +136,8 @@ func (r *Route) View(f shell.Frame) string {
 	}
 	if r.bd.TargetMin > 0 {
 		b.WriteString("\n  " + theme.Dim(fmt.Sprintf("Burndown: %s / %s · %s",
-			wtfmt.FormatMin(r.bd.TotalMin), wtfmt.FormatMin(r.bd.TargetMin),
-			wtfmt.FormatSaldo(r.bd.SaldoMin)), f.Pal) + "\n")
+			timefmt.FormatMin(r.bd.TotalMin), timefmt.FormatMin(r.bd.TargetMin),
+			timefmt.FormatSaldo(r.bd.SaldoMin)), f.Pal) + "\n")
 	}
 	return strip + b.String()
 }

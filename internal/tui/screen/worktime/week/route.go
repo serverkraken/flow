@@ -12,8 +12,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/timefmt"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/daydetail"
-	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
@@ -211,7 +211,7 @@ func (r *Route) View(f shell.Frame) string {
 			}
 			detail = fmt.Sprintf("%s  %s / %s",
 				statusbar.Bar(pct, cells, f.Pal),
-				wtfmt.FormatMin(d.LoggedMin), wtfmt.FormatMin(d.TargetMin))
+				timefmt.FormatMin(d.LoggedMin), timefmt.FormatMin(d.TargetMin))
 		}
 		var dateStr string
 		if selected {

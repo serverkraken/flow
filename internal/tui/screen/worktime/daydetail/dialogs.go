@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
+	"github.com/serverkraken/flow/internal/timefmt"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
@@ -229,13 +229,13 @@ func (r *Route) submitNachbuchen() (shell.Route, tea.Cmd) {
 	tags := strings.Fields(nb.tag.Value())
 	note := strings.TrimSpace(nb.note.Value())
 
-	vonD, err := wtfmt.ParseHM(vonStr)
+	vonD, err := timefmt.ParseHM(vonStr)
 	if err != nil {
 		r.toast = toast.NewDanger("Start ungültig (HH:MM)", r.pal)
 		return r, r.toast.Init()
 	}
 	startTime := r.day.Add(vonD)
-	stopTime, err := wtfmt.ParseStop(wtfmt.NormalizeDurationArg(bisStr), startTime, time.Now())
+	stopTime, err := timefmt.ParseStop(timefmt.NormalizeDurationArg(bisStr), startTime, time.Now())
 	if err != nil {
 		r.toast = toast.NewDanger("Stop ungültig", r.pal)
 		return r, r.toast.Init()
@@ -452,13 +452,13 @@ func (r *Route) submitEdit() (shell.Route, tea.Cmd) {
 	tags := strings.Fields(ed.tag.Value())
 	note := strings.TrimSpace(ed.note.Value())
 
-	vonD, err := wtfmt.ParseHM(vonStr)
+	vonD, err := timefmt.ParseHM(vonStr)
 	if err != nil {
 		r.toast = toast.NewDanger("Start ungültig (HH:MM)", r.pal)
 		return r, r.toast.Init()
 	}
 	startTime := ed.date.Add(vonD)
-	stopTime, err := wtfmt.ParseStop(wtfmt.NormalizeDurationArg(bisStr), startTime, time.Now())
+	stopTime, err := timefmt.ParseStop(timefmt.NormalizeDurationArg(bisStr), startTime, time.Now())
 	if err != nil {
 		r.toast = toast.NewDanger("Stop ungültig", r.pal)
 		return r, r.toast.Init()

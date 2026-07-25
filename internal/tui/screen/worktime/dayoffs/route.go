@@ -12,8 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/timefmt"
 	"github.com/serverkraken/flow/internal/tui/kindcolor"
-	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
@@ -163,12 +163,12 @@ func (r *Route) View(f shell.Frame) string {
 	}
 	var b strings.Builder
 	b.WriteString("\n")
-	target := fmt.Sprintf("  Tagesziel: %s", wtfmt.FormatMin(r.settings.DefaultTargetMin))
+	target := fmt.Sprintf("  Tagesziel: %s", timefmt.FormatMin(r.settings.DefaultTargetMin))
 	if len(r.settings.WeekdayTargetMin) > 0 {
 		type kv struct{ k, v string }
 		var ov []kv
 		for day, mins := range r.settings.WeekdayTargetMin {
-			ov = append(ov, kv{weekdayShort(day), wtfmt.FormatMin(mins)})
+			ov = append(ov, kv{weekdayShort(day), timefmt.FormatMin(mins)})
 		}
 		sort.Slice(ov, func(i, j int) bool { return ov[i].k < ov[j].k })
 		parts := make([]string, 0, len(ov))

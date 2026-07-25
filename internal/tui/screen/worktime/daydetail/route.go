@@ -11,7 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
+	"github.com/serverkraken/flow/internal/timefmt"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
@@ -46,7 +46,7 @@ type Route struct {
 	edit *editState
 	// del is non-nil while the delete confirm is open.
 	del      *delState
-	projects []domain.Node  // cached project list for the dialog
+	projects []domain.Node     // cached project list for the dialog
 	projName map[string]string // id→name for resolving project names in rows
 }
 
@@ -340,9 +340,9 @@ func renderRowLabel(row dayRow, projName map[string]string) string {
 	stop := row.Stop.Format("15:04")
 	durMin := int(row.Dur.Minutes())
 	if proj != "" {
-		return fmt.Sprintf("%s → %s  ·  %s  ·  %s", start, stop, proj, wtfmt.FormatMin(durMin))
+		return fmt.Sprintf("%s → %s  ·  %s  ·  %s", start, stop, proj, timefmt.FormatMin(durMin))
 	}
-	return fmt.Sprintf("%s → %s   %s", start, stop, wtfmt.FormatMin(durMin))
+	return fmt.Sprintf("%s → %s   %s", start, stop, timefmt.FormatMin(durMin))
 }
 
 // resolveProjectName maps a row's NodeID to its display name. An empty id

@@ -7,7 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
-	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
+	"github.com/serverkraken/flow/internal/timefmt"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 	"github.com/serverkraken/flow/internal/tui/ui/statusbar"
@@ -89,7 +89,7 @@ func (r *Route) renderSummary(width int) string {
 	}
 	b.WriteString("\n  " + theme.Dim("WOCHE GESAMT", pal) + "\n")
 	fmt.Fprintf(&b, "  %s / %s\n",
-		wtfmt.FormatMin(s.totalLogged), wtfmt.FormatMin(s.totalTarget))
+		timefmt.FormatMin(s.totalLogged), timefmt.FormatMin(s.totalTarget))
 	b.WriteString("  " + statusbar.BarColored(pct, barCells, pal.Sem().Accent, pal) + "\n")
 
 	avg := 0
@@ -99,8 +99,8 @@ func (r *Route) renderSummary(width int) string {
 	saldo := s.totalLogged - s.totalTarget
 	b.WriteString("\n  " + theme.Dim("KENNZAHLEN", pal) + "\n")
 	fmt.Fprintf(&b, "  Schnitt %s  %s  Ziele %d/%d  %s  Saldo %s\n",
-		wtfmt.FormatMin(avg), glyphs.BulletDot, s.hits, s.workdays,
-		glyphs.BulletDot, wtfmt.FormatSaldo(saldo))
+		timefmt.FormatMin(avg), glyphs.BulletDot, s.hits, s.workdays,
+		glyphs.BulletDot, timefmt.FormatSaldo(saldo))
 	b.WriteString("  " + r.renderPaceRow(s) + "\n")
 	return b.String()
 }

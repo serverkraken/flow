@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
+	"github.com/serverkraken/flow/internal/timefmt"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
@@ -182,14 +182,14 @@ func (r *TodayRoute) submitEdit() tea.Cmd {
 	stopStr := strings.TrimSpace(r.edit.form[1].Value())
 	tags := strings.Fields(r.edit.form[2].Value())
 	note := strings.TrimSpace(r.edit.form[3].Value())
-	startD, err := wtfmt.ParseHM(startStr)
+	startD, err := timefmt.ParseHM(startStr)
 	if err != nil {
 		r.toast = toast.NewDanger("Start ungültig (HH:MM)", r.pal)
 		return r.toast.Init()
 	}
 	base := time.Date(r.edit.date.Year(), r.edit.date.Month(), r.edit.date.Day(), 0, 0, 0, 0, r.edit.date.Location())
 	startTime := base.Add(startD)
-	stopTime, err := wtfmt.ParseStop(wtfmt.NormalizeDurationArg(stopStr), startTime, r.now())
+	stopTime, err := timefmt.ParseStop(timefmt.NormalizeDurationArg(stopStr), startTime, r.now())
 	if err != nil {
 		r.toast = toast.NewDanger("Stop ungültig", r.pal)
 		return r.toast.Init()
@@ -243,7 +243,7 @@ func (r *TodayRoute) handleAdjustStartKey(k tea.KeyPressMsg) (shell.Route, tea.C
 // submitAdjustStart validates the HH:MM field and, on success, edits the
 // running session's start time with stop=nil so it keeps running.
 func (r *TodayRoute) submitAdjustStart() tea.Cmd {
-	startD, err := wtfmt.ParseHM(strings.TrimSpace(r.adjust.input.Value()))
+	startD, err := timefmt.ParseHM(strings.TrimSpace(r.adjust.input.Value()))
 	if err != nil {
 		r.toast = toast.NewDanger("Start ungültig (HH:MM)", r.pal)
 		return r.toast.Init()

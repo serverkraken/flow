@@ -1,4 +1,4 @@
-package wtfmt
+package timefmt
 
 import (
 	"fmt"
