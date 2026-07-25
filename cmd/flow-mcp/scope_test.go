@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -240,5 +243,142 @@ func TestCheckType(t *testing.T) {
 	_, err := checkType("bogus")
 	if err == nil || !strings.Contains(err.Error(), "memory") {
 		t.Fatalf("checkType(\"bogus\") err = %v, want it to list valid types", err)
+	}
+}
+
+func TestNodeTarget_ExplicitRefWins(t *testing.T) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) { return fakeProjects(), nil }}
+	h.proj, h.matched = domain.Node{ID: "bound1", Name: "Bound", Slug: "bound"}, true
+
+	got, err := h.nodeTarget(context.Background(), fakeProjects()[0].Slug)
+	if err != nil {
+		t.Fatalf("nodeTarget: %v", err)
+	}
+	if got.ID != fakeProjects()[0].ID {
+		t.Fatalf("nodeTarget(explicit) = %q, want the named node %q", got.ID, fakeProjects()[0].ID)
+	}
+}
+
+func TestNodeTarget_OmittedUsesBoundNode(t *testing.T) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) { return fakeProjects(), nil }}
+	h.proj, h.matched = domain.Node{ID: "bound1", Name: "Bound", Slug: "bound"}, true
+
+	got, err := h.nodeTarget(context.Background(), "  ")
+	if err != nil {
+		t.Fatalf("nodeTarget: %v", err)
+	}
+	if got.ID != "bound1" {
+		t.Fatalf("nodeTarget(\"\") = %q, want the directory-bound node", got.ID)
+	}
+}
+
+func TestNodeTarget_OmittedAndUnboundIsAnActionableError(t *testing.T) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) { return fakeProjects(), nil }}
+	// h.matched stays false: nothing is bound to this directory.
+	_, err := h.nodeTarget(context.Background(), "")
+	if err == nil {
+		t.Fatal("unbound nodeTarget: want an error, got nil")
+	}
+	for _, want := range []string{"flow_node_binding", "flow_bind_project", "node="} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q must name %q so the model knows how to fix it", err.Error(), want)
+		}
+	}
+	var g errGuard
+	if !errors.As(err, &g) {
+		t.Fatalf("error type = %T, want errGuard", err)
+	}
+}
+
+func TestPrefixGuard(t *testing.T) {
+	guard := prefixGuard("parent", errGuard{errors.New(`unknown project "x"`)})
+	var g errGuard
+	if !errors.As(guard, &g) {
+		t.Fatalf("prefixGuard dropped the guard type: %T", guard)
+	}
+	if !strings.HasPrefix(guard.Error(), "parent: ") {
+		t.Fatalf("prefixGuard message = %q, want a 'parent: ' prefix", guard.Error())
+	}
+	// A transport/auth failure must NOT be downgraded to a validation error.
+	transport := errors.New("flow server error listing projects: dial tcp: refused")
+	if got := prefixGuard("parent", transport); got != transport {
+		t.Fatalf("prefixGuard(transport) = %v, want the original error untouched", got)
+	}
+}
+
+// TestRefreshResolved_DropsTheNodeCache pins the tenant boundary: the node-ref
+// cache must not survive an authenticated client rebuild, because the rebuilt
+// client can belong to a different owner. Without this, lookupNode's
+// "known slugs: …" message leaks the previous owner's slugs (scope.go:87).
+func TestRefreshResolved_DropsTheNodeCache(t *testing.T) {
+	var fetches int
+	ownerASlugs := []domain.Node{{ID: "a1", Name: "Owner A Node", Slug: "owner-a-secret"}}
+	ownerBSlugs := []domain.Node{{ID: "b1", Name: "Owner B Node", Slug: "owner-b-node"}}
+
+	h := &handlers{resources: map[string]string{}}
+	h.listProjects = func(context.Context) ([]domain.Node, error) {
+		fetches++
+		if fetches == 1 {
+			return ownerASlugs, nil
+		}
+		return ownerBSlugs, nil
+	}
+
+	// Owner A warms the cache.
+	if _, err := h.nodeList(context.Background(), false); err != nil {
+		t.Fatalf("warm cache: %v", err)
+	}
+	h.projMu.Lock()
+	warmed := h.projFetched
+	h.projMu.Unlock()
+	if !warmed {
+		t.Fatal("cache was not warmed")
+	}
+
+	// A client rebuild happens (new identity). refreshResolved must invalidate.
+	//
+	// Deviation from the brief: passing a nil *apiclient.Client here panics —
+	// projectresolve.Resolve (internal/projectresolve/resolve.go:61) always
+	// calls c.ResolveNode, which dereferences the client unconditionally
+	// (internal/adapter/apiclient/client.go:98); there is no nil-client guard
+	// anywhere in that chain. That gap predates this task and lives in
+	// internal/, which this task must not touch. A throwaway 404-everything
+	// server gives resolveProject the same graceful "no project" outcome
+	// (ResolveNode's 404 branch, projectbindings.go:47-49) without the panic.
+	be := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(be.Close)
+	c := apiclient.New(be.URL, "test-token")
+	h.refreshResolved(context.Background(), c)
+
+	h.projMu.Lock()
+	stillFetched, cached := h.projFetched, h.projects
+	h.projMu.Unlock()
+	if stillFetched || cached != nil {
+		t.Fatalf("cache survived the rebuild: projFetched=%v projects=%v", stillFetched, cached)
+	}
+
+	// The next lookup must therefore see Owner B only.
+	//
+	// Deviation from the brief: lookupNode's miss message echoes the queried
+	// ref verbatim via %q (scope.go:87, unchanged) — so a whole-message
+	// substring check for "owner-a-secret" would fail even with the cache
+	// correctly invalidated, since that IS the ref being queried. What must
+	// not leak is the "known slug: …" list, which reflects the cache; check
+	// that part specifically.
+	_, err := h.lookupNode(context.Background(), "owner-a-secret")
+	if err == nil {
+		t.Fatal("Owner A's slug still resolves after the identity change")
+	}
+	const marker = "known slug: "
+	idx := strings.Index(err.Error(), marker)
+	if idx < 0 {
+		t.Fatalf("miss message %q has no known-slug list to check", err.Error())
+	}
+	knownSlugs := err.Error()[idx+len(marker):]
+	if strings.Contains(knownSlugs, "owner-a-secret") {
+		t.Fatalf("the miss message's known-slug list leaks the previous owner's slug: %v", err)
+	}
+	if !strings.Contains(knownSlugs, "owner-b-node") {
+		t.Fatalf("the miss message should list the CURRENT owner's slugs, got: %v", err)
 	}
 }

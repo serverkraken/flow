@@ -227,6 +227,12 @@ func (h *handlers) refreshResolved(ctx context.Context, c *apiclient.Client) {
 	proj, matched := resolveProject(ctx, c, mcpLog())
 	h.projMu.Lock()
 	h.proj, h.matched = proj, matched
+	// Drop the node-ref cache with it. refreshResolved runs after EVERY
+	// authenticated client build, and a rebuild can carry a different identity —
+	// a surviving cache would let one owner resolve or even see another owner's
+	// slugs (lookupNode lists them in its miss message). The cost is one extra
+	// ListNodes on the next lookup; the alternative is a cross-tenant leak.
+	h.projects, h.projFetched = nil, false
 	h.projMu.Unlock()
 	if _, err := h.reconcileResourcesLocked(ctx, c); err != nil {
 		mcpLog().Warn("could not register document resources", "err", err)

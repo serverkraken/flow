@@ -226,3 +226,36 @@ func typeList() string {
 	}
 	return strings.Join(s, ", ")
 }
+
+// nodeTarget resolves a tool's optional `node` argument to the node it names,
+// or — when omitted — to the node bound to this directory. Unlike resolveScope it
+// never yields the "all projects" or "unassigned" scopes: every tool in the node
+// family acts on exactly one node. The miss message names both binding tools
+// because either one fixes it (Spec §3 flow_get_node).
+//
+// Only Node.ID is guaranteed fresh. The omitted branch returns the auth-time
+// resolved snapshot, so a node renamed since then still carries its old
+// Name/Slug and has no LogoRef. A caller that PRINTS those fields must re-read
+// the node with GetNode by ID (flow_get_node does exactly that); a caller that
+// only needs the ID to address a mutation may use the result directly.
+func (h *handlers) nodeTarget(ctx context.Context, ref string) (domain.Node, error) {
+	if r := strings.TrimSpace(ref); r != "" {
+		return h.lookupNode(ctx, r)
+	}
+	if node, matched := h.resolved(); matched {
+		return node, nil
+	}
+	return domain.Node{}, errGuard{errors.New(`no node is bound to this directory: pass node=<slug/name/id>, or bind this directory with flow_node_binding (action="bind") or flow_bind_project`)}
+}
+
+// prefixGuard prefixes a guard error's message so the model learns WHICH
+// argument was bad. A non-guard error (transport, auth, server) is returned
+// untouched — wrapping it in errGuard would downgrade a server failure to
+// invalid_request and tell the model to fix its arguments instead of retrying.
+func prefixGuard(prefix string, err error) error {
+	var g errGuard
+	if errors.As(err, &g) {
+		return errGuard{fmt.Errorf("%s: %s", prefix, g.Error())}
+	}
+	return err
+}
