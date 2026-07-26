@@ -36,6 +36,14 @@ func (e *captureEmitter) Emit(_ context.Context, event domain.Event) {
 	e.events = append(e.events, event)
 }
 
+// all returns a copy of the captured events under the lock, so assertions in
+// tests never race with a concurrent Emit.
+func (e *captureEmitter) all() []domain.Event {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]domain.Event(nil), e.events...)
+}
+
 func (e *captureEmitter) count() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()

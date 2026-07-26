@@ -103,6 +103,7 @@ func (s *Server) handleBindNode(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": nodeID}})
 		writeJSON(w, http.StatusOK, b)
 	}
 }
@@ -124,6 +125,9 @@ func (s *Server) handleUnbindNode(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Addressed by binding target, so the node id is not available here (see
+	// usecase.UnbindNode). Consumers trigger on the event type and refetch.
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID})
 	w.WriteHeader(http.StatusNoContent)
 }
 

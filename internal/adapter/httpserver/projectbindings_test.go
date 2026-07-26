@@ -409,3 +409,71 @@ func TestProjectBindings_RouteNotShadowed(t *testing.T) {
 	}
 	_ = res.Body.Close()
 }
+
+func TestBindNode_EmitsNodeUpdated(t *testing.T) {
+	s := newBindingsSrvFull(t)
+	// newBindingsSrvFull authenticates via usecase.EnsureUser backed by the
+	// shared FakeIDGen; the authenticated user's ID is the first ID that
+	// generator hands out ("id-1"), the same convention every other test in
+	// this file relies on (see TestProjectBindings_CreateBoundNodeCommitsBeforeEmitting).
+	if _, err := s.ps.Create(context.Background(), domain.Node{
+		ID: "n1", OwnerID: "id-1", Name: "Flow", Slug: "flow", Kind: domain.KindRepo,
+	}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+
+	res := s.do(http.MethodPut, "/api/v1/nodes/n1/bindings",
+		`{"kind":"remote","remoteSlug":"github.com/serverkraken/flow"}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+
+	events := s.emitter.all()
+	if len(events) != 1 {
+		t.Fatalf("emitted %d event(s), want exactly 1: %+v", len(events), events)
+	}
+	if events[0].Type != domain.EventNodeUpdated {
+		t.Errorf("event type = %q, want %q", events[0].Type, domain.EventNodeUpdated)
+	}
+	if events[0].UserID != "id-1" {
+		t.Errorf("event UserID = %q, want %q", events[0].UserID, "id-1")
+	}
+	if got := events[0].Data["id"]; got != "n1" {
+		t.Errorf("event Data[id] = %v, want %q", got, "n1")
+	}
+}
+
+func TestUnbindNode_EmitsNodeUpdated(t *testing.T) {
+	s := newBindingsSrvFull(t)
+	if _, err := s.ps.Create(context.Background(), domain.Node{
+		ID: "n1", OwnerID: "id-1", Name: "Flow", Slug: "flow", Kind: domain.KindRepo,
+	}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	bindRes := s.do(http.MethodPut, "/api/v1/nodes/n1/bindings",
+		`{"kind":"remote","remoteSlug":"github.com/serverkraken/flow"}`)
+	_ = bindRes.Body.Close()
+
+	res := s.do(http.MethodDelete,
+		"/api/v1/nodes/bindings?kind=remote&slug=github.com/serverkraken/flow", "")
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", res.StatusCode)
+	}
+
+	events := s.emitter.all()
+	if len(events) != 2 {
+		t.Fatalf("emitted %d event(s), want 2 (bind + unbind): %+v", len(events), events)
+	}
+	// The unbind handler is addressed by binding target, not by node — UnbindNode.
+	// Execute returns only an error (internal/usecase/unbind_node.go), so the node
+	// id is genuinely unavailable here. Consumers trigger on the event TYPE and
+	// refetch, so an id-less node.updated still drives the live update.
+	if events[1].Type != domain.EventNodeUpdated {
+		t.Errorf("unbind event type = %q, want %q", events[1].Type, domain.EventNodeUpdated)
+	}
+	if events[1].UserID != "id-1" {
+		t.Errorf("unbind event UserID = %q, want %q", events[1].UserID, "id-1")
+	}
+}
