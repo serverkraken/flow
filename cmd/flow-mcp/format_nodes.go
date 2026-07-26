@@ -194,7 +194,7 @@ func formatNodeDetail(d nodeDetail) string {
 		}
 		fmt.Fprintf(&b, "path: %s\n", strings.Join(crumbs, " / "))
 	}
-	tags := "— (no tool to set node tags exists yet)"
+	tags := "none — set some with flow_set_node_tags."
 	if len(d.Tags) > 0 {
 		names := make([]string, len(d.Tags))
 		for i, t := range d.Tags {
@@ -218,4 +218,17 @@ func formatNodeDetail(d nodeDetail) string {
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// formatNodeTags names the resulting set, so the caller can see exactly what the
+// replace produced (Spec §3 flow_set_node_tags).
+func formatNodeTags(node domain.Node, tags []domain.Tag) string {
+	if len(tags) == 0 {
+		return fmt.Sprintf("%s %q (%s) now has no tags.", node.Kind, node.Name, node.Slug)
+	}
+	names := make([]string, len(tags))
+	for i, t := range tags {
+		names[i] = t.Slug
+	}
+	return fmt.Sprintf("%s %q (%s) now has tags: %s.", node.Kind, node.Name, node.Slug, strings.Join(names, ", "))
 }

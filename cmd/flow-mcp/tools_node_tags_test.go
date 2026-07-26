@@ -1,0 +1,167 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// tagRecorder captures the PUT body so the replace semantics are provable.
+type tagRecorder struct {
+	mu     sync.Mutex
+	nodeID string
+	tags   []string
+	calls  int
+	sent   bool
+}
+
+func (r *tagRecorder) snapshot() (string, []string, int, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.nodeID, r.tags, r.calls, r.sent
+}
+
+func fakeNodeTagBackend(t *testing.T, rec *tagRecorder) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
+	})
+	mux.HandleFunc("GET /api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.Node{
+			{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo, Status: domain.NodeActive},
+		})
+	})
+	mux.HandleFunc("PUT /api/v1/nodes/{id}/tags", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Tags []string `json:"tags"`
+		}
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &body)
+		rec.mu.Lock()
+		rec.nodeID, rec.tags, rec.calls = r.PathValue("id"), body.Tags, rec.calls+1
+		rec.sent = strings.Contains(string(raw), `"tags"`)
+		rec.mu.Unlock()
+		out := make([]domain.Tag, 0, len(body.Tags))
+		for i, tg := range body.Tags {
+			out = append(out, domain.Tag{ID: fmt.Sprintf("t%d", i), Slug: tg, Display: tg})
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+	return httptest.NewServer(mux)
+}
+
+func authedNodeTagServer(t *testing.T) (*mcp.ClientSession, *tagRecorder) {
+	t.Helper()
+	rec := &tagRecorder{}
+	be := fakeNodeTagBackend(t, rec)
+	t.Cleanup(be.Close)
+	client := apiclient.New(be.URL, "tok")
+	_, h := managerFor(t, client, domain.Node{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo})
+	return connect(t, h.srv), rec
+}
+
+func TestLoopback_SetNodeTags_Advertised(t *testing.T) {
+	sess, _ := authedNodeTagServer(t)
+	tools, err := sess.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasTool(tools.Tools, "flow_set_node_tags") {
+		t.Fatalf("flow_set_node_tags not advertised; got %v", toolNames(tools.Tools))
+	}
+	// The description must warn that this REPLACES the set.
+	for _, tool := range tools.Tools {
+		if tool.Name == "flow_set_node_tags" && !strings.Contains(strings.ToUpper(tool.Description), "REPLACE") {
+			t.Errorf("description must state the replace semantics: %q", tool.Description)
+		}
+	}
+}
+
+func TestLoopback_SetNodeTags_ReplacesAndReportsTheResultingSet(t *testing.T) {
+	sess, rec := authedNodeTagServer(t)
+
+	res, out := callText(t, sess, "flow_set_node_tags", map[string]any{
+		"node": "jukebox", "tags": []any{"go", "audio"},
+	})
+	if res.IsError {
+		t.Fatalf("set tags errored: %s", out)
+	}
+	nodeID, tags, calls, _ := rec.snapshot()
+	if calls != 1 || nodeID != "r1" {
+		t.Fatalf("calls=%d nodeID=%q, want one PUT on r1", calls, nodeID)
+	}
+	if len(tags) != 2 || tags[0] != "go" || tags[1] != "audio" {
+		t.Fatalf("sent tags = %v, want [go audio]", tags)
+	}
+	for _, want := range []string{"go", "audio", "now has"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("result missing %q in: %s", want, out)
+		}
+	}
+}
+
+func TestLoopback_SetNodeTags_EmptyListClearsTheSet(t *testing.T) {
+	sess, rec := authedNodeTagServer(t)
+
+	res, out := callText(t, sess, "flow_set_node_tags", map[string]any{
+		"node": "jukebox", "tags": []any{},
+	})
+	if res.IsError {
+		t.Fatalf("clearing tags errored: %s", out)
+	}
+	_, tags, calls, sent := rec.snapshot()
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1 — [] is a real clear, not a no-op", calls)
+	}
+	if len(tags) != 0 {
+		t.Fatalf("sent tags = %v, want an empty list", tags)
+	}
+	if !sent {
+		t.Fatal(`the request body must carry a "tags" key even when clearing`)
+	}
+	if !strings.Contains(out, "no tags") {
+		t.Fatalf("result = %q, want it to state the empty result", out)
+	}
+}
+
+func TestLoopback_SetNodeTags_OmittedTagsIsAnErrorNotAnAccidentalClear(t *testing.T) {
+	sess, rec := authedNodeTagServer(t)
+
+	res, out := callText(t, sess, "flow_set_node_tags", map[string]any{"node": "jukebox"})
+	if !res.IsError {
+		t.Fatalf("omitted tags: want IsError, got %q", out)
+	}
+	// tags has no `omitempty` (Task 8 brief), so the MCP SDK declares it required
+	// in the JSON schema and rejects an omitted key at schema-validation time —
+	// the handler's own "tags is required" guard never runs. Either way the
+	// property must be named and the handler must never fire.
+	if !strings.Contains(out, "required") || !strings.Contains(out, "tags") {
+		t.Fatalf("error = %q, want it to name tags as required", out)
+	}
+	if _, _, calls, _ := rec.snapshot(); calls != 0 {
+		t.Fatalf("calls = %d, want 0 — an omitted list must never silently clear", calls)
+	}
+}
+
+func TestLoopback_SetNodeTags_OmittedNodeUsesTheBoundNode(t *testing.T) {
+	sess, rec := authedNodeTagServer(t)
+
+	res, out := callText(t, sess, "flow_set_node_tags", map[string]any{"tags": []any{"go"}})
+	if res.IsError {
+		t.Fatalf("set tags on the bound node errored: %s", out)
+	}
+	if nodeID, _, _, _ := rec.snapshot(); nodeID != "r1" {
+		t.Fatalf("nodeID = %q, want the directory-bound node r1", nodeID)
+	}
+}

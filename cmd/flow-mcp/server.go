@@ -125,6 +125,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Show one node in full: kind, status, description, upstream, its ancestor path, its node tags, its bindings (with machine label per path binding) and its worktime rollup. Omit node to use the node bound to this directory.",
 	}, h.getNode)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_set_node_tags",
+		Description: "REPLACE a node's complete tag set. This is NOT an add: every tag you omit is removed, so always pass the full set you want (read the current one with flow_get_node first). Pass [] to clear. Omit node to use the node bound to this directory. Returns the resulting set.",
+	}, h.setNodeTags)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_node",
 		Description: "Update a node's metadata (name, description, color, glyph, icon, upstream, status) and/or rate — only the fields you pass change. Scoped to the current project by default; pass node to target another. This is how an agent maintains a project's description without the TUI.",
 	}, h.updateNode)

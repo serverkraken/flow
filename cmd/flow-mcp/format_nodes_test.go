@@ -286,19 +286,19 @@ func TestFormatNodeDetail_EmptyTagsAndBindingsAreStatedNotOmitted(t *testing.T) 
 	if strings.Contains(out, "flow_node_binding") {
 		t.Errorf("flow_node_binding is not a registered tool yet; must not be named here:\n%s", out)
 	}
-	if !strings.Contains(out, "tags: —") {
+	if !strings.Contains(out, "tags: none") {
 		t.Errorf("detail must state that there are no tags:\n%s", out)
 	}
-	// No MCP tool sets node tags yet (flow_set_node_tags is a later task) and
-	// flow_update_node's own description does not cover tags, so naming it here
-	// would be a reference into the void. The empty-tags message must instead
-	// say plainly that no such tool exists yet, rather than naming one that
-	// doesn't do the job or falling silent about the gap.
-	if !strings.Contains(out, "no tool to set node tags exists yet") {
-		t.Errorf("empty tags must explain that no tool exists yet instead of falling silent:\n%s", out)
+	// flow_set_node_tags now exists (this task), so the empty-tags message must
+	// point at it as the next step — the same pattern formatNodeTree uses for an
+	// empty tree (flow_create_node) and the bindings line uses for no bindings
+	// (flow_bind_project). flow_update_node does not cover tags, so it must not
+	// be named here.
+	if !strings.Contains(out, "flow_set_node_tags") {
+		t.Errorf("empty tags must point at flow_set_node_tags as the next step:\n%s", out)
 	}
-	if strings.Contains(out, "flow_update_node") || strings.Contains(out, "flow_set_node_tags") {
-		t.Errorf("empty tags must not name a tool that either doesn't set tags or doesn't exist yet:\n%s", out)
+	if strings.Contains(out, "flow_update_node") {
+		t.Errorf("empty tags must not name flow_update_node, which does not set tags:\n%s", out)
 	}
 	if strings.Contains(out, "description:") || strings.Contains(out, "upstream:") {
 		t.Errorf("unset optional fields must be omitted entirely:\n%s", out)
@@ -326,6 +326,20 @@ func TestFormatNodeDetail_RootNodeSingleElementChainShowsItself(t *testing.T) {
 	}
 	if strings.Contains(out, "Alpha /\n") || strings.Contains(out, "Alpha / \n") {
 		t.Errorf("a single-element chain must not print a dangling separator:\n%s", out)
+	}
+}
+
+func TestFormatNodeTags(t *testing.T) {
+	node := domain.Node{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo}
+	out := formatNodeTags(node, []domain.Tag{{Slug: "go"}, {Slug: "audio"}})
+	for _, want := range []string{"Jukebox", "jukebox", "go", "audio", "now has"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("tag result missing %q in: %s", want, out)
+		}
+	}
+	empty := formatNodeTags(node, nil)
+	if !strings.Contains(empty, "no tags") {
+		t.Errorf("cleared tags = %q, want it to state the empty result", empty)
 	}
 }
 
