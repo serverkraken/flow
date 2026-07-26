@@ -154,6 +154,27 @@ func TestLoopback_SetNodeTags_OmittedTagsIsAnErrorNotAnAccidentalClear(t *testin
 	}
 }
 
+func TestLoopback_SetNodeTags_ExplicitNullIsAnErrorNotAnAccidentalClear(t *testing.T) {
+	sess, rec := authedNodeTagServer(t)
+
+	// An explicit JSON null is a different wire shape than an omitted key:
+	// the key is present, so schema validation lets it through (a Go slice
+	// field's generated schema allows type "null"), and it decodes to a nil
+	// slice in the handler — indistinguishable there from an omitted field.
+	// This path never touches the SDK's schema-validation rejection; it must
+	// be caught by the handler's own nil guard instead.
+	res, out := callText(t, sess, "flow_set_node_tags", map[string]any{"node": "jukebox", "tags": nil})
+	if !res.IsError {
+		t.Fatalf("explicit null tags: want IsError, got %q", out)
+	}
+	if !strings.Contains(out, `tags is required`) {
+		t.Fatalf("error = %q, want the handler's nil-guard message", out)
+	}
+	if _, _, calls, _ := rec.snapshot(); calls != 0 {
+		t.Fatalf("calls = %d, want 0 — an explicit null must never silently clear", calls)
+	}
+}
+
 func TestLoopback_SetNodeTags_OmittedNodeUsesTheBoundNode(t *testing.T) {
 	sess, rec := authedNodeTagServer(t)
 

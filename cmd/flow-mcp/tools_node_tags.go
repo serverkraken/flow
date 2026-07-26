@@ -9,10 +9,13 @@ import (
 )
 
 // setNodeTagsIn REPLACES a node's complete tag set — the same semantics
-// flow_create_doc has for document tags. Tags is a plain []string so an omitted
-// list arrives as nil and can be told apart from an explicit [] (a real clear):
-// silently wiping a node's tags because a model forgot the field would be the
-// worst possible default (Spec §3 flow_set_node_tags).
+// flow_create_doc has for document tags. Tags has no `omitempty`, so the SDK's
+// generated schema marks it required and rejects a call that omits the key
+// before the handler ever runs. A Go slice field's generated schema also
+// allows type "null", so a call that passes an explicit JSON null for tags is
+// schema-valid and reaches the handler as a nil slice — indistinguishable
+// there from [] except by the nil check below, which is what stops a model
+// sending null from silently wiping a node's tags (Spec §3 flow_set_node_tags).
 type setNodeTagsIn struct {
 	Node string   `json:"node,omitempty" jsonschema:"the node whose tags to replace (id, slug, or name); omit to use the node bound to this directory"`
 	Tags []string `json:"tags" jsonschema:"the COMPLETE tag set. This REPLACES the node's tags — every tag you omit is REMOVED. Pass [] to clear them."`
