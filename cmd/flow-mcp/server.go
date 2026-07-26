@@ -121,6 +121,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Report what deleting a node would destroy, and delete it only with confirm=true — without confirm NOTHING is deleted. A node with children or project documents cannot be deleted at all. Booked worktime and non-project documents lose their node but survive; bindings, artifacts and the logo are deleted with it.",
 	}, h.deleteNode)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_get_node",
+		Description: "Show one node in full: kind, status, description, upstream, its ancestor path, its node tags, its bindings (with machine label per path binding) and its worktime rollup. Omit node to use the node bound to this directory.",
+	}, h.getNode)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_node",
 		Description: "Update a node's metadata (name, description, color, glyph, icon, upstream, status) and/or rate — only the fields you pass change. Scoped to the current project by default; pass node to target another. This is how an agent maintains a project's description without the TUI.",
 	}, h.updateNode)

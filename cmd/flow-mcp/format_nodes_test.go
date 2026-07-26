@@ -238,3 +238,63 @@ func TestDeleteImpactBlocked(t *testing.T) {
 		t.Error("project documents must block")
 	}
 }
+
+func TestFormatNodeDetail_ShowsChainRootToLeafTagsBindingsAndRollup(t *testing.T) {
+	out := formatNodeDetail(nodeDetail{
+		Node: domain.Node{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo,
+			Status: domain.NodeActive, Description: "der Plattenspieler",
+			UpstreamGit: "git@github.com:serverkraken/jukebox.git"},
+		// Ancestors returns leaf→root; the breadcrumb must print root→leaf.
+		Chain: []domain.Node{
+			{ID: "r1", Name: "Jukebox"}, {ID: "v1", Name: "Rebuild"}, {ID: "e1", Name: "Alpha"},
+		},
+		Tags: []domain.Tag{{Slug: "go", Display: "go"}, {Slug: "audio", Display: "audio"}},
+		Bindings: []domain.ProjectBinding{
+			{NodeID: "r1", Kind: domain.BindingRemote, RemoteSlug: "github.com/serverkraken/jukebox"},
+			{NodeID: "r1", Kind: domain.BindingPath, MachineID: "m1", MachineLabel: "notebook-a", Path: "/work/jukebox"},
+		},
+		Rollup: apiclient.NodeRollup{TotalMin: 750, WeekMin: 120, MonthMin: 300},
+	})
+	for _, want := range []string{"Jukebox", "jukebox", "repo", "active", "r1",
+		"der Plattenspieler", "github.com/serverkraken/jukebox",
+		"Alpha / Rebuild / Jukebox", "go", "audio",
+		"12h 30m", "2h 00m", "5h 00m",
+		"notebook-a", "m1", "/work/jukebox"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("detail missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Jukebox / Rebuild / Alpha") {
+		t.Errorf("breadcrumb is leaf→root; it must be printed root→leaf:\n%s", out)
+	}
+}
+
+func TestFormatNodeDetail_EmptyTagsAndBindingsAreStatedNotOmitted(t *testing.T) {
+	out := formatNodeDetail(nodeDetail{
+		Node: domain.Node{ID: "e1", Name: "Alpha", Slug: "alpha", Kind: domain.KindEngagement, Status: domain.NodeActive},
+	})
+	if !strings.Contains(out, "bindings: none") {
+		t.Errorf("detail must state that there are no bindings:\n%s", out)
+	}
+	if !strings.Contains(out, "tags: —") {
+		t.Errorf("detail must state that there are no tags:\n%s", out)
+	}
+	if strings.Contains(out, "description:") || strings.Contains(out, "upstream:") {
+		t.Errorf("unset optional fields must be omitted entirely:\n%s", out)
+	}
+}
+
+func TestBindingsForNode_FiltersClientSide(t *testing.T) {
+	all := []domain.ProjectBinding{
+		{ID: "b1", NodeID: "r1", Kind: domain.BindingRemote, RemoteSlug: "a/b"},
+		{ID: "b2", NodeID: "other", Kind: domain.BindingPath, MachineID: "m1", Path: "/x"},
+		{ID: "b3", NodeID: "r1", Kind: domain.BindingPath, MachineID: "m2", Path: "/y"},
+	}
+	got := bindingsForNode(all, "r1")
+	if len(got) != 2 || got[0].ID != "b1" || got[1].ID != "b3" {
+		t.Fatalf("bindingsForNode = %+v, want b1 and b3 in order", got)
+	}
+	if bindingsForNode(all, "nobody") != nil {
+		t.Error("no match must yield nil, not an empty non-nil slice")
+	}
+}

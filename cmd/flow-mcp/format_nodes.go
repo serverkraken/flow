@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/timefmt"
 )
@@ -161,4 +162,60 @@ func formatDeleteImpact(d deleteImpact) string {
 	b.WriteString("  No children, no project documents — delete is possible.\n")
 	b.WriteString("  Pass confirm=true to proceed.")
 	return b.String()
+}
+
+// nodeDetail is everything flow_get_node shows about one node.
+type nodeDetail struct {
+	Node     domain.Node
+	Chain    []domain.Node // leaf→root, as apiclient.Ancestors returns
+	Tags     []domain.Tag
+	Bindings []domain.ProjectBinding // already filtered to this node
+	Rollup   apiclient.NodeRollup
+}
+
+// formatNodeDetail renders one node in full. The breadcrumb is printed root→leaf
+// even though Ancestors delivers leaf→root, matching `flow node show`
+// (cmd/flow/node_subcommands.go:166-170). Empty tags and empty bindings are
+// STATED rather than omitted, so a model never mistakes silence for absence.
+func formatNodeDetail(d nodeDetail) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s %s %q (%s)\nid: %s\nstatus: %s\n",
+		nodeKindGlyph(d.Node.Kind), d.Node.Kind, d.Node.Name, d.Node.Slug, d.Node.ID, d.Node.Status)
+	if d.Node.Description != "" {
+		fmt.Fprintf(&b, "description: %s\n", d.Node.Description)
+	}
+	if d.Node.UpstreamGit != "" {
+		fmt.Fprintf(&b, "upstream: %s\n", d.Node.UpstreamGit)
+	}
+	if len(d.Chain) > 0 {
+		crumbs := make([]string, 0, len(d.Chain))
+		for i := len(d.Chain) - 1; i >= 0; i-- {
+			crumbs = append(crumbs, d.Chain[i].Name)
+		}
+		fmt.Fprintf(&b, "path: %s\n", strings.Join(crumbs, " / "))
+	}
+	tags := "—"
+	if len(d.Tags) > 0 {
+		names := make([]string, len(d.Tags))
+		for i, t := range d.Tags {
+			names[i] = t.Slug
+		}
+		tags = strings.Join(names, ", ")
+	}
+	fmt.Fprintf(&b, "tags: %s\n", tags)
+	fmt.Fprintf(&b, "worktime (subtree): total %s · this week %s · this month %s\n",
+		timefmt.FormatMin(d.Rollup.TotalMin), timefmt.FormatMin(d.Rollup.WeekMin), timefmt.FormatMin(d.Rollup.MonthMin))
+	if len(d.Bindings) == 0 {
+		b.WriteString("bindings: none\n")
+	} else {
+		b.WriteString("bindings:\n")
+		for _, bd := range d.Bindings {
+			if bd.Kind == domain.BindingRemote {
+				fmt.Fprintf(&b, "- remote %s\n", bd.RemoteSlug)
+				continue
+			}
+			fmt.Fprintf(&b, "- path %s on machine %s [%s]\n", bd.Path, bd.MachineLabel, bd.MachineID)
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
