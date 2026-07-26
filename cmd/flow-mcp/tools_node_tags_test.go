@@ -42,6 +42,14 @@ func fakeNodeTagBackend(t *testing.T, rec *tagRecorder) *httptest.Server {
 			{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo, Status: domain.NodeActive},
 		})
 	})
+	// setNodeTags re-reads the node by id before printing (Finding 2 of the
+	// whole-branch review), so every test that reaches that code path needs
+	// this endpoint served too.
+	mux.HandleFunc("GET /api/v1/nodes/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.Node{
+			ID: r.PathValue("id"), Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo, Status: domain.NodeActive,
+		})
+	})
 	mux.HandleFunc("PUT /api/v1/nodes/{id}/tags", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Tags []string `json:"tags"`
@@ -184,5 +192,74 @@ func TestLoopback_SetNodeTags_OmittedNodeUsesTheBoundNode(t *testing.T) {
 	}
 	if nodeID, _, _, _ := rec.snapshot(); nodeID != "r1" {
 		t.Fatalf("nodeID = %q, want the directory-bound node r1", nodeID)
+	}
+}
+
+// TestLoopback_SetNodeTags_ReReadsRenamedNodeBeforePrinting is Finding 2 of the
+// whole-branch review: nodeTarget's contract (scope.go) guarantees only
+// Node.ID is fresh — the omitted-node branch returns the auth-time bound
+// snapshot, which goes stale the moment the node is renamed (by
+// flow_update_node or a human in the TUI/WebUI) while the agent session runs.
+// flow_get_node re-reads by id before printing; flow_set_node_tags must too,
+// or it hands the model a slug that the next flow_get_node call rejects as
+// "unknown project".
+func TestLoopback_SetNodeTags_ReReadsRenamedNodeBeforePrinting(t *testing.T) {
+	rec := &tagRecorder{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
+	})
+	// The node list still reports the STALE identity — this is the cache
+	// nodeTarget's omitted-node branch is seeded from (managerFor below).
+	mux.HandleFunc("GET /api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.Node{
+			{ID: "r1", Name: "Jukbox", Slug: "jukbox", Kind: domain.KindRepo, Status: domain.NodeActive},
+		})
+	})
+	// GetNode reports the CORRECTED identity — a rename that happened after the
+	// bound snapshot was taken.
+	mux.HandleFunc("GET /api/v1/nodes/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.Node{
+			ID: "r1", Name: "Jukebox", Slug: "jukebox-corrected", Kind: domain.KindRepo, Status: domain.NodeActive,
+		})
+	})
+	mux.HandleFunc("PUT /api/v1/nodes/{id}/tags", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Tags []string `json:"tags"`
+		}
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &body)
+		rec.mu.Lock()
+		rec.nodeID, rec.tags, rec.calls = r.PathValue("id"), body.Tags, rec.calls+1
+		rec.mu.Unlock()
+		out := make([]domain.Tag, 0, len(body.Tags))
+		for i, tg := range body.Tags {
+			out = append(out, domain.Tag{ID: fmt.Sprintf("t%d", i), Slug: tg, Display: tg})
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+	be := httptest.NewServer(mux)
+	t.Cleanup(be.Close)
+	client := apiclient.New(be.URL, "tok")
+	// The bound snapshot itself carries the STALE name/slug, mirroring what
+	// h.resolved() held before the rename.
+	_, h := managerFor(t, client, domain.Node{ID: "r1", Name: "Jukbox", Slug: "jukbox", Kind: domain.KindRepo})
+	sess := connect(t, h.srv)
+
+	res, out := callText(t, sess, "flow_set_node_tags", map[string]any{"tags": []any{"go"}})
+	if res.IsError {
+		t.Fatalf("set tags errored: %s", out)
+	}
+	if nodeID, _, _, _ := rec.snapshot(); nodeID != "r1" {
+		t.Fatalf("nodeID = %q, want r1 (the write itself uses the fresh id regardless)", nodeID)
+	}
+	if strings.Contains(out, "jukbox") && !strings.Contains(out, "jukebox-corrected") {
+		t.Errorf("result printed the stale slug %q instead of re-reading the node:\n%s", "jukbox", out)
+	}
+	if !strings.Contains(out, "jukebox-corrected") {
+		t.Errorf("result must print the freshly re-read slug jukebox-corrected:\n%s", out)
+	}
+	if !strings.Contains(out, "Jukebox") {
+		t.Errorf("result must print the freshly re-read name Jukebox:\n%s", out)
 	}
 }

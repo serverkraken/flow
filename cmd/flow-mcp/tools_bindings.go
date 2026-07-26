@@ -33,6 +33,16 @@ func (h *handlers) bindProject(ctx context.Context, req *mcp.CallToolRequest, in
 	if err != nil {
 		return h.resultErr(err), nil, nil
 	}
+	// Omitting both path and remote binds the flow-mcp PROCESS's own working
+	// directory (bindNodeIn's documented contract). refreshResolved always
+	// re-resolves that same cwd (resolve.go), so it is only this call shape
+	// where re-resolving after the write can change what flow_project_context
+	// reports — and only this call shape may say so. An explicit path or
+	// remote addresses a directory that need not be (and typically isn't) the
+	// process's cwd; claiming "flow_project_context now resolves here" for
+	// that case would be false, and re-resolving cwd would just repeat the
+	// document-resolution + resource reconciliation that already ran for it.
+	boundCwd := strings.TrimSpace(in.Path) == "" && strings.TrimSpace(in.Remote) == ""
 	var bound domain.Node
 	derr := h.do(ctx, req, func(c *apiclient.Client) error {
 		node, e := h.bindNodeCore(ctx, c, in.Project, tgt)
@@ -40,14 +50,20 @@ func (h *handlers) bindProject(ctx context.Context, req *mcp.CallToolRequest, in
 			return e
 		}
 		bound = node
-		h.refreshResolved(ctx, c)
+		if boundCwd {
+			h.refreshResolved(ctx, c)
+		}
 		return nil
 	})
 	if derr != nil {
 		return h.resultErr(derr), nil, nil
 	}
-	return textResult(fmt.Sprintf("Bound %s to project %s (%s) via %s binding. flow_project_context now resolves here.",
-		bindTargetLabel(tgt), bound.Name, bound.Slug, tgt.Kind)), nil, nil
+	msg := fmt.Sprintf("Bound %s to project %s (%s) via %s binding.",
+		bindTargetLabel(tgt), bound.Name, bound.Slug, tgt.Kind)
+	if boundCwd {
+		msg += " flow_project_context now resolves here."
+	}
+	return textResult(msg), nil, nil
 }
 
 // nodeBindingActions is the action whitelist; every error message lists it.

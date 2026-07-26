@@ -247,7 +247,7 @@ type bindingRow struct {
 // confuses notebook A with notebook B (Spec §3 flow_node_binding).
 func formatBindingRows(rows []bindingRow, label string) string {
 	if len(rows) == 0 {
-		return "No bindings " + label + "."
+		return fmt.Sprintf(`No bindings %s. Bind one with flow_node_binding (action="bind") or flow_bind_project.`, label)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d binding(s) %s:\n", len(rows), label)

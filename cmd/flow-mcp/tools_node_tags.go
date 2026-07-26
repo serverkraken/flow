@@ -36,7 +36,16 @@ func (h *handlers) setNodeTags(ctx context.Context, req *mcp.CallToolRequest, in
 		if err != nil {
 			return err
 		}
-		out = formatNodeTags(ref, tags)
+		// nodeTarget's contract (scope.go) guarantees only ref.ID is fresh: the
+		// omitted-node branch returns the auth-time bound snapshot, which is
+		// stale once the node has been renamed since. formatNodeTags PRINTS
+		// Name/Slug, so re-read the node by id first — the same thing
+		// flow_get_node does before it prints anything.
+		node, err := c.GetNode(ctx, ref.ID)
+		if err != nil {
+			return err
+		}
+		out = formatNodeTags(node, tags)
 		return nil
 	})
 	if err != nil {

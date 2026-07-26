@@ -191,6 +191,52 @@ func TestLoopback_BindProject_PathArgumentBindsThatDirectoryNotTheProcessCwd(t *
 	}
 }
 
+// TestLoopback_BindProject_ExplicitPathMustNotClaimProjectContextResolvesHere
+// is Finding 1 of the whole-branch review: refreshResolved (called after a
+// successful bind) always re-resolves the flow-mcp PROCESS's cwd, never the
+// path/remote target that flow_bind_project was actually given. Before this
+// branch the only bindable target WAS the cwd, so the claim was always true;
+// now an explicit path can name a directory the process never runs in, and
+// the historical sentence becomes a lie the model will act on.
+func TestLoopback_BindProject_ExplicitPathMustNotClaimProjectContextResolvesHere(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+	dir := t.TempDir() // not the test process's cwd
+
+	res, out := callText(t, sess, "flow_bind_project", map[string]any{
+		"project": "jukebox", "path": dir, "kind": "path",
+	})
+	if res.IsError {
+		t.Fatalf("bind with path errored: %s", out)
+	}
+	if strings.Contains(out, "flow_project_context now resolves here") {
+		t.Errorf("binding an explicit, non-cwd path must not claim flow_project_context resolves there:\n%s", out)
+	}
+	// It must still say what was bound — dropping the claim is not license to
+	// go silent about the result.
+	for _, want := range []string{"Bound", "path " + dir, "jukebox"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("result missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+// TestLoopback_BindProject_OmittedPathAndRemoteStillClaimsProjectContextResolvesHere
+// is the flip side: omitting both path and remote binds the flow-mcp
+// process's OWN working directory (bindNodeIn's documented contract), which
+// is exactly the case refreshResolved's cwd-based re-resolution answers
+// correctly. That historical sentence must survive for this call shape.
+func TestLoopback_BindProject_OmittedPathAndRemoteStillClaimsProjectContextResolvesHere(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+
+	res, out := callText(t, sess, "flow_bind_project", map[string]any{"project": "jukebox"})
+	if res.IsError {
+		t.Fatalf("bind errored: %s", out)
+	}
+	if !strings.Contains(out, "flow_project_context now resolves here") {
+		t.Errorf("binding the process's own cwd must keep the resolves-here claim:\n%s", out)
+	}
+}
+
 func TestLoopback_BindProject_RemoteArgumentNeedsNoLocalDirectory(t *testing.T) {
 	sess, rec := authedBindingServer(t)
 

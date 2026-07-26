@@ -278,13 +278,13 @@ func TestFormatNodeDetail_EmptyTagsAndBindingsAreStatedNotOmitted(t *testing.T) 
 	}
 	// A model reading this output needs a next step, not just an absence —
 	// flow_bind_project is the registered tool that creates a binding (see
-	// cmd/flow-mcp/server.go). flow_node_binding is referenced in other tool
-	// descriptions but is NOT registered yet, so it must never appear here.
+	// cmd/flow-mcp/server.go). flow_node_binding is ALSO registered by now
+	// (flow_node_binding action="bind" is the general form; flow_bind_project
+	// is the narrower, cwd-flavoured one), but formatNodeDetail deliberately
+	// names only the narrower tool here — this assertion checks that, not
+	// that flow_node_binding is unregistered.
 	if !strings.Contains(out, "flow_bind_project") {
 		t.Errorf("empty bindings must point at flow_bind_project as the next step:\n%s", out)
-	}
-	if strings.Contains(out, "flow_node_binding") {
-		t.Errorf("flow_node_binding is not a registered tool yet; must not be named here:\n%s", out)
 	}
 	if !strings.Contains(out, "tags: none") {
 		t.Errorf("detail must state that there are no tags:\n%s", out)
@@ -374,6 +374,21 @@ func TestFormatBindingRows_ShowsMachineLabelAndID(t *testing.T) {
 	}
 	if empty := formatBindingRows(nil, "for node jukebox"); !strings.HasPrefix(empty, "No bindings") {
 		t.Errorf("empty list = %q, want a 'No bindings' message", empty)
+	}
+}
+
+// TestFormatBindingRows_EmptyStatePointsAtTheFixingTool is Finding 3 of the
+// whole-branch review: every other empty state in this file names the tool
+// that fixes it (formatNodeTree → flow_create_node, formatNodeTags → -,
+// formatNodeDetail's empty tags → flow_set_node_tags, its empty bindings →
+// flow_bind_project, an unresolved flow_node_binding target →
+// flow_node_binding action="bind"). formatBindingRows' empty state — reached
+// by the everyday flow_node_binding{action:"list"} call — used to name one
+// too and regressed to a dead end.
+func TestFormatBindingRows_EmptyStatePointsAtTheFixingTool(t *testing.T) {
+	empty := formatBindingRows(nil, "for node jukebox")
+	if !strings.Contains(empty, "flow_node_binding") && !strings.Contains(empty, "flow_bind_project") {
+		t.Errorf("empty bindings must name a tool that creates a binding:\n%s", empty)
 	}
 }
 
