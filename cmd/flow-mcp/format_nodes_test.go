@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -135,5 +137,104 @@ func TestNodeKindGlyph_UsesMonospaceGlyphsOnly(t *testing.T) {
 	}
 	if nodeKindGlyph(domain.NodeKind("bogus")) == "" {
 		t.Fatal("an unknown kind must still get a fallback glyph")
+	}
+}
+
+func TestFormatDeleteImpact_DeletableNodeReportsMinutesAndOwnArtifactsOnly(t *testing.T) {
+	out := formatDeleteImpact(deleteImpact{
+		Node:         domain.Node{ID: "l1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo, LogoRef: "sha256:abc"},
+		OwnArtifacts: 3,
+		HasLogo:      true,
+		Rollup:       apiclient.NodeRollup{TotalMin: 750},
+	})
+	for _, want := range []string{`Would delete repo "Jukebox" (jukebox)`, "12h 30m", "3 artifact", "1 logo",
+		"No children, no project documents", "confirm=true"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("report missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(strings.ToLower(out), "session") {
+		t.Errorf("report must speak of minutes, not sessions (NodeStats has no session count):\n%s", out)
+	}
+}
+
+func TestFormatDeleteImpact_NoWorktimeAndNoLogoReadCleanly(t *testing.T) {
+	out := formatDeleteImpact(deleteImpact{
+		Node: domain.Node{ID: "l1", Name: "Leer", Slug: "leer", Kind: domain.KindRepo},
+	})
+	if !strings.Contains(out, "No booked worktime") {
+		t.Errorf("report must state the empty worktime case:\n%s", out)
+	}
+	if !strings.Contains(out, "no logo") {
+		t.Errorf("report must state the no-logo case instead of '0 logo':\n%s", out)
+	}
+	if strings.Contains(out, "0h 00m of booked") {
+		t.Errorf("report must not print a zero duration:\n%s", out)
+	}
+}
+
+func TestFormatDeleteImpact_BlockedByChildrenAndProjectDocs(t *testing.T) {
+	out := formatDeleteImpact(deleteImpact{
+		Node:        domain.Node{ID: "v1", Name: "Rebuild", Slug: "rebuild", Kind: domain.KindVorhaben},
+		Children:    []domain.Node{{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo}},
+		ProjectDocs: []domain.Document{{ID: "d1", Path: "projekt/rebuild", Type: domain.DocProject}},
+	})
+	for _, want := range []string{"Cannot delete", "rebuild", "jukebox", "flow_move_node",
+		"projekt/rebuild", "flow_move_doc"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("blocked report missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "confirm=true") {
+		t.Errorf("a blocked report must not invite confirm=true:\n%s", out)
+	}
+}
+
+// TestFormatDeleteImpact_ManyChildrenAreCappedNotDumped is the "long" state for a
+// text surface: the count stays exact, the enumeration stays bounded.
+func TestFormatDeleteImpact_ManyChildrenAreCappedNotDumped(t *testing.T) {
+	children := make([]domain.Node, 42)
+	for i := range children {
+		children[i] = domain.Node{ID: fmt.Sprintf("c%d", i), Slug: fmt.Sprintf("child-%02d", i), Kind: domain.KindRepo}
+	}
+	out := formatDeleteImpact(deleteImpact{
+		Node:     domain.Node{ID: "v1", Name: "Rebuild", Slug: "rebuild", Kind: domain.KindVorhaben},
+		Children: children,
+	})
+	if !strings.Contains(out, "42 child node(s)") {
+		t.Errorf("the exact count must survive the cap:\n%s", out)
+	}
+	if !strings.Contains(out, "and 32 more") {
+		t.Errorf("the enumeration must be capped at %d with a remainder:\n%s", maxDeleteImpactItems, out)
+	}
+	if strings.Contains(out, "child-41") {
+		t.Errorf("the enumeration must not dump every child:\n%s", out)
+	}
+	if strings.Count(out, "\n") > 3 {
+		t.Errorf("a blocked report must stay a few lines, got:\n%s", out)
+	}
+}
+
+func TestJoinCapped(t *testing.T) {
+	if got := joinCapped([]string{"a", "b"}, 10); got != "a, b" {
+		t.Errorf("joinCapped under the cap = %q, want a plain join", got)
+	}
+	if got := joinCapped([]string{"a", "b", "c"}, 2); got != "a, b … and 1 more" {
+		t.Errorf("joinCapped over the cap = %q", got)
+	}
+	if got := joinCapped(nil, 3); got != "" {
+		t.Errorf("joinCapped(nil) = %q, want empty", got)
+	}
+}
+
+func TestDeleteImpactBlocked(t *testing.T) {
+	if (deleteImpact{}).blocked() {
+		t.Error("an empty impact must not be blocked")
+	}
+	if !(deleteImpact{Children: []domain.Node{{ID: "x"}}}).blocked() {
+		t.Error("children must block")
+	}
+	if !(deleteImpact{ProjectDocs: []domain.Document{{ID: "d"}}}).blocked() {
+		t.Error("project documents must block")
 	}
 }

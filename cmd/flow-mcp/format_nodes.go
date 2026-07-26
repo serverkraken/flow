@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/timefmt"
 )
 
 // nodeKindGlyph maps a node kind to a monospace glyph. AGENTS.md bans emoji
@@ -97,4 +98,67 @@ func formatNodeTree(nodes []domain.Node) string {
 	}
 	walk(buildNodeForest(nodes), 0)
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// maxDeleteImpactItems caps how many child slugs / document paths the report
+// enumerates. A node can legitimately have hundreds of children, and a single
+// unbounded comma-joined line is the text-output equivalent of an unbreakable
+// string: it drowns the actionable part of the message and burns model context.
+const maxDeleteImpactItems = 10
+
+// joinCapped joins at most max items and appends "… and N more" for the rest, so
+// the count in the surrounding sentence stays authoritative.
+func joinCapped(items []string, max int) string {
+	if len(items) <= max {
+		return strings.Join(items, ", ")
+	}
+	return fmt.Sprintf("%s … and %d more", strings.Join(items[:max], ", "), len(items)-max)
+}
+
+// formatDeleteImpact renders the dry run. A node with children or project
+// documents is reported as NOT deletable, because the database refuses it anyway
+// (nodes.parent_id is ON DELETE RESTRICT, migration 0016; project documents are
+// checked explicitly in internal/adapter/pgstore/nodes.go:144-151). Everything
+// else is the silent damage made visible: sessions and non-project documents are
+// set to NULL (migration 0012), bindings, artifacts and the logo CASCADE.
+func formatDeleteImpact(d deleteImpact) string {
+	var b strings.Builder
+	if d.blocked() {
+		fmt.Fprintf(&b, "Cannot delete %s %q (%s) — the server would refuse it:\n", d.Node.Kind, d.Node.Name, d.Node.Slug)
+		if len(d.Children) > 0 {
+			slugs := make([]string, len(d.Children))
+			for i, c := range d.Children {
+				slugs[i] = c.Slug
+			}
+			fmt.Fprintf(&b, "  %d child node(s): %s — move them with flow_move_node first.\n",
+				len(d.Children), joinCapped(slugs, maxDeleteImpactItems))
+		}
+		if len(d.ProjectDocs) > 0 {
+			paths := make([]string, len(d.ProjectDocs))
+			for i, doc := range d.ProjectDocs {
+				paths[i] = doc.Path
+			}
+			fmt.Fprintf(&b, "  %d project document(s): %s — move or reclassify them with flow_move_doc first.\n",
+				len(d.ProjectDocs), joinCapped(paths, maxDeleteImpactItems))
+		}
+		return strings.TrimRight(b.String(), "\n")
+	}
+	fmt.Fprintf(&b, "Would delete %s %q (%s).\n", d.Node.Kind, d.Node.Name, d.Node.Slug)
+	if d.Rollup.TotalMin > 0 {
+		// NodeStats rolls up the SUBTREE, but a node with children is never
+		// deletable — so in exactly the deletable case the number is exact.
+		fmt.Fprintf(&b, "  %s of booked worktime would lose its node.\n", timefmt.FormatMin(d.Rollup.TotalMin))
+	} else {
+		b.WriteString("  No booked worktime.\n")
+	}
+	logo := "no logo"
+	if d.HasLogo {
+		logo = "1 logo"
+	}
+	fmt.Fprintf(&b, "  %d artifact(s) and %s would be deleted, along with every binding of this node.\n",
+		d.OwnArtifacts, logo)
+	b.WriteString("  Other documents in its scope would lose their node but survive.\n")
+	b.WriteString("  No children, no project documents — delete is possible.\n")
+	b.WriteString("  Pass confirm=true to proceed.")
+	return b.String()
 }

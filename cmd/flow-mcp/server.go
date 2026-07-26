@@ -117,6 +117,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Reparent a node. Pass exactly ONE destination: parent (the new parent's id/slug/name — an engagement or vorhaben) or to_root=true (make it a root, which only an engagement may be). The server rejects cycles and slug collisions.",
 	}, h.moveNode)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_delete_node",
+		Description: "Report what deleting a node would destroy, and delete it only with confirm=true — without confirm NOTHING is deleted. A node with children or project documents cannot be deleted at all. Booked worktime and non-project documents lose their node but survive; bindings, artifacts and the logo are deleted with it.",
+	}, h.deleteNode)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_node",
 		Description: "Update a node's metadata (name, description, color, glyph, icon, upstream, status) and/or rate — only the fields you pass change. Scoped to the current project by default; pass node to target another. This is how an agent maintains a project's description without the TUI.",
 	}, h.updateNode)

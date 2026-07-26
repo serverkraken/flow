@@ -80,3 +80,114 @@ func (h *handlers) moveNode(ctx context.Context, req *mcp.CallToolRequest, in mo
 	}
 	return textResult(out), nil, nil
 }
+
+// deleteNodeIn reports the consequences of deleting a node, and deletes only
+// with confirm=true. `node` is deliberately required: silently deleting whatever
+// this directory happens to resolve to is too dangerous to default into.
+type deleteNodeIn struct {
+	Node    string `json:"node" jsonschema:"the node to delete (id, slug, or name)"`
+	Confirm bool   `json:"confirm,omitempty" jsonschema:"true actually deletes; omit or false only reports what deletion would destroy"`
+}
+
+// deleteImpact is everything the dry run learned about a node's deletion.
+type deleteImpact struct {
+	Node         domain.Node
+	Children     []domain.Node
+	ProjectDocs  []domain.Document
+	OwnArtifacts int // ListArtifacts filtered to NodeID == Node.ID
+	HasLogo      bool
+	Rollup       apiclient.NodeRollup
+}
+
+// blocked reports whether the database would refuse this deletion outright.
+func (d deleteImpact) blocked() bool {
+	return len(d.Children) > 0 || len(d.ProjectDocs) > 0
+}
+
+// deleteImpactOf gathers the dry run from owner-scoped endpoints only.
+//
+// The artifact count is filtered to this node on purpose: ListArtifacts returns
+// the node's own artifacts PLUS its whole ancestor chain PLUS the owner's free
+// (node-less) library (internal/usecase/list_artifacts.go:21-51). Unfiltered, the
+// report would threaten artifacts that deletion never touches — including the
+// owner's entire free library.
+func (h *handlers) deleteImpactOf(ctx context.Context, c *apiclient.Client, nodeID string) (deleteImpact, error) {
+	node, err := c.GetNode(ctx, nodeID) // authoritative, and the only source of LogoRef
+	if err != nil {
+		return deleteImpact{}, err
+	}
+	impact := deleteImpact{Node: node, HasLogo: node.LogoRef != ""}
+
+	nodes, err := h.nodeList(ctx, true) // refresh: a just-created child must be seen
+	if err != nil {
+		return deleteImpact{}, err
+	}
+	for _, n := range nodes {
+		if n.ParentID != nil && *n.ParentID == node.ID {
+			impact.Children = append(impact.Children, n)
+		}
+	}
+
+	arts, err := c.ListArtifacts(ctx, node.ID)
+	if err != nil {
+		return deleteImpact{}, err
+	}
+	for _, a := range arts {
+		if a.NodeID == node.ID {
+			impact.OwnArtifacts++
+		}
+	}
+
+	docs, err := c.ListDocumentsScoped(ctx, &node.ID)
+	if err != nil {
+		return deleteImpact{}, err
+	}
+	for _, d := range docs {
+		if d.Type == domain.DocProject {
+			impact.ProjectDocs = append(impact.ProjectDocs, d)
+		}
+	}
+
+	rollup, err := c.NodeStats(ctx, node.ID)
+	if err != nil {
+		return deleteImpact{}, err
+	}
+	impact.Rollup = rollup
+	return impact, nil
+}
+
+// deleteNode reports first, deletes only on confirm. The client-side report is
+// advisory: the server stays the authority, and its 409 reaches the model
+// verbatim through h.resultErr.
+func (h *handlers) deleteNode(ctx context.Context, req *mcp.CallToolRequest, in deleteNodeIn) (*mcp.CallToolResult, any, error) {
+	if strings.TrimSpace(in.Node) == "" {
+		return h.resultErr(errGuard{errors.New("node is required: the id, slug, or name of the node to delete")}), nil, nil
+	}
+	var out string
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
+		ref, err := h.lookupNode(ctx, strings.TrimSpace(in.Node))
+		if err != nil {
+			return err
+		}
+		impact, err := h.deleteImpactOf(ctx, c, ref.ID)
+		if err != nil {
+			return err
+		}
+		if !in.Confirm {
+			out = formatDeleteImpact(impact)
+			return nil
+		}
+		if err := c.DeleteNode(ctx, impact.Node.ID); err != nil {
+			return err
+		}
+		if _, lerr := h.nodeList(ctx, true); lerr != nil {
+			mcpLog().Warn("could not refresh the node cache after delete", "err", lerr)
+		}
+		out = fmt.Sprintf("Deleted %s %q (%s).", impact.Node.Kind, impact.Node.Name, impact.Node.Slug)
+		return nil
+	})
+	if err != nil {
+		return h.resultErr(err), nil, nil
+	}
+	return textResult(out), nil, nil
+}

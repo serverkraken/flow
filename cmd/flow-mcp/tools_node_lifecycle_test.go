@@ -325,3 +325,202 @@ func TestLoopback_MoveNode_ServerCycleConflictReachesTheModel(t *testing.T) {
 		t.Fatalf("error = %q, want the server's 'move would create a cycle' message verbatim", out)
 	}
 }
+
+func TestLoopback_DeleteNode_Advertised(t *testing.T) {
+	sess, _ := authedLifecycleServer(t)
+	tools, err := sess.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasTool(tools.Tools, "flow_delete_node") {
+		t.Fatalf("flow_delete_node not advertised; got %v", toolNames(tools.Tools))
+	}
+}
+
+func TestLoopback_DeleteNode_WithoutConfirmReportsAndDeletesNothing(t *testing.T) {
+	sess, rec := authedLifecycleServer(t)
+
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{"node": "leaf"})
+	if res.IsError {
+		t.Fatalf("dry run errored: %s", out)
+	}
+	if got := rec.snapshot(); got.deleteCalls != 0 {
+		t.Fatalf("deleteCalls = %d, want 0 — a dry run must not delete", got.deleteCalls)
+	}
+	// The fixture gives l1 two own artifacts, one ancestor artifact, one free
+	// artifact, a logo, and 750 minutes.
+	if !strings.Contains(out, "2 artifact") {
+		t.Fatalf("report = %q, want 2 own artifacts — the ancestor's and the free one must not be counted", out)
+	}
+	for _, want := range []string{"Would delete", "Leaf", "leaf", "12h 30m", "1 logo", "confirm=true"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("report missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(strings.ToLower(out), "session") {
+		t.Errorf("report must speak of minutes, not sessions:\n%s", out)
+	}
+}
+
+func TestLoopback_DeleteNode_NonProjectDocumentDoesNotBlock(t *testing.T) {
+	sess, _ := authedLifecycleServer(t)
+	// l1 owns a memory document; only project documents block deletion.
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{"node": "leaf"})
+	if res.IsError {
+		t.Fatalf("dry run errored: %s", out)
+	}
+	if strings.Contains(out, "Cannot delete") {
+		t.Fatalf("a non-project document must not block deletion:\n%s", out)
+	}
+}
+
+func TestLoopback_DeleteNode_ConfirmDeletesAndReportsIt(t *testing.T) {
+	sess, rec := authedLifecycleServer(t)
+
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{"node": "leaf", "confirm": true})
+	if res.IsError {
+		t.Fatalf("confirmed delete errored: %s", out)
+	}
+	got := rec.snapshot()
+	if got.deleteCalls != 1 || got.deleteID != "l1" {
+		t.Fatalf("recorder = %+v, want exactly one delete of l1", got)
+	}
+	if !strings.Contains(out, "Deleted") || !strings.Contains(out, "leaf") {
+		t.Fatalf("result = %q, want it to confirm the deletion", out)
+	}
+}
+
+func TestLoopback_DeleteNode_ChildrenAndProjectDocsBlockTheDryRun(t *testing.T) {
+	sess, rec := authedLifecycleServer(t)
+
+	// v1/rebuild has the child r1 AND a project document.
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{"node": "rebuild"})
+	if res.IsError {
+		t.Fatalf("dry run of a blocked node must still be a normal report, got IsError: %s", out)
+	}
+	for _, want := range []string{"Cannot delete", "jukebox", "projekt/rebuild"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("blocked report missing %q in:\n%s", want, out)
+		}
+	}
+	if got := rec.snapshot(); got.deleteCalls != 0 {
+		t.Fatalf("deleteCalls = %d, want 0", got.deleteCalls)
+	}
+}
+
+// TestLoopback_DeleteNode_ConfirmOnABlockedNodeSurfacesTheServer409 is the
+// error-path regression from Spec §7: the client-side report is advisory, the
+// server is the authority, and its 409 must reach the model readably.
+func TestLoopback_DeleteNode_ConfirmOnABlockedNodeSurfacesTheServer409(t *testing.T) {
+	sess, rec := authedLifecycleServer(t)
+
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{"node": "rebuild", "confirm": true})
+	if !res.IsError {
+		t.Fatalf("confirmed delete of a node with children: want IsError, got %q", out)
+	}
+	if !strings.Contains(out, "children") {
+		t.Fatalf("error = %q, want the server's 'node has children' message verbatim", out)
+	}
+	if got := rec.snapshot(); got.deleteCalls != 1 {
+		t.Fatalf("deleteCalls = %d, want 1 (confirm must actually attempt it)", got.deleteCalls)
+	}
+}
+
+// TestLoopback_DeleteNode_ProjectDocumentConflictSurfaces completes the 409
+// matrix: besides the children conflict, the store refuses a node that still
+// owns project documents (ports.ErrNodeHasProjectDocuments →
+// internal/adapter/httpserver/worktime.go:284). The client report already warns,
+// but a confirmed delete must surface the server's reason too.
+func TestLoopback_DeleteNode_ProjectDocumentConflictSurfaces(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
+	})
+	mux.HandleFunc("GET /api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(lifecycleNodes())
+	})
+	mux.HandleFunc("GET /api/v1/nodes/{id}", func(w http.ResponseWriter, r *http.Request) {
+		for _, n := range lifecycleNodes() {
+			if n.ID == r.PathValue("id") {
+				_ = json.NewEncoder(w).Encode(n)
+				return
+			}
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+	mux.HandleFunc("GET /api/v1/nodes/{id}/stats", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(apiclient.NodeRollup{})
+	})
+	mux.HandleFunc("GET /api/v1/nodes/{id}/artifacts", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.Artifact{})
+	})
+	// l1/leaf owns a project document but has no children.
+	mux.HandleFunc("GET /api/v1/documents", func(w http.ResponseWriter, r *http.Request) {
+		var out []domain.Document
+		if r.URL.Query().Get("projectId") == "l1" {
+			nid := "l1"
+			out = append(out, domain.Document{ID: "d9", NodeID: &nid, Type: domain.DocProject, Path: "projekt/leaf", Title: "Leaf"})
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+	mux.HandleFunc("DELETE /api/v1/nodes/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "node has project documents; move or reclassify them first", http.StatusConflict)
+	})
+	be := httptest.NewServer(mux)
+	t.Cleanup(be.Close)
+
+	client := apiclient.New(be.URL, "tok")
+	_, h := managerFor(t, client, domain.Node{ID: "l1", Name: "Leaf", Slug: "leaf", Kind: domain.KindRepo})
+	sess := connect(t, h.srv)
+
+	// The dry run must already call it out, without asking for confirm.
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{"node": "leaf"})
+	if res.IsError {
+		t.Fatalf("dry run errored: %s", out)
+	}
+	if !strings.Contains(out, "Cannot delete") || !strings.Contains(out, "projekt/leaf") {
+		t.Fatalf("dry run = %q, want the project-document block named", out)
+	}
+	if strings.Contains(out, "confirm=true") {
+		t.Fatalf("a blocked report must not invite confirm=true: %q", out)
+	}
+
+	// A confirmed delete anyway must surface the server's 409 verbatim.
+	res, out = callText(t, sess, "flow_delete_node", map[string]any{"node": "leaf", "confirm": true})
+	if !res.IsError {
+		t.Fatalf("confirmed delete of a node with project documents: want IsError, got %q", out)
+	}
+	if !strings.Contains(out, "project documents") {
+		t.Fatalf("error = %q, want the server's message verbatim", out)
+	}
+}
+
+// TestLoopback_DeleteNode_MissingNodeIsAnError covers the outer of two guards:
+// `node` carries no omitempty, so the MCP SDK declares it required and rejects
+// the call during schema validation — the handler never runs. The assertion
+// deliberately does not pin the SDK's wording, only that the call fails naming
+// the node property and that nothing was deleted.
+func TestLoopback_DeleteNode_MissingNodeIsAnError(t *testing.T) {
+	sess, rec := authedLifecycleServer(t)
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{})
+	if !res.IsError || !strings.Contains(out, "node") {
+		t.Fatalf("missing node = (IsError=%v, %q), want a schema rejection naming node", res.IsError, out)
+	}
+	if got := rec.snapshot(); got.deleteCalls != 0 {
+		t.Fatalf("deleteCalls = %d, want 0", got.deleteCalls)
+	}
+}
+
+// TestLoopback_DeleteNode_BlankNodeIsAnError covers the inner guard, the one a
+// schema cannot express: `node` is present but holds only whitespace. Here the
+// handler's own message must reach the model.
+func TestLoopback_DeleteNode_BlankNodeIsAnError(t *testing.T) {
+	sess, rec := authedLifecycleServer(t)
+	res, out := callText(t, sess, "flow_delete_node", map[string]any{"node": "   "})
+	if !res.IsError || !strings.Contains(out, "node is required") {
+		t.Fatalf("blank node = (IsError=%v, %q), want 'node is required'", res.IsError, out)
+	}
+	if got := rec.snapshot(); got.deleteCalls != 0 {
+		t.Fatalf("deleteCalls = %d, want 0", got.deleteCalls)
+	}
+}
