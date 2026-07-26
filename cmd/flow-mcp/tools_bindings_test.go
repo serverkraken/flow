@@ -95,6 +95,28 @@ func fakeBindingBackend(t *testing.T, rec *bindRecorder) *httptest.Server {
 		rec.mu.Unlock()
 		http.Error(w, "create-bound must not be reachable from flow_bind_project any more", http.StatusInternalServerError)
 	})
+	mux.HandleFunc("GET /api/v1/nodes/bindings", func(w http.ResponseWriter, _ *http.Request) {
+		// Owner-wide across ALL devices — two machines, two nodes.
+		_ = json.NewEncoder(w).Encode([]domain.ProjectBinding{
+			{ID: "b1", NodeID: "r1", Kind: domain.BindingPath, MachineID: "m1", MachineLabel: "notebook-a", Path: "/work/jukebox"},
+			{ID: "b2", NodeID: "e1", Kind: domain.BindingPath, MachineID: "m2", MachineLabel: "notebook-b", Path: "/work/alpha"},
+			{ID: "b3", NodeID: "r1", Kind: domain.BindingRemote, RemoteSlug: "github.com/serverkraken/jukebox"},
+		})
+	})
+	mux.HandleFunc("GET /api/v1/nodes/resolve", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("slug") == "github.com/serverkraken/jukebox" {
+			_ = json.NewEncoder(w).Encode(nodes[2]) // r1/jukebox
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+	mux.HandleFunc("GET /api/v1/nodes/resolve-engagement", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("slug") == "github.com/serverkraken/jukebox" {
+			_ = json.NewEncoder(w).Encode(nodes[0]) // e1/alpha
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
 	return httptest.NewServer(mux)
 }
 
@@ -270,5 +292,283 @@ func TestUnbindTarget_RemoteAndPathHitTheRightEndpoint(t *testing.T) {
 	}
 	if got := rec.snapshot(); got.unbindCalls != 2 || !strings.Contains(got.unbindQuery, "kind=path") {
 		t.Fatalf("recorder = %+v, want two unbinds total", got)
+	}
+}
+
+func TestValidateNodeBinding(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      nodeBindingIn
+		wantErr string
+	}{
+		{"bind with node", nodeBindingIn{Action: "bind", Node: "jukebox"}, ""},
+		{"bind without node", nodeBindingIn{Action: "bind"}, `needs "node"`},
+		{"unbind without node", nodeBindingIn{Action: "unbind"}, ""},
+		{"unbind with node", nodeBindingIn{Action: "unbind", Node: "jukebox"}, "by its target only"},
+		{"resolve without node", nodeBindingIn{Action: "resolve"}, ""},
+		{"resolve with node", nodeBindingIn{Action: "resolve", Node: "jukebox"}, "by its target only"},
+		{"list without node", nodeBindingIn{Action: "list"}, ""},
+		{"list with node is a filter", nodeBindingIn{Action: "list", Node: "jukebox"}, ""},
+		{"unknown action", nodeBindingIn{Action: "attach"}, "invalid action"},
+		{"missing action", nodeBindingIn{}, "invalid action"},
+		{"kind on bind", nodeBindingIn{Action: "bind", Node: "jukebox", Kind: "path"}, ""},
+		{"kind on unbind", nodeBindingIn{Action: "unbind", Kind: "path"}, ""},
+		{"kind on resolve", nodeBindingIn{Action: "resolve", Kind: "path"}, `does not take "kind"`},
+		{"kind on list", nodeBindingIn{Action: "list", Kind: "remote"}, `does not take "kind"`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := validateNodeBinding(c.in)
+			if c.wantErr == "" {
+				if err != nil {
+					t.Fatalf("validateNodeBinding(%#v) = %v, want nil", c.in, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+				t.Fatalf("validateNodeBinding(%#v) = %v, want an error containing %q", c.in, err, c.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateNodeBinding_InvalidActionListsThem(t *testing.T) {
+	_, err := validateNodeBinding(nodeBindingIn{Action: "attach"})
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	for _, want := range nodeBindingActions {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q must list the valid action %q", err.Error(), want)
+		}
+	}
+}
+
+func TestLoopback_NodeBinding_Advertised(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+	tools, err := sess.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasTool(tools.Tools, "flow_node_binding") {
+		t.Fatalf("flow_node_binding not advertised; got %v", toolNames(tools.Tools))
+	}
+}
+
+func TestLoopback_NodeBinding_BindAttachesTheTargetToTheNode(t *testing.T) {
+	sess, rec := authedBindingServer(t)
+	dir := t.TempDir()
+
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "bind", "node": "jukebox", "path": dir, "kind": "path",
+	})
+	if res.IsError {
+		t.Fatalf("bind errored: %s", out)
+	}
+	got := rec.snapshot()
+	if got.bindCalls != 1 || got.bindNodeID != "r1" || got.bindPath != dir {
+		t.Fatalf("recorder = %+v, want one path bind of %q on r1", got, dir)
+	}
+}
+
+func TestLoopback_NodeBinding_UnbindAddressesTheTargetAndRejectsNode(t *testing.T) {
+	sess, rec := authedBindingServer(t)
+
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "unbind", "remote": "github.com/serverkraken/jukebox",
+	})
+	if res.IsError {
+		t.Fatalf("unbind errored: %s", out)
+	}
+	got := rec.snapshot()
+	if got.unbindCalls != 1 {
+		t.Fatalf("unbindCalls = %d, want 1", got.unbindCalls)
+	}
+	if !strings.Contains(got.unbindQuery, "kind=remote") || !strings.Contains(got.unbindQuery, "jukebox") {
+		t.Fatalf("unbind query = %q, want kind=remote plus the slug", got.unbindQuery)
+	}
+
+	// A node argument is a hard error: the apiclient unbind calls take none, so
+	// passing one would be silently ignored.
+	resNode, outNode := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "unbind", "node": "jukebox", "remote": "github.com/serverkraken/jukebox",
+	})
+	if !resNode.IsError || !strings.Contains(outNode, "by its target only") {
+		t.Fatalf("unbind with node = (IsError=%v, %q), want a rejection", resNode.IsError, outNode)
+	}
+	if got := rec.snapshot(); got.unbindCalls != 1 {
+		t.Fatalf("unbindCalls = %d, want still 1 (the rejected call must not reach the server)", got.unbindCalls)
+	}
+}
+
+func TestLoopback_NodeBinding_ListShowsEveryDeviceWithItsMachine(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{"action": "list"})
+	if res.IsError {
+		t.Fatalf("list errored: %s", out)
+	}
+	for _, want := range []string{"3 binding", "notebook-a", "m1", "notebook-b", "m2",
+		"/work/jukebox", "/work/alpha", "Jukebox", "Alpha"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("list missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestLoopback_NodeBinding_ListWithNodeFiltersClientSide(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{"action": "list", "node": "jukebox"})
+	if res.IsError {
+		t.Fatalf("filtered list errored: %s", out)
+	}
+	if !strings.Contains(out, "2 binding") {
+		t.Fatalf("filtered list = %q, want the 2 bindings of r1 only", out)
+	}
+	if strings.Contains(out, "/work/alpha") || strings.Contains(out, "notebook-b") {
+		t.Fatalf("filter leaked another node's binding:\n%s", out)
+	}
+}
+
+func TestLoopback_NodeBinding_ListNeedsNoFilesystem(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+	// A path that does not exist must NOT break list: list reports what the
+	// server knows and never touches the filesystem.
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "list", "path": "/definitely/not/here",
+	})
+	if res.IsError {
+		t.Fatalf("list must ignore a target argument, got IsError: %s", out)
+	}
+	if !strings.Contains(out, "3 binding") {
+		t.Fatalf("list = %q, want all three bindings", out)
+	}
+}
+
+// TestLoopback_NodeBinding_ResolveRejectsKind: resolve reports what the server's
+// resolution chain already decided, and that chain prefers a remote binding over
+// a path binding (domain.ResolveBinding). A kind argument would read like an
+// override and change nothing, so it is a hard error rather than a silent no-op.
+func TestLoopback_NodeBinding_ResolveRejectsKind(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+	for _, action := range []string{"resolve", "list"} {
+		res, out := callText(t, sess, "flow_node_binding", map[string]any{
+			"action": action, "kind": "path",
+		})
+		// The result text is JSON-escaped (structuredErrorResult), so a literal
+		// `"` in the message appears as `\"`.
+		if !res.IsError || !strings.Contains(out, `does not take \"kind\"`) {
+			t.Errorf("%s with kind = (IsError=%v, %q), want a rejection", action, res.IsError, out)
+		}
+	}
+}
+
+func TestLoopback_NodeBinding_ResolveReportsNodeAndEngagementWithoutBinding(t *testing.T) {
+	sess, rec := authedBindingServer(t)
+
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "resolve", "remote": "github.com/serverkraken/jukebox",
+	})
+	if res.IsError {
+		t.Fatalf("resolve errored: %s", out)
+	}
+	for _, want := range []string{"resolves to", "Jukebox", "jukebox", "Alpha"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("resolve missing %q in: %s", want, out)
+		}
+	}
+	got := rec.snapshot()
+	if got.bindCalls != 0 || got.unbindCalls != 0 {
+		t.Fatalf("recorder = %+v, want resolve to mutate nothing", got)
+	}
+}
+
+func TestLoopback_NodeBinding_ResolveWithNothingBoundSaysSoAndSuggestsBind(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "resolve", "remote": "github.com/serverkraken/unbound",
+	})
+	if res.IsError {
+		t.Fatalf("an unresolved target is a normal answer, not an error: %s", out)
+	}
+	if !strings.Contains(out, "Nothing is bound") || !strings.Contains(out, "bind") {
+		t.Fatalf("result = %q, want it to state the miss and suggest binding", out)
+	}
+}
+
+func TestLoopback_NodeBinding_ResolveRejectsNode(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "resolve", "node": "jukebox", "remote": "github.com/serverkraken/jukebox",
+	})
+	if !res.IsError || !strings.Contains(out, "by its target only") {
+		t.Fatalf("resolve with node = (IsError=%v, %q), want a rejection", res.IsError, out)
+	}
+}
+
+func TestLoopback_NodeBinding_BindWithoutNodeIsAnError(t *testing.T) {
+	sess, rec := authedBindingServer(t)
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{"action": "bind", "path": t.TempDir()})
+	// JSON-escaped result text: a literal `"` appears as `\"`.
+	if !res.IsError || !strings.Contains(out, `needs \"node\"`) {
+		t.Fatalf("bind without node = (IsError=%v, %q), want a rejection", res.IsError, out)
+	}
+	if got := rec.snapshot(); got.bindCalls != 0 {
+		t.Fatalf("bindCalls = %d, want 0", got.bindCalls)
+	}
+}
+
+// TestLoopback_NodeBinding_ServerRejectsAnUnbindableKind covers the error path
+// the client deliberately does NOT pre-check: whether a node may carry a binding
+// at all depends on its kind AND on whether it is a leaf, which only the server
+// knows (usecase.ErrInvalidBindTarget → 400, internal/adapter/httpserver/projectbindings.go:101).
+// The message must reach the model instead of a bare status.
+func TestLoopback_NodeBinding_ServerRejectsAnUnbindableKind(t *testing.T) {
+	e1, v1 := "e1", "v1"
+	nodes := []domain.Node{
+		{ID: "e1", Name: "Alpha", Slug: "alpha", Kind: domain.KindEngagement, Status: domain.NodeActive},
+		{ID: "v1", Name: "Rebuild", Slug: "rebuild", Kind: domain.KindVorhaben, ParentID: &e1, Status: domain.NodeActive},
+		{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo, ParentID: &v1, Status: domain.NodeActive},
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
+	})
+	mux.HandleFunc("GET /api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(nodes)
+	})
+	mux.HandleFunc("PUT /api/v1/nodes/{id}/bindings", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "binding target has the wrong kind (remote→repo, path→repo or leaf vorhaben)", http.StatusBadRequest)
+	})
+	be := httptest.NewServer(mux)
+	t.Cleanup(be.Close)
+
+	client := apiclient.New(be.URL, "tok")
+	_, h := managerFor(t, client, domain.Node{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo})
+	sess := connect(t, h.srv)
+
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{
+		"action": "bind", "node": "alpha", "path": t.TempDir(), "kind": "path",
+	})
+	if !res.IsError {
+		t.Fatalf("binding an engagement: want IsError, got %q", out)
+	}
+	if !strings.Contains(out, "wrong kind") {
+		t.Fatalf("error = %q, want the server's bind-target message verbatim", out)
+	}
+}
+
+func TestLoopback_NodeBinding_InvalidActionListsTheValidOnes(t *testing.T) {
+	sess, _ := authedBindingServer(t)
+	res, out := callText(t, sess, "flow_node_binding", map[string]any{"action": "attach"})
+	if !res.IsError {
+		t.Fatalf("invalid action: want IsError, got %q", out)
+	}
+	for _, want := range []string{"bind", "unbind", "list", "resolve"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("error %q must list the valid action %q", out, want)
+		}
 	}
 }

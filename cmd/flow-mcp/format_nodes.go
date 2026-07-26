@@ -232,3 +232,42 @@ func formatNodeTags(node domain.Node, tags []domain.Tag) string {
 	}
 	return fmt.Sprintf("%s %q (%s) now has tags: %s.", node.Kind, node.Name, node.Slug, strings.Join(names, ", "))
 }
+
+// bindingRow is one binding plus the identity of the node it points at, so the
+// renderer never has to look anything up itself.
+type bindingRow struct {
+	Binding  domain.ProjectBinding
+	NodeName string
+	NodeSlug string
+}
+
+// formatBindingRows renders the binding list. Every path binding names its
+// machine LABEL and machine ID, because ListBindings is owner-scoped and returns
+// the bindings of ALL of this owner's devices — without the machine an agent
+// confuses notebook A with notebook B (Spec §3 flow_node_binding).
+func formatBindingRows(rows []bindingRow, label string) string {
+	if len(rows) == 0 {
+		return "No bindings " + label + "."
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d binding(s) %s:\n", len(rows), label)
+	for _, r := range rows {
+		if r.Binding.Kind == domain.BindingRemote {
+			fmt.Fprintf(&b, "- remote %s → %s (%s)\n", r.Binding.RemoteSlug, r.NodeName, r.NodeSlug)
+			continue
+		}
+		fmt.Fprintf(&b, "- path %s on machine %s [%s] → %s (%s)\n",
+			r.Binding.Path, r.Binding.MachineLabel, r.Binding.MachineID, r.NodeName, r.NodeSlug)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// formatResolvedTarget reports which node a target currently resolves to, plus
+// its engagement, without binding anything.
+func formatResolvedTarget(target string, node, engagement domain.Node, engagementOK bool) string {
+	line := fmt.Sprintf("%s resolves to %s %q (%s), id %s.", target, node.Kind, node.Name, node.Slug, node.ID)
+	if engagementOK {
+		return line + fmt.Sprintf(" Engagement: %s (%s).", engagement.Name, engagement.Slug)
+	}
+	return line + " No engagement in its ancestor chain."
+}

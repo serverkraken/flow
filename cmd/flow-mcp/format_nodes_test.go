@@ -357,3 +357,68 @@ func TestBindingsForNode_FiltersClientSide(t *testing.T) {
 		t.Error("no match must yield nil, not an empty non-nil slice")
 	}
 }
+
+func TestFormatBindingRows_ShowsMachineLabelAndID(t *testing.T) {
+	rows := []bindingRow{
+		{Binding: domain.ProjectBinding{ID: "b1", NodeID: "r1", Kind: domain.BindingRemote,
+			RemoteSlug: "github.com/serverkraken/jukebox"}, NodeName: "Jukebox", NodeSlug: "jukebox"},
+		{Binding: domain.ProjectBinding{ID: "b2", NodeID: "e1", Kind: domain.BindingPath,
+			MachineID: "m2", MachineLabel: "notebook-b", Path: "/work/alpha"}, NodeName: "Alpha", NodeSlug: "alpha"},
+	}
+	out := formatBindingRows(rows, "for this owner across all devices")
+	for _, want := range []string{"2 binding", "github.com/serverkraken/jukebox", "Jukebox",
+		"/work/alpha", "notebook-b", "m2", "Alpha"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("binding list missing %q in:\n%s", want, out)
+		}
+	}
+	if empty := formatBindingRows(nil, "for node jukebox"); !strings.HasPrefix(empty, "No bindings") {
+		t.Errorf("empty list = %q, want a 'No bindings' message", empty)
+	}
+}
+
+func TestFormatBindingRows_UnknownNodeIsLabelledNotBlank(t *testing.T) {
+	out := formatBindingRows([]bindingRow{
+		{Binding: domain.ProjectBinding{ID: "b1", NodeID: "gone", Kind: domain.BindingRemote, RemoteSlug: "a/b"},
+			NodeName: "(unknown node)", NodeSlug: "gone"},
+	}, "for this owner")
+	if !strings.Contains(out, "(unknown node)") || !strings.Contains(out, "gone") {
+		t.Errorf("a binding whose node is not in the cache must still be identifiable:\n%s", out)
+	}
+}
+
+// TestFormatBindingRowsAndResolve_LongPathsPassThroughVerbatim: a binding path is
+// an address, so it is never shortened — same contract as the tree renderer.
+func TestFormatBindingRowsAndResolve_LongPathsPassThroughVerbatim(t *testing.T) {
+	longPath := "/Users/dev/" + strings.Repeat("sehr/tief/verschachtelt/", 12) + "repo"
+	out := formatBindingRows([]bindingRow{
+		{Binding: domain.ProjectBinding{ID: "b1", NodeID: "r1", Kind: domain.BindingPath,
+			MachineID: "m1", MachineLabel: "notebook-a", Path: longPath}, NodeName: "Jukebox", NodeSlug: "jukebox"},
+	}, "for node jukebox")
+	if !strings.Contains(out, longPath) {
+		t.Errorf("a long binding path must not be truncated:\n%s", out)
+	}
+
+	resolved := formatResolvedTarget("path "+longPath,
+		domain.Node{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo},
+		domain.Node{}, false)
+	if !strings.Contains(resolved, longPath) {
+		t.Errorf("resolve must echo the full target:\n%s", resolved)
+	}
+}
+
+func TestFormatResolvedTarget(t *testing.T) {
+	node := domain.Node{ID: "r1", Name: "Jukebox", Slug: "jukebox", Kind: domain.KindRepo}
+	eng := domain.Node{ID: "e1", Name: "Alpha", Slug: "alpha", Kind: domain.KindEngagement}
+
+	withEng := formatResolvedTarget("path /work/jukebox", node, eng, true)
+	for _, want := range []string{"/work/jukebox", "resolves to", "Jukebox", "jukebox", "r1", "Alpha", "alpha"} {
+		if !strings.Contains(withEng, want) {
+			t.Errorf("resolve result missing %q in: %s", want, withEng)
+		}
+	}
+	without := formatResolvedTarget("remote a/b", node, domain.Node{}, false)
+	if !strings.Contains(without, "No engagement") {
+		t.Errorf("missing engagement must be stated, got: %s", without)
+	}
+}
