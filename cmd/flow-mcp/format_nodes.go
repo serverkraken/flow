@@ -194,7 +194,7 @@ func formatNodeDetail(d nodeDetail) string {
 		}
 		fmt.Fprintf(&b, "path: %s\n", strings.Join(crumbs, " / "))
 	}
-	tags := "—"
+	tags := "— (no tool to set node tags exists yet)"
 	if len(d.Tags) > 0 {
 		names := make([]string, len(d.Tags))
 		for i, t := range d.Tags {
@@ -206,7 +206,7 @@ func formatNodeDetail(d nodeDetail) string {
 	fmt.Fprintf(&b, "worktime (subtree): total %s · this week %s · this month %s\n",
 		timefmt.FormatMin(d.Rollup.TotalMin), timefmt.FormatMin(d.Rollup.WeekMin), timefmt.FormatMin(d.Rollup.MonthMin))
 	if len(d.Bindings) == 0 {
-		b.WriteString("bindings: none\n")
+		b.WriteString("bindings: none — bind one with flow_bind_project.\n")
 	} else {
 		b.WriteString("bindings:\n")
 		for _, bd := range d.Bindings {

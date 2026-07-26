@@ -276,11 +276,56 @@ func TestFormatNodeDetail_EmptyTagsAndBindingsAreStatedNotOmitted(t *testing.T) 
 	if !strings.Contains(out, "bindings: none") {
 		t.Errorf("detail must state that there are no bindings:\n%s", out)
 	}
+	// A model reading this output needs a next step, not just an absence —
+	// flow_bind_project is the registered tool that creates a binding (see
+	// cmd/flow-mcp/server.go). flow_node_binding is referenced in other tool
+	// descriptions but is NOT registered yet, so it must never appear here.
+	if !strings.Contains(out, "flow_bind_project") {
+		t.Errorf("empty bindings must point at flow_bind_project as the next step:\n%s", out)
+	}
+	if strings.Contains(out, "flow_node_binding") {
+		t.Errorf("flow_node_binding is not a registered tool yet; must not be named here:\n%s", out)
+	}
 	if !strings.Contains(out, "tags: —") {
 		t.Errorf("detail must state that there are no tags:\n%s", out)
 	}
+	// No MCP tool sets node tags yet (flow_set_node_tags is a later task) and
+	// flow_update_node's own description does not cover tags, so naming it here
+	// would be a reference into the void. The empty-tags message must instead
+	// say plainly that no such tool exists yet, rather than naming one that
+	// doesn't do the job or falling silent about the gap.
+	if !strings.Contains(out, "no tool to set node tags exists yet") {
+		t.Errorf("empty tags must explain that no tool exists yet instead of falling silent:\n%s", out)
+	}
+	if strings.Contains(out, "flow_update_node") || strings.Contains(out, "flow_set_node_tags") {
+		t.Errorf("empty tags must not name a tool that either doesn't set tags or doesn't exist yet:\n%s", out)
+	}
 	if strings.Contains(out, "description:") || strings.Contains(out, "upstream:") {
 		t.Errorf("unset optional fields must be omitted entirely:\n%s", out)
+	}
+}
+
+// TestFormatNodeDetail_RootNodeSingleElementChainShowsItself covers the
+// Finding-2 gap: a root node's ancestor chain has exactly one element (the
+// node itself). The reversal loop in formatNodeDetail (leaf→root input,
+// root→leaf output) must handle len==1 without an empty path, a doubled
+// entry, or a stray " / " separator with nothing on one side.
+func TestFormatNodeDetail_RootNodeSingleElementChainShowsItself(t *testing.T) {
+	out := formatNodeDetail(nodeDetail{
+		Node:  domain.Node{ID: "e1", Name: "Alpha", Slug: "alpha", Kind: domain.KindEngagement, Status: domain.NodeActive},
+		Chain: []domain.Node{{ID: "e1", Name: "Alpha"}},
+	})
+	if !strings.Contains(out, "path: Alpha") {
+		t.Errorf("a root's chain must show itself as the whole path:\n%s", out)
+	}
+	if strings.Contains(out, "path: /") || strings.Contains(out, "path: \n") {
+		t.Errorf("a single-element chain must not print an empty path:\n%s", out)
+	}
+	if strings.Contains(out, "Alpha / Alpha") {
+		t.Errorf("a single-element chain must not be doubled:\n%s", out)
+	}
+	if strings.Contains(out, "Alpha /\n") || strings.Contains(out, "Alpha / \n") {
+		t.Errorf("a single-element chain must not print a dangling separator:\n%s", out)
 	}
 }
 
