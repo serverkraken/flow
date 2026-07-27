@@ -2,10 +2,14 @@
 # please's Tag-Erstellung und hängt Cross-Plattform-Binaries an die
 # bereits angelegte GitHub-Release-Entry.
 #
-# Plattformen spiegeln die `cross-build`-Matrix in `.github/workflows/
-# ci.yml`: linux/amd64 + darwin/{amd64,arm64}. Linux/arm64 ist
+# Plattformen: linux/amd64 + darwin/{amd64,arm64}. Linux/arm64 ist
 # bewusst nicht dabei, weil noch kein Use-Case besteht; bei Bedarf
 # `ignore`-Block anpassen.
+#
+# Zwei Binaries werden released: `flow` (CLI/TUI) und `flow-mcp` (MCP-Server
+# für Claude Code). `flow-server` fehlt hier absichtlich — der wird als
+# Container-Image über .github/workflows/build-server-image.yml ausgeliefert
+# und nicht als Archiv am GitHub-Release.
 
 version: 2
 
@@ -40,13 +44,45 @@ builds:
     ldflags:
       - -s -w
 
+  - id: flow-mcp
+    main: ./cmd/flow-mcp
+    binary: flow-mcp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
 archives:
-  - id: default
+  # Ein Archiv PRO Binary statt eines gemeinsamen: so bleibt
+  # `flow_darwin_arm64.tar.gz` inhaltlich exakt das, was es vor der
+  # Aufnahme von flow-mcp war, und die in der README dokumentierte
+  # Install-URL ändert ihre Bedeutung nicht.
+  - id: flow
+    ids: [flow]
     # Bewusst ohne {{ .Version }}: das macht
     # `releases/latest/download/flow_darwin_arm64.tar.gz` als stabilen
     # Install-URL möglich (siehe README). Die Version bleibt über das
     # umschließende Tag (`releases/download/vX.Y.Z/...`) auflösbar.
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+  - id: flow-mcp
+    ids: [flow-mcp]
+    name_template: "flow-mcp_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     files:
       - LICENSE
