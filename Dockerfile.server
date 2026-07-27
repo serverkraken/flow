@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.7
+# onboard:release=true
 #
 # flow-server image (rebuild branch).
 #
@@ -15,7 +16,13 @@
 #
 # Runtime: distroless/static-debian12:nonroot — no shell, uid 65532.
 #
-# Build: podman build -t flow-server:dev -f deploy/podman/Dockerfile.server .
+# Build: podman build -t flow-server:dev -f Dockerfile.server .
+#
+# Lives at the repo root (not deploy/) because the serverkraken catalog's
+# onboard detection only inventories Dockerfiles in the component directory.
+# The `# onboard:release=true` marker (line 2 — it must sit within the first
+# five lines) opts this suffixed Dockerfile into the rendered release
+# pipeline (docker-build + trivy scan); the image name derives to flow-server.
 
 FROM golang:1.25-alpine AS build
 WORKDIR /src
