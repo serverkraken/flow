@@ -24,7 +24,7 @@
 # five lines) opts this suffixed Dockerfile into the rendered release
 # pipeline (docker-build + trivy scan); the image name derives to flow-server.
 
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 
 COPY go.mod go.sum ./
