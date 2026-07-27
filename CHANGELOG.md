@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.1.0](https://github.com/serverkraken/flow/compare/v2.0.1...v2.1.0) (2026-07-27)
+
+
+### Features
+
+* **mcp:** flow_set_node_logo — Node-Logo per REST + MCP setzen ([#66](https://github.com/serverkraken/flow/issues/66)) ([9d82c5f](https://github.com/serverkraken/flow/commit/9d82c5f950ad76a4d5b1d5915f39e40ff3caf6ee))
+
+
+### Bug Fixes
+
+* add skills [skip ci] ([d5733c8](https://github.com/serverkraken/flow/commit/d5733c8008e79e6f8e6d5a11fd21dec4e3b49842))
+
+
+### Documentation
+
+* rewrite the README for the post-cutover architecture ([83d732b](https://github.com/serverkraken/flow/commit/83d732b68a0e7b0d9242020e158a50aaca2ef7f2))
+
 ## [2.0.1](https://github.com/serverkraken/flow/compare/v2.0.0...v2.0.1) (2026-07-27)
 
 
