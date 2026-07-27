@@ -19,6 +19,27 @@ jobs:
     uses: serverkraken/reusable-workflows/.github/workflows/semantic-release.yml@v4
     secrets: inherit
 
+  docker-build:
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: serverkraken/reusable-workflows/.github/workflows/docker-build.yml@v4
+    with:
+      dockerfile: Dockerfile.server
+      image_name: serverkraken/flow-server
+      tag: ${{ needs.release-please.outputs.tag_name }}
+      sign: ${{ fromJSON(vars.SK_SIGN || 'true') }}
+      attest: ${{ fromJSON(vars.SK_ATTEST || 'true') }}
+      sbom: ${{ fromJSON(vars.SK_SBOM || 'true') }}
+    secrets: inherit
+
+  scan:
+    needs: [docker-build]
+    uses: serverkraken/reusable-workflows/.github/workflows/trivy-image.yml@v4
+    with:
+      image_ref: ${{ needs.docker-build.outputs.image_ref }}
+      severity: ${{ vars.SK_TRIVY_SEVERITY || 'HIGH,CRITICAL' }}
+      trivy_version: ${{ vars.SK_TRIVY_VERSION || '' }}
+    secrets: inherit
   goreleaser:
     needs: [release-please]
     if: needs.release-please.outputs.release_created == 'true'

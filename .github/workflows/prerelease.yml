@@ -3,8 +3,33 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  # No Dockerfiles detected for this component.
-  noop:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "No prerelease build artifacts for this repo (no Dockerfiles)."
+  build:
+    uses: serverkraken/reusable-workflows/.github/workflows/docker-build.yml@v4
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      pull-requests: write
+    secrets: inherit
+    with:
+      prerelease: true
+      dockerfile: Dockerfile.server
+      image_name: serverkraken/flow-server
+      sign: ${{ fromJSON(vars.SK_SIGN || 'true') }}
+      attest: ${{ fromJSON(vars.SK_ATTEST || 'true') }}
+      sbom: ${{ fromJSON(vars.SK_SBOM || 'true') }}
+  scan:
+    needs: build
+    uses: serverkraken/reusable-workflows/.github/workflows/trivy-image.yml@v4
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+      actions: read
+    secrets: inherit
+    with:
+      image_ref: ${{ needs.build.outputs.image_ref }}
+      severity: ${{ vars.SK_TRIVY_SEVERITY || 'HIGH,CRITICAL' }}
+      trivy_version: ${{ vars.SK_TRIVY_VERSION || '' }}
