@@ -1,380 +1,260 @@
 # flow
 
-> Ein TUI-Sidekick für tmux — Worktime-Tracker, Markdown-Notizbuch und
-> Befehls-Palette in einem Binary.
+> Wissens- und Worktime-Produkt für Menschen **und** AI-Agents — server-
+> autoritativ, multi-tenant, mit WebUI, TUI und MCP-Server auf denselben Daten.
+
+`flow` hält fest, woran gearbeitet wird und was dabei gelernt wurde: Zeiten,
+Projekte, Dokumente, Artefakte. Alle drei Oberflächen sprechen dieselbe HTTP-API
+gegen denselben Postgres — was im Browser passiert, sieht die TUI ohne Reload,
+und ein Agent über MCP sieht es auch.
 
 ```
-╭─ Heute · Woche · History · Frei ───────────────────────────────────╮
-│  6h 42m    ▶ läuft    84%                                          │
-│  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱  Ziel 8h 00m   noch 1h 18m   ETA 17:42     │
-│                                                                    │
-│  SESSIONS HEUTE (3) ───────────────────────────────────────────    │
-│  ▶ 09:12 → …    2h 30m   läuft                                     │
-│  ▎ 13:00 → 15:42   2h 42m   [deep]                                 │
-│    16:00 → 17:30   1h 30m   [meeting]                              │
-│                                                                    │
-│  s → stoppen  ·  j/k → bewegen  ·  : → aktionen  ·  enter → bearb. │
-╰────────────────────────────────────────────────────────────────────╯
+┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│   Browser    │   │  Terminal    │   │ Claude Code  │
+│   (WebUI)    │   │  flow (TUI)  │   │  flow-mcp    │
+└──────┬───────┘   └──────┬───────┘   └──────┬───────┘
+       │ HTML+SSE         │ HTTP+Bearer      │ HTTP+Bearer
+       └──────────────────┼──────────────────┘
+                          │
+                   ┌──────┴───────┐
+                   │ flow-server  │  OIDC · SSE · owner-scoped
+                   └──────┬───────┘
+                          │
+                   ┌──────┴───────┐
+                   │  PostgreSQL  │  + pgvector, pg_trgm
+                   └──────────────┘
 ```
 
-`flow` lebt als Sidekick-Pane in tmux: ein dauerhaft sichtbares Panel
-neben Deinem Editor, das die Werkzeuge bereitstellt, die Du beim
-Programmieren ständig brauchst — Zeiterfassung, Notizen, Projekt-
-Wechsel, Cheatsheet — ohne den Kontext zu verlassen.
+---
+
+## Drei Binaries
+
+| Binary        | Rolle                                                                 |
+| ------------- | --------------------------------------------------------------------- |
+| `flow-server` | HTTP-Server: WebUI (server-rendered), REST-API, SSE, OIDC, Migrationen |
+| `flow`        | CLI + TUI gegen den Server — Worktime, Docs, Nodes, Kontext, Export    |
+| `flow-mcp`    | MCP-Server, der dieselbe API für AI-Agents zugänglich macht            |
+
+`flow-mcp` ist ein reiner Client: er spricht ausschließlich die REST-API und hat
+keinerlei Server-Code im Abhängigkeitsbaum. Ein Update der MCP-Tools braucht
+deshalb kein Server-Deployment.
 
 ---
 
 ## Was steckt drin
 
-▶  **Worktime** — Sessions tracken, pausieren, korrigieren. Sessions
-   pro Tag, Streak-Anzeige, Heatmap, Tag-Clock und Monatsraster für die
-   History. Brief-Markdown, CSV/JSON-Export, Stats für beliebige
-   Ranges. Feiertage werden pro Bundesland automatisch synced.
+**Worktime** — Sessions starten, pausieren, korrigieren; Tagesziel, Woche,
+Historie. Freie Tage (Urlaub, Krank, Feiertage) als eigene Fläche. Export nach
+CSV/JSON pro Projekt und Zeitraum. Läuft ein Timer, propagiert jede Änderung
+über SSE live in alle offenen Oberflächen.
 
-★  **Kompendium** — Markdown-Notizbuch mit FTS5-Suche, Daily-/Project-/
-   Free-Notes, Wikilinks, Backlinks. Git-backed Sync, In-Editor öffnen
-   (nvim default) und ein Browser-TUI mit voll integriertem Markdown-
-   Viewer (Syntax-Highlighting, OSC-8-Hyperlinks, Theme-Aware).
+**Wissen** — Markdown-Dokumente mit Typen (`spec`, `plan`, `memory`,
+`instruction`, `skill`, `daily`, `project`, `free`), Wikilinks und Backlinks.
+Die Suche ist hybrid: Postgres-FTS für Phrasen, `pg_trgm` für Fragmente und
+Tippfehler, `pgvector` für Bedeutung. Binäres hängt als Artefakt am Dokument
+oder am Node.
 
-●  **Sidekick** — TUI-Shell mit fünf Tabs: Palette · Projekte ·
-   Worktime · Cheatsheet · Notes. Globaler Filter, fzf-style Fuzzy-
-   Picker, persistenter UI-State.
+**Nodes** — die Projekthierarchie aus `engagement` → `vorhaben` → `repo`.
+Verzeichnisse und Git-Remotes werden an Nodes gebunden, sodass jede Oberfläche
+weiß, in welchem Projekt sie gerade steht. Worktime rollt über den Teilbaum auf.
 
-☼  **Palette** — Universeller Befehls-Launcher (wie ein eigener
-   tmux-Popup), durchsuchbar mit Live-Filter, Direktwahl per `1`-`9`,
-   Pin-bare Favoriten.
+**Kontext** — ein kuratierter, budgetierter Auszug (Instruktionen, Memories,
+aktiver Stand), den AI-Agents beim Session-Start ziehen, statt sich durch das
+Repo zu raten.
 
-▲  **Status-Bar** — `flow worktime status` liefert ein tmux-`status-right`-
-   Segment, das den aktuellen Session-Stand auf einen Blick zeigt
-   (`▶ 2h 30m`, `⏸ Pause`, `✓ 8h 00m`).
+**Cockpit** — die Einstiegsfläche, die Zeit, laufende Arbeit und Aktivität
+zusammenzieht.
 
-✓  **Eine Binary, drei Einstiegspunkte** — `flow sidekick` (TUI),
-   `flow worktime <verb>` (Tracker-CLI), `flow kompendium <verb>`
-   (Notizbuch-CLI).
-
----
-
-## Voraussetzungen
-
-| Komponente            | Pflicht | Wofür                                                              |
-| --------------------- | ------- | ------------------------------------------------------------------ |
-| **Go 1.25+**          | Ja      | Build (Pure-Go-Binary, kein cgo, kein C-Compiler nötig)            |
-| **tmux**              | empf.   | Sidekick-Pane, Status-Right-Segment, Aktions-Menü-Output-Target    |
-| **git**               | empf.   | Kompendium-Sync, Snapshot-Adapter                                  |
-| **less**              | optional| Pager-Fallback für CSV/JSON/Stats im tmux-Split                    |
-| **nvim** / `$EDITOR`  | optional| Kompendium-Note-Edit (Default `nvim`; `$VISUAL`/`$EDITOR` greifen) |
-| **pbcopy** / **xclip**| optional| Aktions-Menü Clipboard-Target (macOS / Linux)                      |
-| **TrueColor-Terminal**| empf.   | Lipgloss-Themes erwarten 24-Bit-Farbe (Ghostty, iTerm2, Alacritty) |
-
-Markdown-Rendering (Brief, Heute-Note-View, Cheatsheet, Kompendium-Browse)
-läuft komplett in-process über den integrierten Renderer — kein `glow`
-oder anderer externer Viewer mehr nötig.
-
-Standalone-CLI (`flow worktime stop`, `flow worktime brief`, …) läuft
-auch ohne tmux. Nur das interaktive TUI macht ohne tmux wenig Sinn,
-weil sich Sidekick und Status-Bar gegenseitig brauchen.
-
-## Installation
-
-### macOS (Homebrew)
-
-```sh
-brew install go tmux neovim git
-git clone https://github.com/serverkraken/flow.git
-cd flow
-make install            # → ~/.local/bin/flow
-```
-
-`pbcopy` / `pbpaste` sind auf macOS Bordmittel — kein extra Install.
-Stelle sicher, dass `~/.local/bin` im `PATH` liegt:
-
-```sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-```
-
-### Debian / Ubuntu
-
-`apt`s Go-Paket hinkt in der Regel mehrere Versionen hinterher; für
-Go 1.25 die offizielle Binary von `go.dev/dl` ziehen oder einen
-Version-Manager (`mise` / `asdf`) verwenden.
-
-```sh
-# Laufzeit-Tools aus apt — alle pflichtfrei außer git
-sudo apt update
-sudo apt install -y tmux git less xclip neovim
-
-# Go 1.25 offiziell
-GO_VERSION=1.25.0
-curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
-sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf /tmp/go.tar.gz
-echo 'export PATH="/usr/local/go/bin:$HOME/go/bin:$HOME/.local/bin:$PATH"' >> ~/.bashrc
-exec $SHELL -l
-
-# Build
-git clone https://github.com/serverkraken/flow.git
-cd flow
-make install            # → ~/.local/bin/flow
-```
-
-### Build-Targets
-
-| Target          | Tut                                                       |
-| --------------- | --------------------------------------------------------- |
-| `make build`    | Binary nach `bin/flow` (lokal, kein Install)              |
-| `make install`  | `go install` nach `~/.local/bin/flow`                     |
-| `go build -o /irgendwo/flow ./cmd/flow` | Manueller Build mit eigenem Pfad      |
-
-Cross-Compile (z.B. Linux-Binary von macOS aus):
-
-```sh
-GOOS=linux   GOARCH=amd64 go build -o bin/flow-linux-amd64  ./cmd/flow
-GOOS=darwin  GOARCH=arm64 go build -o bin/flow-darwin-arm64 ./cmd/flow
-GOOS=darwin  GOARCH=amd64 go build -o bin/flow-darwin-amd64 ./cmd/flow
-```
-
-CGO ist nicht erforderlich (`modernc.org/sqlite` ist Pure-Go) — der
-Cross-Compile-Build braucht keinen C-Toolchain für die Zielarchitektur.
-
-### Verifizieren
-
-```sh
-flow --help              # Subcommand-Übersicht
-flow worktime status     # tmux status-right Segment auf stdout
-flow kompendium doctor   # Notebook-Health-Check
-```
-
-`flow sidekick` startet die TUI direkt; üblicher ist sie als tmux-Pane
-über die Bindings im Abschnitt [tmux-Integration](#tmux-integration).
-
----
-
-## Quickstart
-
-### Worktime
-
-Im Sidekick (TUI) — oder als Standalone-TUI über `flow worktime today`:
-
-```
-1   Heute              ·   2   Woche
-3   History            ·   4   Frei (Feiertage / Urlaub / Krank)
-:   Aktions-Menü (Brief, Export, Stats, Korrektur, Land)
-?   Hilfe              ·   q   Beenden
-```
-
-CLI für die Bindings in `tmux.conf`:
-
-```sh
-flow worktime start          # jetzt starten — auch HH:MM oder -30m
-flow worktime stop            # Session beenden (idempotent)
-flow worktime pause           # Pause einlegen
-flow worktime resume          # weitermachen
-flow worktime toggle          # start wenn idle, stopp wenn läuft
-flow worktime correct 09:30   # Startzeit der laufenden Session fixen
-flow worktime brief week      # Wochen-Standup als Markdown
-flow worktime export csv      # Sessions exportieren
-flow worktime stats month     # Aggregate-Stats
-flow worktime status          # tmux status-right Segment
-```
-
-### Kompendium
-
-```sh
-flow kompendium new daily            # heutige Daily-Note
-flow kompendium new project          # Projekt-Note (cwd-aware)
-flow kompendium new free <slug>      # freie Notiz
-flow kompendium today                # heutige Daily öffnen
-flow kompendium ls                   # alle Notizen listen
-flow kompendium search "<query>"     # FTS5-Volltextsuche
-flow kompendium browse               # TUI-Browser mit Live-Preview
-flow kompendium sync                 # gegen das Remote pushen/pullen
-flow kompendium doctor               # Notebook-Health-Check
-```
-
-Daten-Default: `~/notes` (override mit `$NOTES_DIR`), Index unter
-`$XDG_DATA_HOME/kompendium/index.db`.
-
----
-
-## Konfiguration
-
-Worktime-Verhalten:
-
-| Variable                    | Default     | Bedeutung                                      |
-| --------------------------- | ----------- | ---------------------------------------------- |
-| `WORKTIME_TARGET_HOURS`     | `8`         | Tagessoll in Stunden                           |
-| `WORKTIME_LAND`             | `NW`        | Default-Bundesland für Feiertags-Sync          |
-
-Per-Weekday-Targets gehen in `~/.tmux/worktime.conf`:
-
-```ini
-target_hours    = 8
-target_mon      = 8
-target_fri      = 6        # Halber Freitag
-tag_target_deep = 4        # Optional: Pro-Tag-Mindestziel
-```
-
-Integration:
-
-| Variable            | Default              | Bedeutung                                     |
-| ------------------- | -------------------- | --------------------------------------------- |
-| `NOTES_DIR`         | `~/notes`            | Kompendium-Notizbuch-Wurzel                   |
-| `XDG_DATA_HOME`     | `~/.local/share`     | FTS5-Index unter `<root>/kompendium/index.db` |
-| `SOURCECODE_ROOT`   | `~/Sourcecode`       | Wurzel für die Projekte-Liste                 |
+Menschen und AI-Agents sind dabei gleichberechtigte Akteure: `actor kind`
+(human/agent) zieht sich durch Aktivität, Avatare und MCP.
 
 ---
 
 ## Architektur
 
-`flow` ist hexagonal organisiert — zwei koexistierende Pyramiden
-(flow's eigener Stack + die Kompendium-Subtree) treffen sich nur am
-Composition-Root und über klar definierte Cross-Boundary-Ports.
+Hexagonal, mit einer Verantwortung pro Datei:
 
 ```
-cmd/flow/main.go                  Composition-Root (~290 Zeilen Wiring)
+cmd/
+  flow-server/       Composition-Root des Servers (main.go + server.go)
+  flow/              cobra-CLI + TUI
+  flow-mcp/          MCP-Server
 internal/
-  domain/                         Pure Logik (stdlib only)
-  ports/                          Interfaces — keine I/O
-  usecase/                        Anwendungsfälle gegen Ports
-  adapter/<backend>/              I/O-Implementierungen
-  frontend/
-    cli/                          cobra-Subcommands
-    tui/
-      components/                 picker · titlebox · toast · confirm · …
-      markdown/                   Geteilter goldmark + chroma-Renderer
-      sidekick/                   Bubbletea-Root (5-Tab-Routing)
-      screen/{palette,projects,worktime,cheatsheet}/
-  testutil/                       In-Memory-Fakes für jeden Port
-  kompendium/                     Eigener hexagonaler Subtree
-    domain/  ports/  usecase/  adapter/  frontend/
+  domain/            reine Logik, keine I/O
+  ports/             Interfaces
+  usecase/           Anwendungsfälle — je ein Execute(...)
+  adapter/
+    httpserver/      HTTP-Handler, REST + WebUI-Routen
+    webui/           templ-Komponenten, Seiten, statische Assets
+    pgstore/         Postgres + goose-Migrationen
+    apiclient/       HTTP-Client, den CLI/TUI/MCP teilen
+    oidcauth/  oidcdevice/  oidcverify/  websession/  tokenstore/
+    sse/  embed/  editor/  opener/  systemclock/  uuidgen/
+  tui/               bubbletea-Screens und UI-Primitives
+  i18n/              catalog_de.go + catalog_en.go (Parität test-erzwungen)
 ```
 
-Layer-Regeln werden via depguard-Lints erzwungen — jede neue Datei landet
-genau in der Schicht, die zu ihrer Verantwortung passt, sonst schlägt
-`make lint` an.
+Jeder Datenzugriff ist **owner-scoped** — `ownerID` gehört in jede
+Store-Query. Cross-Tenant-Leaks gelten als Critical-Finding, und
+Performance- wie Sicherheitsargumente müssen pro Tenant halten.
 
-Mehr Detail in `CLAUDE.md` (Projektkonventionen) und in den `CLAUDE-*-plan.md`-
-Dateien zu den großen Refactor-Wellen (hexagonal, kompendium-integration,
-worktime-menu).
+---
+
+## Voraussetzungen
+
+| Komponente          | Pflicht  | Wofür                                              |
+| ------------------- | -------- | -------------------------------------------------- |
+| **Go 1.25+**        | ja       | Build aller drei Binaries                          |
+| **PostgreSQL 16+**  | ja       | mit `pgvector`; `pg_trgm` kommt aus contrib        |
+| **OIDC-Provider**   | ja       | Authentik, Dex, … — Login für WebUI und CLI        |
+| **podman**          | dev      | lokaler Stack (Postgres + Dex) via `make dev-up`   |
+| **tailwindcss-CLI** | dev      | nur für `make web`; nicht Teil von `make ci`       |
+| **Ollama**          | optional | Embeddings für die semantische Suche               |
+
+---
+
+## Lokal entwickeln
+
+Der Dev-Stack ist self-contained: Postgres und Dex laufen in Containern,
+`flow-server` bewusst auf dem Host — so lösen Browser und Server dieselbe
+Issuer-URL auf.
+
+```sh
+make dev-up      # Postgres + Dex, wartet bis beide bereit sind
+make dev-run     # flow-server auf https://localhost:8080 (migriert automatisch)
+make dev-token   # Dex-id_token für Bearer-Aufrufe
+make dev-down    # Teardown (ARGS=-v verwirft auch das DB-Volume)
+```
+
+Login im Browser: **msoent@dev.local / password**. Zwei Tabs nebeneinander
+zeigen die SSE-Live-Sync ohne Reload. Details und Fallstricke — Selfsigned-Cert,
+Allowlist gegen den Dex-`sub`, LAN-Zugriff — stehen in
+[`deploy/dev/README.md`](deploy/dev/README.md).
+
+---
+
+## Installieren
+
+```sh
+git clone https://github.com/serverkraken/flow.git
+cd flow
+make install     # flow, flow-server, flow-mcp -> ~/.local/bin
+```
+
+> **Hinweis zu GitHub-Releases:** die veröffentlichten Releases (aktuell
+> `v1.4.3`) stammen noch aus der Zeit **vor** dem Rebuild-Cutover und enthalten
+> die alte Single-Binary-App. Bis der erste Release auf dem neuen Baum
+> durchgelaufen ist, ist `make install` der richtige Weg. Danach liefern die
+> Archive `flow_<os>_<arch>.tar.gz` und `flow-mcp_<os>_<arch>.tar.gz`.
+> `flow-server` wird nicht als Archiv veröffentlicht, sondern als Container-Image.
+
+---
+
+## Konfiguration
+
+`flow-server` liest ausschließlich Environment-Variablen:
+
+| Variable                     | Bedeutung                                            |
+| ---------------------------- | ---------------------------------------------------- |
+| `FLOW_LISTEN_ADDR`           | Listen-Adresse                                       |
+| `FLOW_PUBLIC_BASE_URL`       | öffentliche Basis-URL (OIDC-Redirects)               |
+| `FLOW_SESSION_SECRET`        | Signaturschlüssel für Session-Cookies                |
+| `FLOW_OIDC_ISSUER`           | Issuer für den Browser-Auth-Code-Flow                |
+| `FLOW_OIDC_CLIENT_ID`        | Client-ID des Browser-Clients                        |
+| `FLOW_OIDC_CLIENT_SECRET`    | Client-Secret des Browser-Clients                    |
+| `FLOW_OIDC_CLI_ISSUER`       | Issuer für den CLI-Device-Flow                       |
+| `FLOW_OIDC_CLI_CLIENT_ID`    | Client-ID des CLI-Clients                            |
+| `FLOW_ALLOWED_SUBS`          | Allowlist auf OIDC-`sub`                             |
+| `FLOW_ALLOWED_GROUPS`        | Allowlist auf Gruppen-Claim                          |
+| `FLOW_CONTEXT_BUDGET`        | Token-Budget des Kontext-Auszugs (Default 12k)       |
+| `FLOW_OLLAMA_HOST`           | Ollama-Endpunkt für Embeddings                       |
+| `FLOW_EMBED_MODEL`           | Embedding-Modell                                     |
+| `FLOW_EMBED_BATCH`           | Batch-Größe des Embedding-Workers                    |
+| `FLOW_EMBED_INTERVAL`        | Intervall des Embedding-Workers                      |
+| `FLOW_EMBED_TIMEOUT`         | Timeout pro Embedding-Aufruf                         |
+| `FLOW_MIGRATE_ONLY`          | nur migrieren, dann beenden                          |
+| `FLOW_DEV`                   | Dev-Modus — u.a. Session-Cookie ohne `Secure`        |
+
+`FLOW_DEV=1` ist auf localhost Pflicht: sonst bekommt das Session-Cookie
+`Secure`, wird über http nie gesendet, und der Login läuft in eine Schleife.
+
+---
+
+## MCP-Integration
+
+`flow-mcp` stellt AI-Agents 31 Tools bereit — Dokumente lesen und schreiben,
+suchen, Nodes und Bindings verwalten, Artefakte hochladen, Kontext kuratieren
+und den aktiven Stand flushen. Für Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "flow": {
+      "command": "flow-mcp",
+      "env": {
+        "FLOW_SERVER_URL": "https://flow.example.org",
+        "FLOW_OIDC_ISSUER": "https://id.example.org/application/o/flow-cli/"
+      }
+    }
+  }
+}
+```
+
+Authentifiziert wird per Device-Flow — einmal `flow login`, danach liegt das
+Token im System-Keyring.
 
 ---
 
 ## Build · Test · Lint
 
-| Target          | Tut                                                                  |
-| --------------- | -------------------------------------------------------------------- |
-| `make build`    | Binary nach `bin/flow`                                               |
-| `make install`  | `go install` nach `~/.local/bin`                                     |
-| `make test`     | `go test -race ./...`                                                |
-| `make cover`    | Coverage gegen den 85%-Gate                                          |
-| `make lint`     | `golangci-lint run` (depguard, errcheck, staticcheck, revive, …)     |
-| `make fmt`      | `gofumpt` + `goimports`                                              |
-| `make ci`       | `lint cover build` — spiegelt GitHub Actions                         |
+| Target                 | Tut                                                        |
+| ---------------------- | ---------------------------------------------------------- |
+| `make build`           | alle drei Binaries nach `bin/`                             |
+| `make install`         | Binaries nach `$PREFIX/bin` (Default `~/.local/bin`)       |
+| `make test`            | `go test -race ./...`                                      |
+| `make cover`           | Coverage gegen das 75-%-Gate (`*_templ.go` ausgenommen)    |
+| `make lint`            | `golangci-lint run`                                        |
+| `make generate`        | `templ generate` — die `*_templ.go` werden committet       |
+| `make web`             | Tailwind-Build nach `internal/adapter/webui/static/app.css`|
+| `make verify-generate` | schlägt an, wenn generierte Dateien veraltet sind          |
+| `make verify-css`      | schlägt an, wenn `app.css` nicht zum Quellstand passt      |
+| `make verify-no-popups`| verbietet native Browser-Popups in der WebUI               |
+| `make ci`              | alles davon in der Reihenfolge, die auch das Gate ist      |
 
-Single-Test-Lauf:
+`make ci` muss grün sein, bevor etwas „fertig" ist. `make fmt` bitte **nicht**
+laufen lassen — die Toolchain driftet gegenüber CI.
 
-```sh
-go test -race -run TestName ./internal/usecase/...
-```
-
-Cross-Build (Darwin amd64/arm64, Linux amd64) läuft in CI.
-
----
-
-## Glyphen-Konvention
-
-Die TUI verwendet bewusst nur Monospace-Glyphen, keine Emoji-
-Pictogramme — auf jedem Font, in jedem Terminal exakt eine Zelle breit:
-
-```
-▶   läuft / start              ✓   ok / Ziel erreicht
-●   ○   gefüllt / leer         ★   Feiertag
-☼   Urlaub                     ✚   Krank
-▲   on track                   ▼   behind
-▰   Bar gefüllt                ▱   Bar leer
-░ ▒ ▓ █  Heatmap-Stufen
-```
+Eine Falle, die mehrfach zugeschlagen hat: Tailwind v4 scannt jede nicht
+ignorierte Datei im Repo und liest Prosa als Klassen-Token. `docs/`, `.claude/`
+und Root-Markdown sind deshalb in `web/tailwind.css` per `@source not`
+ausgeschlossen. Wer eine neue Datei ins Root legt, prüft `make verify-css`.
 
 ---
 
-## tmux-Integration
+## Konventionen
 
-Beispiel-Bindings für `~/.tmux.conf`:
+- **WebUI:** templ + htmx + Tailwind, server-rendered. Kein SPA, kein Node zur
+  Laufzeit. Fragmente aktualisieren sich über `hx-trigger="sse:<event>"`.
+- **i18n:** keine hartcodierten Strings — alles über `components.T(ctx, key)`
+  gegen `catalog_de.go` / `catalog_en.go`, deren Parität ein Test erzwingt.
+- **Keine Browser-Popups.** `confirm()`/`alert()` sind verboten, es gibt eine
+  eigene Dialog-Komponente; `make verify-no-popups` hält das durch.
+- **Keine Emoji-Piktogramme.** Nur Monospace-Glyphen (`● ◆ ⬡ ▶ ■ ▰ ▱`) und SVG —
+  eine Zelle breit auf jedem Font.
+- **Eine Verantwortung pro Datei.** Keine Monolithen; Tests liegen daneben.
+- **Commits:** Conventional Commits, kleine Schritte, Test zuerst.
 
-```tmux
-bind -n M-s run-shell "flow worktime toggle"
-bind -n M-S run-shell "flow worktime stop"
-bind -n M-, run-shell "flow worktime pause"
-bind -n M-. run-shell "flow worktime resume"
-
-set -g status-right "#(flow worktime status)"
-set -g status-interval 5
-```
-
-`flow worktime <verb>` ruft intern `tmux refresh-client -S` auf, sodass
-das Status-Segment sofort den neuen Stand zeigt. Mutation-Verbs sind
-**idempotent** (Stop bei kein-Lauf ist No-op statt Fehler) — perfekt
-für blinde tmux-Bindings.
+Verbindliche Details für Coding-Agents stehen in [`AGENTS.md`](AGENTS.md).
 
 ---
 
-## Releases
+## Deployment
 
-Versionierung ist automatisch — der Release-Workflow nutzt
-[release-please](https://github.com/googleapis/release-please) und
-[GoReleaser](https://goreleaser.com).
-
-**Conventional-Commit-Flow:**
-
-```
-feat:     → Minor-Bump (0.1.0 → 0.2.0)
-fix:      → Patch-Bump (0.1.0 → 0.1.1)
-feat!:    → Major-Bump
-chore: ci: docs: test:    → kein Bump (im Hidden-Changelog)
-```
-
-**Was beim Push auf main passiert:**
-
-1. **release-please** liest neue Conventional-Commits seit dem letzten
-   Tag und öffnet (oder aktualisiert) eine Release-PR mit dem
-   nächsten SemVer + auto-generiertem Changelog.
-2. Beim **Mergen der Release-PR**: ein Tag `vX.Y.Z` wird gepusht und
-   eine GitHub-Release mit den Notes aus dem Changelog angelegt.
-3. **GoReleaser** läuft danach im selben Workflow, baut Cross-
-   Plattform-Binaries (linux/amd64, darwin/{amd64,arm64}) und hängt
-   sie + `checksums.txt` an die Release.
-
-Releases liegen unter `Releases` im GitHub-Repo. Install ohne Go-
-Toolchain — Archiv-Name ist über alle Versionen stabil, das `latest`-
-Redirect resolved automatisch:
-
-```sh
-# macOS Apple Silicon
-curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/flow_darwin_arm64.tar.gz \
-  | tar -xz && sudo install flow /usr/local/bin/
-
-# macOS Intel
-curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/flow_darwin_amd64.tar.gz \
-  | tar -xz && sudo install flow /usr/local/bin/
-
-# Linux amd64
-curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/flow_linux_amd64.tar.gz \
-  | tar -xz && sudo install flow /usr/local/bin/
-```
-
-Eine bestimmte Version pinnen geht über `releases/download/vX.Y.Z/`:
-
-```sh
-curl -fsSL https://github.com/serverkraken/flow/releases/download/v0.1.0/flow_darwin_arm64.tar.gz \
-  | tar -xz
-```
-
-Checksums liegen unter `checksums.txt` in jeder Release. Verify:
-
-```sh
-curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/checksums.txt -o checksums.txt
-sha256sum -c checksums.txt --ignore-missing
-```
+`flow-server` wird als Multi-Arch-Container-Image nach GHCR gebaut
+(`ghcr.io/serverkraken/flow-server`), getaggt mit Commit-SHA und `latest`.
+Dockerfile: [`deploy/podman/Dockerfile.server`](deploy/podman/Dockerfile.server).
+Der Digest steht in der Job-Summary des Build-Workflows und wird downstream
+gepinnt.
 
 ---
 
