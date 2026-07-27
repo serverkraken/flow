@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/serverkraken/flow/compare/v2.0.0...v2.0.1) (2026-07-27)
+
+
+### Bug Fixes
+
+* **deps:** bump x/crypto to 0.52.0 and x/net to 0.55.0 ([#58](https://github.com/serverkraken/flow/issues/58)) ([d213157](https://github.com/serverkraken/flow/commit/d213157a8de7c6bb860866bebb371d684ca84484))
+
 ## [2.0.0](https://github.com/serverkraken/flow/compare/v1.4.3...v2.0.0) (2026-07-27)
 
 
