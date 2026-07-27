@@ -213,6 +213,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/nodes/{id}/artifacts", s.auth(http.HandlerFunc(s.handleListArtifacts)))
 	mux.Handle("DELETE /api/v1/nodes/{id}/artifacts/{slug}", s.auth(http.HandlerFunc(s.handleDeleteArtifact)))
 
+	// fr-node-logo: token-authed REST logo upload (replace-on-upload) so
+	// flow-mcp and other non-browser clients can set node logos.
+	mux.Handle("PUT /api/v1/nodes/{id}/logo", s.auth(http.HandlerFunc(s.handleAPISetNodeLogo)))
+
 	// Free (node-less, free-artifacts Task 3) artifact REST verbs — the
 	// owner-global counterparts of the /api/v1/nodes/{id}/artifacts trio.
 	mux.Handle("POST /api/v1/artifacts", s.auth(http.HandlerFunc(s.handleUploadFreeArtifact)))

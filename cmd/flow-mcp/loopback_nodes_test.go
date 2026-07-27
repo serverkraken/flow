@@ -22,7 +22,7 @@ var newNodeTools = []string{
 	"flow_get_node", "flow_set_node_tags", "flow_node_binding",
 }
 
-// TestLoopback_NodeToolSurfaceIsComplete is the wiring gate: 31 tools, every new
+// TestLoopback_NodeToolSurfaceIsComplete is the wiring gate: 32 tools, every new
 // name advertised, and the two changed tools still present.
 func TestLoopback_NodeToolSurfaceIsComplete(t *testing.T) {
 	sess := authedNodeChainServer(t)
@@ -30,8 +30,8 @@ func TestLoopback_NodeToolSurfaceIsComplete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 31 {
-		t.Fatalf("tool count = %d, want 31 (25 before this slice + 6 new); got %v",
+	if len(tools.Tools) != 32 {
+		t.Fatalf("tool count = %d, want 32 (25 before node-mgmt + 6 node tools + fr-node-logo); got %v",
 			len(tools.Tools), toolNames(tools.Tools))
 	}
 	for _, name := range newNodeTools {

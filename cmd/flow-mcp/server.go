@@ -177,6 +177,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Delete an artifact by slug from a node. Scoped to the current project by default; pass node to target another.",
 	}, h.deleteArtifact)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_set_node_logo",
+		Description: "Set a node's logo image (replace-on-upload; shown in the Cockpit and node lists). PNG, JPEG or WebP up to 512 KiB; roughly square images (aspect 0.8-1.25) render best. Pass exactly one source: path reads a local file from the flow-mcp process (relative paths use its working directory); base64 accepts inline encoded content. Scoped to the current project by default; pass node to target another.",
+	}, h.setNodeLogo)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_node_binding",
 		Description: "Manage the bindings that map a directory or a git remote to a node. action=bind attaches the target to node (required) — a target can only be bound to ONE node, so binding an already-bound target MOVES it to the new node; check with action=resolve first. action=unbind detaches the target (a binding is addressed by its target alone, so do NOT pass node); action=list shows this owner's bindings across ALL devices with the machine label per path binding, optionally filtered by node; action=resolve reports which node a target currently resolves to, plus its engagement, without binding anything (no node here either). Address the target with path (a directory that must exist; ~ and relative paths resolve against the flow-mcp process) or remote (a clone URL or host/path slug, no local checkout needed); omit both for the process's working directory.",
 	}, h.nodeBinding)
