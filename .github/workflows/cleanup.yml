@@ -7,3 +7,10 @@ on:
 jobs:
   cleanup:
     uses: serverkraken/reusable-workflows/.github/workflows/cleanup-images.yml@v4
+    with:
+      # Without this input the reusable workflow derives the package name from
+      # the repository name and queries ghcr.io/serverkraken/flow — a package
+      # that never existed, because the pre-cutover main shipped no image at
+      # all. Every scheduled run therefore died with HTTP 404, a jq error on
+      # the error response, and exit 5. This repo publishes as flow-server.
+      package_name: flow-server
