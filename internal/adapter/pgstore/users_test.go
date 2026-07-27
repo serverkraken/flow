@@ -52,9 +52,16 @@ func startPG(t *testing.T) string {
 	t.Helper()
 	ctx := context.Background()
 	pgOnce.Do(func() {
+		// The postgres image starts the server TWICE (initdb bootstrap, then the
+		// real server). ForListeningPort unblocks during the bootstrap server,
+		// so connecting right after races the restart and dies with "connection
+		// reset by peer" on slow runners. Wait for the second "ready to accept
+		// connections" log line instead — the strategy the testcontainers
+		// postgres module also uses by default.
 		c, err := tcpg.Run(ctx, "pgvector/pgvector:pg16",
 			tcpg.WithDatabase("flow_test"), tcpg.WithUsername("flow"), tcpg.WithPassword("flow"),
-			testcontainers.WithWaitStrategy(wait.ForListeningPort("5432/tcp").WithStartupTimeout(60*time.Second)))
+			testcontainers.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).WithStartupTimeout(120*time.Second)))
 		if err != nil {
 			pgStartErr = err
 			return
