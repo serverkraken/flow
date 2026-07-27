@@ -44,3 +44,37 @@ func TestDocRenderScripts_MountsLightbox(t *testing.T) {
 		t.Fatalf("the lightbox must start closed:\n%s", out)
 	}
 }
+
+// TestDocRenderScripts_ScriptAssetsExist ties the mounted <script src> values
+// to the embedded asset tree: AssetURL only builds a string, so a typo in the
+// path compiles, renders, and then 404s silently in the browser. Every
+// /static/ URL DocRenderScripts emits must resolve to a real embedded file.
+func TestDocRenderScripts_ScriptAssetsExist(t *testing.T) {
+	out := renderToBuf(t, context.Background(), DocRenderScripts())
+
+	const marker = `src="/static/`
+	found := 0
+	for rest := out; ; {
+		i := strings.Index(rest, marker)
+		if i < 0 {
+			break
+		}
+		rest = rest[i+len(marker):]
+		end := strings.IndexByte(rest, '"')
+		if end < 0 {
+			t.Fatalf("unterminated src attribute in:\n%s", out)
+		}
+		path := rest[:end]
+		if q := strings.IndexByte(path, '?'); q >= 0 { // "?v=<hash>" abschneiden
+			path = path[:q]
+		}
+		if _, err := staticFS.ReadFile("static/" + path); err != nil {
+			t.Fatalf("DocRenderScripts references a missing asset %q: %v", path, err)
+		}
+		found++
+		rest = rest[end:]
+	}
+	if found == 0 {
+		t.Fatalf("expected at least one /static/ asset reference:\n%s", out)
+	}
+}
