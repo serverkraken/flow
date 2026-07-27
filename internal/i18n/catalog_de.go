@@ -316,6 +316,8 @@ func init() {
 			// Artefakt-Embeds ![[slug]] (Lesesaal L6 Task 3)
 			"document.figure.download":   "Herunterladen",
 			"document.figure.unresolved": "Unaufgelöste Artefakt-Referenz",
+			// Bild-Lightbox (fr-doc-lightbox): aria-label des klickbaren Bildes
+			"document.image.zoom": "Bild vergrößern",
 			// Provenance-Zeile + docrail (Lesesaal L3 Task 5)
 			"document.readtime":           "min Lesezeit",
 			"document.updatedRel":         "aktualisiert %s",

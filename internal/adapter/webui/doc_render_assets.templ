@@ -1,10 +1,18 @@
 package webui
 
-// DocRenderScripts mounts the client-side scripts that turn RenderDocument's
-// server-rendered document HTML into its full presentation — currently only
-// mermaid-init.js (renders <pre class="mermaid"> blocks into diagrams; chroma
-// code-highlighting and prose styling are pure CSS from components.Base and
-// need no script).
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// DocRenderScripts mounts the client-side scripts and shared markup that turn
+// RenderDocument's server-rendered document HTML into its full presentation:
+//   - mermaid-init.js — renders <pre class="mermaid"> blocks into diagrams
+//   - lightbox.js + #doc-lightbox — click an image to see it enlarged
+//   - dialog.js — supplies the lightbox with Esc / backdrop-click / focus-trap
+//     (its listeners are bound generically to dialog[open], not to a specific
+//     Dialog component instance); the loader is idempotent, so mounting it
+//     here on a page that also renders other Dialogs is harmless
+//
+// chroma code-highlighting and prose styling are pure CSS from components.Base
+// and need no script.
 //
 // It exists so every surface that renders a Kompendium document body mounts the
 // SAME set: the document view (/wissen/{id}, document.templ) and the node
@@ -13,9 +21,24 @@ package webui
 //
 // Mount it ONCE per full page load, OUTSIDE any SSE-/htmx-swapped fragment: each
 // script re-scans the whole document on htmx:afterSwap, so a fragment swap must
-// never re-add the <script> tag itself. Scripts are page-agnostic and lazy-load
-// their heavy libs only when a matching element is present, so a page with no
-// diagram pays nothing.
+// never re-add the <script> tag itself — and the lightbox is ONE dialog for the
+// whole page, not one per image. Scripts are page-agnostic and lazy-load their
+// heavy libs only when a matching element is present, so a page with no diagram
+// pays nothing.
 templ DocRenderScripts() {
 	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
+	<script src={ AssetURL("js/dialog.js") } defer></script>
+	<script src={ AssetURL("js/lightbox.js") } defer></script>
+	<dialog
+		id="doc-lightbox"
+		aria-modal="true"
+		aria-label={ components.T(ctx, "document.image.zoom") }
+		data-zoom-label={ components.T(ctx, "document.image.zoom") }
+		class="lightbox m-auto border-0 bg-transparent p-0 backdrop:bg-ink/40"
+	>
+		<div class="lightbox-bar">
+			@components.IconButton("✕", components.T(ctx, "common.close"), templ.Attributes{"data-dialog-close": true, "type": "button"})
+		</div>
+		<img class="lightbox-img" alt=""/>
+	</dialog>
 }
