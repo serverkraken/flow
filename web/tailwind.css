@@ -11,6 +11,11 @@
    never feed the stylesheet — a committed plan otherwise breaks verify-css. */
 @source not "../docs/**";
 @source not "../.claude/**";
+/* Same hazard at the repo root: prose is not a class source. CHANGELOG.md
+   carries release notes whose commit subjects contain bare utility words — the
+   entry "palette filter blur on esc" alone was enough to emit a .blur rule and
+   turn verify-css red during the rebuild cutover. */
+@source not "../*.md";
 
 /* ════════════════════════════════════════════════════════════════════
    DESIGN TOKENS — one Studio identity, two themes (port of
