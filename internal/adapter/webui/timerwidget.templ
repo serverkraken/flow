@@ -1,0 +1,98 @@
+package webui
+
+import (
+	"strconv"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// TimerWidget is the desktop sidebar card: idle → start form with node picker
+// (+ quick-create); running → live clock + node pill + stop/switch; unbound →
+// stop demands a node. All actions post to /ui/timer/* and swap the mount.
+templ TimerWidget(vm TimerWidgetVM) {
+	<section class="panel p-4 text-[.9rem]">
+		<div class="eyebrow uppercase text-[.62rem] font-bold text-faint mb-2">{ components.T(ctx, "timer.title") }</div>
+		if vm.Err != "" {
+			<p class="mb-2 rounded-lg bg-red/10 px-2.5 py-1.5 text-[.78rem] text-red" role="alert">{ vm.Err }</p>
+		}
+		if !vm.Running {
+			<form hx-post="/ui/timer/start" hx-target="closest section" hx-swap="outerHTML" class="space-y-2">
+				@timerNodeSelect(vm.Bookable, "")
+				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]"/>
+				<div class="grid">
+					@components.Button(components.BtnSecondary, components.T(ctx, "timer.start"), "▶", templ.Attributes{"type": "submit"})
+				</div>
+			</form>
+		} else {
+			<div class="flex items-center gap-2 min-w-0">
+				if vm.NodeName != "" {
+					{{ k := NodeKindStyle(vm.NodeKind) }}
+					<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } title={ vm.NodeName } class="inline-flex min-w-0 items-center gap-1.5">
+						<span class="typechip">{ components.T(ctx, k.LabelKey) }</span>
+						<span class="fade-label">{ vm.NodeName }</span>
+					</a>
+				} else {
+					<span class="text-[.72rem] text-yellow">{ components.T(ctx, "timer.unbound") }</span>
+				}
+				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
+			</div>
+			<form hx-post="/ui/timer/stop" hx-target="closest section" hx-swap="outerHTML" class="mt-2 space-y-2">
+				if vm.Unbound {
+					@timerNodeSelect(vm.Bookable, components.T(ctx, "timer.needNode"))
+				}
+				<div class="grid">
+					@components.Button(components.BtnDanger, components.T(ctx, "timer.stop"), "■", templ.Attributes{"type": "submit"})
+				</div>
+			</form>
+			<details class="mt-1.5">
+				<summary class="cursor-pointer list-none py-1 text-sm md:py-0 md:text-[.72rem] text-muted hover:text-ink">{ components.T(ctx, "timer.switch") } ›</summary>
+				<form hx-post="/ui/timer/switch" hx-target="closest section" hx-swap="outerHTML" class="mt-1.5 space-y-2">
+					@timerNodeSelect(vm.Bookable, "")
+					<div class="grid">
+						@components.Button(components.BtnSecondary, components.T(ctx, "timer.switch"), "⇄", templ.Attributes{"type": "submit"})
+					</div>
+				</form>
+			</details>
+		}
+	</section>
+}
+
+// timerNodeSelect is the shared bookable-node picker. label may be "".
+templ timerNodeSelect(bookable []domain.Node, label string) {
+	if label != "" {
+		<label class="block text-sm md:text-[.72rem] text-yellow">{ label }</label>
+	}
+	<select name="projectId" class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]">
+		<option value="">{ components.T(ctx, "timer.choose") }</option>
+		for _, n := range bookable {
+			<option value={ n.ID }>{ n.Name }</option>
+		}
+	</select>
+}
+
+// TimerPill ist DAS eine Timer-Instrument (Spec §10): läuft → Live-Punkt +
+// tickende Mono-Uhr + Kurzname (Link zum Knoten); idle → ruhiger Start, der
+// das Timer-Sheet (TimerWidget als Dialog-Body) öffnet.
+templ TimerPill(vm TimerWidgetVM) {
+	if vm.Running {
+		<span class="timerpill inline-flex items-center gap-2 rounded-full border border-hair2 bg-surface pl-2.5 pr-3 py-[5px]">
+			<span class="h-[7px] w-[7px] rounded-full bg-live-bright shadow-[0_0_0_3px_rgb(var(--live-wash))]" aria-hidden="true"></span>
+			<span class="font-mono tnum text-[13px] font-semibold" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
+			if vm.NodeName != "" {
+				<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } title={ vm.NodeName } class="topbar-timer-name max-w-[110px] truncate text-[12.5px] text-meta hover:text-accent">{ ShortName(vm.NodeName) }</a>
+			}
+			<button type="button" data-dialog-open="timer-sheet" aria-label={ components.T(ctx, "timer.title") } class="text-meta hover:text-ink text-[12px]">▾</button>
+		</span>
+	} else {
+		<button type="button" data-dialog-open="timer-sheet"
+			class="timerpill inline-flex items-center gap-1.5 rounded-full border border-hair2 bg-surface px-3 py-[5px] text-[13px] font-medium text-meta hover:text-ink hover:border-faint">
+			<span aria-hidden="true">▶</span> { components.T(ctx, "timer.start") }
+		</button>
+	}
+	@components.Dialog("timer-sheet", "timer.title", timerSheetBody(vm), false)
+}
+
+templ timerSheetBody(vm TimerWidgetVM) {
+	@TimerWidget(vm)
+}

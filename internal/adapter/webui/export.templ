@@ -1,0 +1,153 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// ExportPageData is the view model for the export screen.
+type ExportPageData struct {
+	From        string // yyyy-mm-dd
+	To          string // yyyy-mm-dd
+	Rows        []ExportSummaryRow
+	TotalTime   string
+	TotalAmount string
+}
+
+// ExportSummaryRow is one project row in the export summary table.
+type ExportSummaryRow struct {
+	Project string
+	Time    string
+	Amount  string
+}
+
+// ExportPage is the full Export page on the Lesesaal AppShell.
+templ ExportPage(d ExportPageData) {
+	@components.Base("export", exportBody(d))
+}
+
+templ exportBody(d ExportPageData) {
+	@components.AppShell("export", nil, nil, exportContent(d))
+}
+
+// exportContent is the Lesesaal Export page: the "‹ Zeit" spine, the
+// pagehead, and the swappable #ep block (Zeitraum-form + Download-form +
+// summary preview — all three reload together so the Download form's hidden
+// from/to always match the last-previewed range, same as the retired
+// Kristall card did). No glass/Card/shadow-soft/font-display chrome.
+templ exportContent(d ExportPageData) {
+	<div class="narrow">
+		<div class="spine">
+			<div class="up">
+				<a href="/zeit">{ components.T(ctx, "zeit.back") }</a>
+			</div>
+		</div>
+		<div class="pagehead">
+			<span class="eyebrow">{ components.T(ctx, "export.eyebrow") }</span>
+			<h1>{ components.T(ctx, "export.title") }</h1>
+		</div>
+		<div id="ep">
+			@ExportFragment(d)
+		</div>
+	</div>
+}
+
+// ExportFragment is the inner content reloaded by the Zeitraum-form's
+// hx-get (target #ep): the range form, the download form, and the summary
+// preview — replacing the retired components.Card("", exportCardBody(d)).
+templ ExportFragment(d ExportPageData) {
+	@exportRangeSection(d)
+	@exportDownloadSection(d)
+	@exportSummarySection(d)
+}
+
+// exportRangeSection is the Zeitraum form (Von/Bis + a quiet "anzeigen"
+// button) that previews the summary below via htmx — the page's only
+// non-primary submit, per the "ein Primär-Button (Download)" rule.
+templ exportRangeSection(d ExportPageData) {
+	<div class="sect">
+		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "export.range") }</span></div>
+		<section class="panel p-5">
+			<form hx-get="/ui/export/preview" hx-target="#ep" hx-swap="innerHTML" class="flex flex-wrap items-end gap-3">
+				<label class="block">
+					<span class="eyebrow">{ components.T(ctx, "frei.from") }</span>
+					<input type="date" name="from" value={ d.From } class="field mt-1"/>
+				</label>
+				<label class="block">
+					<span class="eyebrow">{ components.T(ctx, "frei.to") }</span>
+					<input type="date" name="to" value={ d.To } class="field mt-1"/>
+				</label>
+				<button type="submit" class="btn btn-q">{ components.T(ctx, "export.show") }</button>
+			</form>
+		</section>
+	</div>
+}
+
+// exportDownloadSection is a plain native GET form (hx-boost="false" so the
+// browser performs a real file download instead of htmx boosting the
+// navigation away — project lesson) with a Format radio row and the page's
+// one Primär-Button. Submitting builds "/api/v1/export?from=&to=&format="
+// itself — same route/params the three retired download anchors hit, just
+// consolidated into Lesesaal-Controls instead of three separate pill links.
+templ exportDownloadSection(d ExportPageData) {
+	<div class="sect">
+		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "export.download") }</span></div>
+		<section class="panel p-5">
+			<form method="get" action="/api/v1/export" hx-boost="false" class="flex flex-wrap items-center gap-4">
+				<input type="hidden" name="from" value={ d.From }/>
+				<input type="hidden" name="to" value={ d.To }/>
+				<div class="flex flex-wrap items-center gap-4" role="radiogroup" aria-label={ components.T(ctx, "export.format") }>
+					<label class="flex items-center gap-1.5 text-[.86rem] text-body">
+						<input type="radio" name="format" value="csv" checked/> CSV
+					</label>
+					<label class="flex items-center gap-1.5 text-[.86rem] text-body">
+						<input type="radio" name="format" value="json"/> JSON
+					</label>
+					<label class="flex items-center gap-1.5 text-[.86rem] text-body">
+						<input type="radio" name="format" value="md"/> Markdown
+					</label>
+				</div>
+				<button type="submit" class="btn btn-pri">{ components.T(ctx, "export.download") }</button>
+			</form>
+		</section>
+	</div>
+}
+
+// exportSummarySection is the preview table as .tblwrap + .prose table
+// (L3-Bestand: Versalien-Köpfe, Haarlinien), replacing the retired
+// exportSummaryTable rounded-2xl glass shadow-soft card.
+templ exportSummarySection(d ExportPageData) {
+	<div class="sect">
+		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "export.summary") }</span></div>
+		if len(d.Rows) == 0 {
+			<p class="text-sm text-faint" style="margin-top:16px">{ components.T(ctx, "export.empty") }</p>
+		} else {
+			<div class="prose">
+				<div class="tblwrap">
+					<table>
+						<thead>
+							<tr>
+								<th>{ components.T(ctx, "sessions.project") }</th>
+								<th>{ components.T(ctx, "export.duration") }</th>
+								<th>{ components.T(ctx, "export.amount") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, row := range d.Rows {
+								<tr>
+									<td>{ row.Project }</td>
+									<td class="font-mono">{ row.Time }</td>
+									<td class="font-mono">{ row.Amount }</td>
+								</tr>
+							}
+						</tbody>
+						<tfoot>
+							<tr style="font-weight:600">
+								<td>{ components.T(ctx, "export.total") }</td>
+								<td class="font-mono">{ d.TotalTime }</td>
+								<td class="font-mono">{ d.TotalAmount }</td>
+							</tr>
+						</tfoot>
+					</table>
+				</div>
+			</div>
+		}
+	</div>
+}

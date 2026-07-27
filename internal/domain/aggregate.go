@@ -1,18 +1,8 @@
 package domain
 
 import (
-	"fmt"
 	"sort"
 	"time"
-)
-
-// ReportRange is the time range a Markdown brief covers.
-type ReportRange int
-
-// Brief scopes — Week is the default; Month covers the calendar month.
-const (
-	ReportWeek  ReportRange = 0
-	ReportMonth ReportRange = 1
 )
 
 // isHit reports whether a day-record counts as a target-hit for Stats.
@@ -62,6 +52,7 @@ func Aggregate(
 
 	for _, r := range sorted {
 		st.Total += r.Total
+		st.TargetTotal += r.TargetTotal
 		if r.Total > st.Max {
 			st.Max = r.Total
 			st.MaxDate = r.Date
@@ -76,14 +67,13 @@ func Aggregate(
 		}
 		if isWorkday(r.Date) {
 			st.Workdays++
-			if isHit(r.Total, r.Target) {
+			if isHit(r.TargetTotal, r.Target) {
 				st.Hits++
 			}
-			st.Overtime += r.Total - r.Target
+			st.Overtime += r.TargetTotal - r.Target
 		}
 		for _, s := range r.Sessions {
-			st.ByTag[s.Tag] += s.Elapsed
-			st.CountByTag[s.Tag]++
+			tallySessionTags(&st, s)
 		}
 	}
 	if st.DaysWithSessions > 0 {
@@ -109,7 +99,7 @@ func bestStreak(sorted []DayRecord, isWorkday func(time.Time) bool) int {
 		if !isWorkday(r.Date) {
 			continue
 		}
-		if r.Total >= r.Target {
+		if r.TargetTotal >= r.Target {
 			cur++
 			if cur > best {
 				best = cur
@@ -134,7 +124,7 @@ func currentStreak(sorted []DayRecord, isWorkday func(time.Time) bool) int {
 		if !isWorkday(r.Date) {
 			continue
 		}
-		if r.Total >= r.Target {
+		if r.TargetTotal >= r.Target {
 			streak++
 		} else {
 			break
@@ -207,6 +197,7 @@ func tallyRecordsInto(st *Stats, inRange []DayRecord) {
 	minSeen := false
 	for _, r := range inRange {
 		st.Total += r.Total
+		st.TargetTotal += r.TargetTotal
 		if r.Total > st.Max {
 			st.Max = r.Total
 			st.MaxDate = r.Date
@@ -220,9 +211,25 @@ func tallyRecordsInto(st *Stats, inRange []DayRecord) {
 			}
 		}
 		for _, s := range r.Sessions {
-			st.ByTag[s.Tag] += s.Elapsed
-			st.CountByTag[s.Tag]++
+			tallySessionTags(st, s)
 		}
+	}
+}
+
+// tallySessionTags adds a session's elapsed time to each of its tags' buckets.
+// A multi-tag session adds its full elapsed to EACH tag (per-tag totals can
+// overlap — that's the correct "time touching tag X" semantics). A session with
+// no tags contributes to the "" (untagged) bucket so Stats.Untagged stays
+// meaningful (mirrors the pre-cutover `ByTag[s.Tag]` where s.Tag was "").
+func tallySessionTags(st *Stats, s RecordSession) {
+	if len(s.Tags) == 0 {
+		st.ByTag[""] += s.Elapsed
+		st.CountByTag[""]++
+		return
+	}
+	for _, t := range s.Tags {
+		st.ByTag[t] += s.Elapsed
+		st.CountByTag[t]++
 	}
 }
 
@@ -245,10 +252,10 @@ func walkWorkdaysForSaldo(
 		}
 		st.Workdays++
 		if rec, ok := byDate[truncDay(d)]; ok {
-			if isHit(rec.Total, rec.Target) {
+			if isHit(rec.TargetTotal, rec.Target) {
 				st.Hits++
 			}
-			st.Overtime += rec.Total - rec.Target
+			st.Overtime += rec.TargetTotal - rec.Target
 			continue
 		}
 		st.Overtime -= targetFor(d)
@@ -271,30 +278,6 @@ func FilterRecords(records []DayRecord, from, to time.Time) []DayRecord {
 		}
 	}
 	return out
-}
-
-// BriefBounds resolves the [from, to) span and the title for a brief.
-// from is inclusive, to is exclusive (one day past the brief's last day).
-// Keep the half-open contract stable — callers in usecase/reporter.go
-// compensate with `to.AddDate(0, 0, -1)` when the downstream API wants
-// inclusive bounds (DayOffStore.List), so changing this signature is a
-// silent off-by-one bug if every call site isn't updated together.
-func BriefBounds(ref time.Time, scope ReportRange) (from, to time.Time, title string) {
-	switch scope {
-	case ReportMonth:
-		from = time.Date(ref.Year(), ref.Month(), 1, 0, 0, 0, 0, ref.Location())
-		to = from.AddDate(0, 1, 0)
-		title = fmt.Sprintf("Worktime · %s %d", MonthShortDe(ref.Month()), ref.Year())
-	default:
-		mon := isoMonday(ref)
-		_, wn := mon.ISOWeek()
-		from = mon
-		to = mon.AddDate(0, 0, 7)
-		sun := mon.AddDate(0, 0, 6)
-		title = fmt.Sprintf("Worktime · KW %d · %02d.%02d. – %02d.%02d.%d",
-			wn, mon.Day(), mon.Month(), sun.Day(), sun.Month(), sun.Year())
-	}
-	return
 }
 
 // PlannedTarget sums targetFor over all workdays in [from, to). Day-offs
@@ -352,6 +335,7 @@ func MonthBurndownCompute(
 	for _, r := range records {
 		if !r.Date.Before(from) && r.Date.Before(to) {
 			rep.Total += r.Total
+			rep.TargetTotal += r.TargetTotal
 		}
 	}
 
@@ -363,7 +347,7 @@ func MonthBurndownCompute(
 		rep.Total += now.Sub(start)
 	}
 
-	rep.Saldo = rep.Total - expected
+	rep.Saldo = rep.TargetTotal - expected
 	rep.OnTrack = rep.Saldo >= 0
 	return rep
 }

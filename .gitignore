@@ -1,15 +1,19 @@
-.claude/
-bin/
-dist/
+/bin/
+/dist/
 coverage.out
 coverage.html
-
-# Superpowers brainstorm scratch (visual companion).
-.superpowers/
-
-# macOS Finder noise.
+cover*.out
+# built flow binary (go build ./cmd/flow → ./flow)
+/flow
+/flow-server
+/flow-mcp
+.env
 .DS_Store
-
-# Claude project files (per global rule: never committed)
+# local MCP server wiring (machine-specific paths + endpoints)
+.mcp.json
+# Claude memory-bank files (never committed)
 CLAUDE.md
 CLAUDE-*.md
+
+# brainstorming visual companion
+.superpowers/

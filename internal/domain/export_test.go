@@ -1,8 +1,6 @@
 package domain_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -10,133 +8,123 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func mkSession(date string, h, m int, dur time.Duration, tag, note string) domain.Session {
-	d, _ := time.ParseInLocation("2006-01-02", date, time.Local)
-	start := d.Add(time.Duration(h)*time.Hour + time.Duration(m)*time.Minute)
-	return domain.Session{
-		Date:    d,
-		Start:   start,
-		Stop:    start.Add(dur),
-		Elapsed: dur,
-		Tag:     tag,
-		Note:    note,
+func sampleExport() domain.ExportData {
+	d := func(h, m int) time.Time { return time.Date(2026, 6, 15, h, m, 0, 0, time.UTC) }
+	rate := domain.Money{Amount: 8000, Currency: "EUR"}
+	amt := rate.Mul(2 * time.Hour)
+	return domain.ExportData{
+		From: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		To:   time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC),
+		ByEngagement: []domain.NodeTotal{
+			{NodeID: "p1", NodeName: "Acme", Total: 2 * time.Hour, SessionCount: 1, Rate: &rate, Amount: &amt},
+			{NodeID: "p2", NodeName: "Beta", Total: 30 * time.Minute, SessionCount: 1},
+		},
+		Sessions: []domain.ExportRow{
+			{Date: d(9, 0), Start: d(9, 0), Stop: d(11, 0), Elapsed: 2 * time.Hour, NodeName: "Acme", Tag: "deep", Note: "x"},
+			{Date: d(13, 0), Start: d(13, 0), Stop: d(13, 30), Elapsed: 30 * time.Minute, NodeName: "Beta"},
+		},
 	}
 }
 
-func TestWriteCSV_HeaderAndRows(t *testing.T) {
-	sessions := []domain.Session{
-		mkSession("2026-04-27", 9, 0, 2*time.Hour, "deep", "auth"),
-		mkSession("2026-04-28", 10, 30, 90*time.Minute, "", ""),
-	}
-	var b bytes.Buffer
-	if err := domain.WriteCSV(&b, sessions); err != nil {
+func TestWriteCSV(t *testing.T) {
+	var b strings.Builder
+	if err := domain.WriteCSV(&b, sampleExport()); err != nil {
 		t.Fatal(err)
 	}
 	out := b.String()
-
-	// Header row.
-	if !strings.HasPrefix(out, "date,start,stop,elapsed_seconds,tag,note\n") {
-		t.Errorf("missing header row, got:\n%s", out)
+	if !strings.HasPrefix(out, "date,start,stop,duration_seconds,project,tag,note\n") {
+		t.Errorf("header missing: %q", out)
 	}
-	// First data row.
-	if !strings.Contains(out, "2026-04-27,09:00,11:00,7200,deep,auth\n") {
-		t.Errorf("missing first row, got:\n%s", out)
-	}
-	// Second data row (empty tag/note → trailing commas).
-	if !strings.Contains(out, "2026-04-28,10:30,12:00,5400,,\n") {
-		t.Errorf("missing second row, got:\n%s", out)
+	if !strings.Contains(out, "2026-06-15,09:00,11:00,7200,Acme,deep,x") {
+		t.Errorf("detail row missing: %q", out)
 	}
 }
 
-func TestWriteCSV_QuotesSpecialChars(t *testing.T) {
-	sessions := []domain.Session{
-		mkSession("2026-04-27", 9, 0, time.Hour, "deep", `note with, comma`),
-	}
-	var b bytes.Buffer
-	if err := domain.WriteCSV(&b, sessions); err != nil {
+func TestWriteJSON(t *testing.T) {
+	var b strings.Builder
+	if err := domain.WriteJSON(&b, sampleExport()); err != nil {
 		t.Fatal(err)
 	}
-	// CSV must quote fields containing commas — encoding/csv handles this.
-	if !strings.Contains(b.String(), `"note with, comma"`) {
-		t.Errorf("expected quoted comma in note, got:\n%s", b.String())
-	}
-}
-
-func TestWriteCSV_EmptyJustHeader(t *testing.T) {
-	var b bytes.Buffer
-	if err := domain.WriteCSV(&b, nil); err != nil {
-		t.Fatal(err)
-	}
-	if strings.TrimSpace(b.String()) != "date,start,stop,elapsed_seconds,tag,note" {
-		t.Errorf("empty input should yield header only, got:\n%s", b.String())
-	}
-}
-
-func TestWriteJSON_StructureAndTypes(t *testing.T) {
-	sessions := []domain.Session{
-		mkSession("2026-04-27", 9, 0, 2*time.Hour, "deep", "auth"),
-	}
-	var b bytes.Buffer
-	if err := domain.WriteJSON(&b, sessions); err != nil {
-		t.Fatal(err)
-	}
-	var got []map[string]any
-	if err := json.Unmarshal(b.Bytes(), &got); err != nil {
-		t.Fatalf("output is not valid JSON: %v\n%s", err, b.String())
-	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 element, got %d", len(got))
-	}
-	want := map[string]any{
-		"date":            "2026-04-27",
-		"start":           "09:00",
-		"stop":            "11:00",
-		"elapsed_seconds": float64(7200), // JSON numbers come back as float64
-		"tag":             "deep",
-		"note":            "auth",
-	}
-	for k, v := range want {
-		if got[0][k] != v {
-			t.Errorf("key %q = %v, want %v", k, got[0][k], v)
+	out := b.String()
+	for _, want := range []string{`"project": "Acme"`, `"totalSeconds": 7200`, `"amountMinor": 16000`, `"sessions"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("json missing %q in %s", want, out)
 		}
 	}
 }
 
-func TestWriteJSON_EmptyArray(t *testing.T) {
-	var b bytes.Buffer
-	if err := domain.WriteJSON(&b, nil); err != nil {
+func TestWriteMarkdown(t *testing.T) {
+	var b strings.Builder
+	if err := domain.WriteMarkdown(&b, sampleExport()); err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(b.String()) != "[]" {
-		t.Errorf("empty input should yield empty JSON array, got:\n%s", b.String())
+	out := b.String()
+	for _, want := range []string{"# Worktime", "Acme", "2h 00m", "160.00 EUR", "## Sessions"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("markdown missing %q in %s", want, out)
+		}
 	}
 }
 
-type csvErrWriter struct {
-	failAfter int
-	count     int
-}
-
-func (e *csvErrWriter) Write(p []byte) (int, error) {
-	e.count++
-	if e.count > e.failAfter {
-		return 0, errFailed
+func TestWriteCSV_Empty(t *testing.T) {
+	var b strings.Builder
+	if err := domain.WriteCSV(&b, domain.ExportData{}); err != nil {
+		t.Fatal(err)
 	}
-	return len(p), nil
-}
-
-func TestWriteCSV_WriterErrorPropagates(t *testing.T) {
-	// failAfter 0 → first Write fails, which is the header row.
-	w := &csvErrWriter{failAfter: 0}
-	sessions := []domain.Session{mkSession("2026-04-27", 9, 0, time.Hour, "", "")}
-	if err := domain.WriteCSV(w, sessions); err == nil {
-		t.Error("expected writer error, got nil")
+	if b.String() != "date,start,stop,duration_seconds,project,tag,note\n" {
+		t.Errorf("empty CSV should be header only, got %q", b.String())
 	}
 }
 
-func TestWriteJSON_WriterErrorPropagates(t *testing.T) {
-	w := &csvErrWriter{failAfter: 0}
-	if err := domain.WriteJSON(w, nil); err == nil {
-		t.Error("expected writer error, got nil")
+func TestWriteMarkdown_Empty(t *testing.T) {
+	var b strings.Builder
+	if err := domain.WriteMarkdown(&b, domain.ExportData{}); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	// Renders a valid skeleton: heading, Projekte + Sessions sections, zero grand total.
+	for _, want := range []string{"# Worktime", "## Projekte", "**Summe:** 0h 00m", "## Sessions"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("empty markdown missing %q in %s", want, out)
+		}
+	}
+}
+
+func TestWriteMarkdown_EscapesPipes(t *testing.T) {
+	var b strings.Builder
+	d := domain.ExportData{
+		From:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		To:        time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC),
+		ByEngagement: []domain.NodeTotal{{NodeID: "p", NodeName: "A|B", Total: time.Hour, SessionCount: 1}},
+		Sessions: []domain.ExportRow{{
+			Date: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC),
+			Stop: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC), Elapsed: time.Hour, NodeName: "A|B", Note: "x|y",
+		}},
+	}
+	if err := domain.WriteMarkdown(&b, d); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if strings.Contains(out, "A|B") || strings.Contains(out, "x|y") {
+		t.Errorf("unescaped pipe leaked into markdown: %s", out)
+	}
+	if !strings.Contains(out, "A\\|B") {
+		t.Errorf("escaped pipe missing: %s", out)
+	}
+}
+
+func TestWriteJSON_EmptyArrays(t *testing.T) {
+	var b strings.Builder
+	if err := domain.WriteJSON(&b, domain.ExportData{}); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if strings.Contains(out, "null") {
+		t.Errorf("empty export should use [] not null: %s", out)
+	}
+	for _, want := range []string{`"byProject": []`, `"sessions": []`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
 	}
 }

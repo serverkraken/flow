@@ -26,6 +26,7 @@ type Stats struct {
 	DaysWithSessions int
 	Workdays         int
 	Total            time.Duration
+	TargetTotal      time.Duration // sum of DayRecord.TargetTotal; excludes non-counting time
 	Avg              time.Duration // Total / DaysWithSessions; zero when DaysWithSessions == 0
 	Max              time.Duration
 	MaxDate          time.Time
@@ -34,7 +35,7 @@ type Stats struct {
 	Hits             int           // workdays that met or exceeded their target
 	Streak           int           // current consecutive-from-newest hit streak (workdays only)
 	BestStreak       int           // longest run of consecutive hits ever (workdays only)
-	Overtime         time.Duration // sum of (Total - Target) over all workdays in input (saldo)
+	Overtime         time.Duration // sum of (TargetTotal - Target) over all workdays in input (saldo)
 
 	// ByTag maps tag → total duration over the input. Sessions with empty
 	// Tag are aggregated under the empty key "" — callers that want a strip

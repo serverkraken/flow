@@ -1,0 +1,118 @@
+package httpserver
+
+import (
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/noderef"
+	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/usecase"
+)
+
+type putActiveReq struct {
+	Remote  string   `json:"remote"`
+	Machine string   `json:"machine"`
+	Path    string   `json:"path"`
+	Node    string   `json:"node"`
+	Title   string   `json:"title"`
+	Body    string   `json:"body"`
+	Tags    []string `json:"tags"`
+}
+
+func (s *Server) handlePutContextActive(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req putActiveReq
+	if !decodeJSONBody(w, r, &req, maxDocumentJSONBodyBytes, false) {
+		return
+	}
+	id, updated, err := s.SetActiveContext.Execute(r.Context(), u.ID,
+		usecase.ContextResolveInput{RemoteSlug: req.Remote, MachineID: req.Machine, Cwd: req.Path, NodeOverride: req.Node},
+		req.Title, req.Body, req.Tags)
+	switch {
+	case errors.Is(err, noderef.ErrAmbiguous):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, usecase.ErrContextUnresolved):
+		http.Error(w, "repo not bound", http.StatusConflict)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": req.Title}})
+		writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
+	}
+}
+
+type reorderReq struct {
+	IDs []string `json:"ids"`
+}
+
+const maxReorderContextDocuments = 200
+
+const maxContextBudgetTokens = 50000
+
+func (s *Server) handleReorderContext(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req reorderReq
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
+		return
+	}
+	if len(req.IDs) > maxReorderContextDocuments {
+		http.Error(w, "too many document ids", http.StatusBadRequest)
+		return
+	}
+	if err := s.ReorderContextDocs.Execute(r.Context(), u.ID, req.IDs); err != nil {
+		if errors.Is(err, ports.ErrDocumentNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, domain.ErrInvalidDocument) {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"reordered": len(req.IDs)}})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "n": len(req.IDs)})
+}
+
+func (s *Server) handleGetContext(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	q := r.URL.Query()
+	in := usecase.ContextResolveInput{
+		RemoteSlug:   strings.TrimSpace(q.Get("remote")),
+		MachineID:    strings.TrimSpace(q.Get("machine")),
+		Cwd:          strings.TrimSpace(q.Get("path")),
+		NodeOverride: strings.TrimSpace(q.Get("node")),
+		Client:       strings.TrimSpace(q.Get("client")),
+	}
+	budget := s.ContextBudget
+	if budget <= 0 {
+		budget = 12000
+	}
+	if v := strings.TrimSpace(q.Get("cap")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxContextBudgetTokens {
+			http.Error(w, "bad cap (1..50000)", http.StatusBadRequest)
+			return
+		}
+		budget = n
+	}
+	cc, err := s.ComposeContext.Execute(r.Context(), u.ID, in, budget)
+	if err != nil {
+		if errors.Is(err, noderef.ErrAmbiguous) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	cc, err = usecase.ApplyContextProfile(cc, q.Get("profile"))
+	if errors.Is(err, usecase.ErrInvalidContextProfile) {
+		http.Error(w, "invalid context profile; use handoff, standard or full", http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, cc)
+}

@@ -1,620 +1,325 @@
 package testutil
 
-// Sanity tests for the testutil fakes themselves. They earn per-package
-// coverage (CI's gate measures each package's own statements; without
-// these tests the testutil package shows up as 0%). Each test exercises
-// the happy path AND the Err-injection path so the early-return guards
-// every fake carries are reached too.
-
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
-var errInjected = errors.New("injected")
-
-// — clock.go —
-
-func TestFakeClock_NowAndAdvance(t *testing.T) {
-	c := &FixedClock{T: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)}
-	if !c.Now().Equal(c.T) {
-		t.Errorf("Now should mirror T")
+func TestFakeEmbedder_DeterministicAndError(t *testing.T) {
+	e := NewFakeEmbedder()
+	a, err := e.Embed(context.Background(), []string{"hello", "world"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	c.Advance(2 * time.Hour)
-	if c.Now().Hour() != 11 {
-		t.Errorf("Advance(2h): hour should be 11, got %d", c.Now().Hour())
+	if len(a) != 2 || len(a[0]) != e.Dim {
+		t.Fatalf("shape wrong: %d vecs, dim %d", len(a), len(a[0]))
 	}
-	c.Advance(-90 * time.Minute)
-	if c.Now().Minute() != 30 {
-		t.Errorf("Advance(-90m): minute should be 30, got %d", c.Now().Minute())
+	b, _ := e.Embed(context.Background(), []string{"hello"})
+	for i := range a[0] {
+		if a[0][i] != b[0][i] {
+			t.Fatalf("not deterministic at %d", i)
+		}
 	}
-}
-
-// — cheatsheet.go —
-
-func TestFakeCheatsheetReader_LoadAndErr(t *testing.T) {
-	r := &FakeCheatsheetReader{Content: "hello"}
-	got, err := r.Load()
-	if err != nil || got != "hello" {
-		t.Errorf("Load() = (%q, %v), want (hello, nil)", got, err)
-	}
-	r.Err = errInjected
-	if _, err := r.Load(); err == nil {
-		t.Errorf("Load with Err should error")
+	e.Err = errTest
+	if _, err := e.Embed(context.Background(), []string{"x"}); err == nil {
+		t.Fatal("expected error when Err set")
 	}
 }
 
-// — config.go —
+var errTest = errors.New("boom")
 
-func TestFakeConfigReader_LoadAndErr(t *testing.T) {
-	r := &FakeConfigReader{Cfg: domain.Config{DefaultTarget: 8 * time.Hour}}
-	got, err := r.Load()
-	if err != nil || got.DefaultTarget != 8*time.Hour {
-		t.Errorf("Load() = (%+v, %v)", got, err)
+func TestFakeUserStoreRoundTrip(t *testing.T) {
+	s := NewFakeUserStore()
+	if _, err := s.GetBySub(context.Background(), "x"); !errors.Is(err, ports.ErrUserNotFound) {
+		t.Fatalf("want ErrUserNotFound, got %v", err)
 	}
-	r.Err = errInjected
-	if _, err := r.Load(); err == nil {
-		t.Errorf("Load with Err should error")
+	u, _ := domain.NewUser("id-1", "x", "u", "e", "n")
+	if _, err := s.UpsertBySub(context.Background(), u); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetBySub(context.Background(), "x")
+	if err != nil || got.ID != "id-1" {
+		t.Fatalf("round trip failed: %+v %v", got, err)
 	}
 }
 
-// — dayoffs.go —
-
-func TestFakeDayOffStore_ConstructAndList(t *testing.T) {
-	d1 := domain.DayOff{Date: time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC), Kind: domain.KindHoliday, Label: "May Day"}
-	d2 := domain.DayOff{Date: time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC), Kind: domain.KindVacation, Label: "Trip"}
-	s := NewFakeDayOffStore(d1, d2)
-	// List with zero from/to returns all, sorted
-	all := s.List(time.Time{}, time.Time{})
-	if len(all) != 2 || !all[0].Date.Equal(d1.Date) {
-		t.Errorf("List should return sorted entries, got %+v", all)
-	}
-	// Bounded list excludes out-of-range
-	from := time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
-	bounded := s.List(from, to)
-	if len(bounded) != 1 || !bounded[0].Date.Equal(d2.Date) {
-		t.Errorf("Bounded list should keep only d2, got %+v", bounded)
+func TestFakeIDGenMonotonic(t *testing.T) {
+	g := &FakeIDGen{}
+	a, b := g.NewID(), g.NewID()
+	if a == b {
+		t.Fatal("ids should differ")
 	}
 }
 
-func TestFakeDayOffStore_LookupAddRemove(t *testing.T) {
-	s := NewFakeDayOffStore()
-	dt := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
-	if _, ok := s.Lookup(dt); ok {
-		t.Errorf("empty store should not find entry")
+func TestFakeProjectBindingStore_UpsertReassignDelete(t *testing.T) {
+	s := NewFakeProjectBindingStore()
+	ctx := context.Background()
+	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b1", OwnerID: "u", NodeID: "p1", Kind: domain.BindingRemote, RemoteSlug: "r"})
+	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b2", OwnerID: "u", NodeID: "p2", Kind: domain.BindingRemote, RemoteSlug: "r"}) // reassign
+	got, _ := s.List(ctx, "u")
+	if len(got) != 1 || got[0].NodeID != "p2" {
+		t.Fatalf("reassign: %+v", got)
 	}
-	if err := s.Add(domain.DayOff{Date: dt, Kind: domain.KindHoliday}); err != nil {
-		t.Fatalf("Add: %v", err)
+	if err := s.DeleteRemote(ctx, "u", "r"); err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := s.Lookup(dt); !ok {
-		t.Errorf("Lookup after Add should find entry")
-	}
-	if err := s.Remove(dt); err != nil {
-		t.Errorf("Remove: %v", err)
-	}
-	if _, ok := s.Lookup(dt); ok {
-		t.Errorf("Lookup after Remove should not find entry")
+	if got, _ := s.List(ctx, "u"); len(got) != 0 {
+		t.Fatalf("after delete: %+v", got)
 	}
 }
 
-func TestFakeDayOffStore_AddNilMapInitialised(t *testing.T) {
-	s := &FakeDayOffStore{} // Entries map is nil
-	if err := s.Add(domain.DayOff{Date: time.Now(), Kind: domain.KindHoliday}); err != nil {
-		t.Errorf("Add on nil-map store: %v", err)
+func TestFakeDocumentStore_Links(t *testing.T) {
+	ctx := context.Background()
+	s := NewFakeDocumentStore()
+	mustCreate(t, s, "src1", "owner", "a", nil)
+	mustCreate(t, s, "src2", "owner", "b", nil)
+
+	if err := s.ReplaceLinks(ctx, "src1", "owner", []string{"b", "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceLinks(ctx, "src2", "owner", []string{"b"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.Backlinks(ctx, "owner", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, d := range got {
+		ids[d.ID] = true
+	}
+	if !ids["src1"] || !ids["src2"] || len(got) != 2 {
+		t.Fatalf("backlinks of b = %v, want src1+src2", ids)
+	}
+
+	if err := s.ReplaceLinks(ctx, "src1", "owner", nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.Backlinks(ctx, "owner", "b")
+	if len(got) != 1 || got[0].ID != "src2" {
+		t.Fatalf("after clear, backlinks of b = %v, want only src2", got)
+	}
+
+	other, _ := s.Backlinks(ctx, "stranger", "b")
+	if len(other) != 0 {
+		t.Fatalf("expected no cross-owner backlinks, got %v", other)
 	}
 }
 
-func TestFakeDayOffStore_AddBatchHappyEmptyAndErr(t *testing.T) {
-	s := &FakeDayOffStore{}
-	if err := s.AddBatch(nil); err != nil {
-		t.Errorf("AddBatch(nil): %v", err)
-	}
-	batch := []domain.DayOff{
-		{Date: time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC), Kind: domain.KindHoliday},
-		{Date: time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC), Kind: domain.KindHoliday},
-	}
-	if err := s.AddBatch(batch); err != nil {
-		t.Errorf("AddBatch: %v", err)
-	}
-	if len(s.Entries) != 2 {
-		t.Errorf("AddBatch should land both entries, got %d", len(s.Entries))
-	}
-	s.Err = errInjected
-	if err := s.AddBatch(batch); err == nil {
-		t.Errorf("AddBatch with Err should error")
+func mustCreate(t *testing.T, s *FakeDocumentStore, id, owner, path string, proj *string) {
+	t.Helper()
+	_, err := s.Create(context.Background(), domain.Document{
+		ID: id, OwnerID: owner, NodeID: proj, Type: domain.DocFree,
+		Path: path, Title: id, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestFakeDayOffStore_ErrPaths(t *testing.T) {
-	s := NewFakeDayOffStore()
-	s.Err = errInjected
-	if err := s.Add(domain.DayOff{Date: time.Now(), Kind: domain.KindHoliday}); err == nil {
-		t.Errorf("Add with Err should error")
+func TestFakeDocumentStore_Search(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+	mk := func(id, title, body string, tags ...string) {
+		if _, err := s.Create(ctx, domain.Document{ID: id, OwnerID: "u", Type: domain.DocFree, Path: id, Title: title, Body: body, Tags: tags}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := s.Remove(time.Now()); err == nil {
-		t.Errorf("Remove with Err should error")
+	mk("a", "Kompendium", "about the compendium", "go")
+	mk("b", "Other", "unrelated text")
+
+	hits, err := s.Search(ctx, "u", "kompend", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].ID != "a" {
+		t.Fatalf("search kompend = %#v, want [a]", hits)
+	}
+	if !strings.Contains(hits[0].Snippet, domain.HighlightStart) {
+		t.Fatalf("snippet missing highlight markers: %q", hits[0].Snippet)
+	}
+	none, _ := s.Search(ctx, "u", "kompend", nil, []string{"missing"})
+	if len(none) != 0 {
+		t.Fatalf("tag-filtered search = %d, want 0", len(none))
 	}
 }
 
-// — flowstate.go —
+func TestFakeDocumentStore_ListTagFilter(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+	mk := func(id string, tags ...string) {
+		if _, err := s.Create(ctx, domain.Document{ID: id, OwnerID: "u", Type: domain.DocFree, Path: id, Tags: tags}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("a", "go", "tui")
+	mk("b", "go")
+	mk("c", "web")
 
-func TestFakeFlowStateStore_LoadSaveNext(t *testing.T) {
-	s := &FakeFlowStateStore{}
-	got, err := s.Load()
-	if err != nil || got.Screen != "" {
-		t.Errorf("Load empty: got (%+v, %v)", got, err)
+	all, _ := s.List(ctx, "u", nil)
+	if len(all) != 3 {
+		t.Fatalf("unfiltered = %d, want 3", len(all))
 	}
-	if err := s.Save(domain.FlowState{Screen: "palette", Cursor: 3}); err != nil {
-		t.Errorf("Save: %v", err)
+	goDocs, _ := s.List(ctx, "u", nil, "go")
+	if len(goDocs) != 2 {
+		t.Fatalf("tag=go = %d, want 2", len(goDocs))
 	}
-	if got, _ := s.Load(); got.Screen != "palette" || got.Cursor != 3 {
-		t.Errorf("Load after Save: got %+v", got)
-	}
-	if err := s.WriteNextScreen("palette"); err != nil {
-		t.Errorf("WriteNextScreen: %v", err)
-	}
-	if got, _ := s.ConsumeNextScreen(); got != "palette" {
-		t.Errorf("ConsumeNextScreen first call: %q", got)
-	}
-	if got, _ := s.ConsumeNextScreen(); got != "" {
-		t.Errorf("ConsumeNextScreen second call should be cleared: %q", got)
+	both, _ := s.List(ctx, "u", nil, "go", "tui")
+	if len(both) != 1 || both[0].ID != "a" {
+		t.Fatalf("tag=go,tui = %#v, want [a]", both)
 	}
 }
 
-func TestFakeFlowStateStore_LoadAndSaveErrors(t *testing.T) {
-	s := &FakeFlowStateStore{LoadErr: errInjected}
-	if _, err := s.Load(); err == nil {
-		t.Errorf("Load with LoadErr should fail")
+func TestFakeDocumentStore_ListLibraryPageEmptyNodeSetFailsClosed(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+	nodeID := "n1"
+	if _, err := s.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u", NodeID: &nodeID, Type: domain.DocPlan, Path: "plan/one",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
 	}
-	s2 := &FakeFlowStateStore{SaveErr: errInjected}
-	if err := s2.Save(domain.FlowState{}); err == nil {
-		t.Errorf("Save with SaveErr should fail")
+	page, err := s.ListLibraryPage(ctx, "u", ports.DocumentLibraryQuery{
+		FilterNodeIDs: true,
+		Status:        ports.DocumentLibraryAll,
+		Limit:         50,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-// — kompendium.go —
-
-func TestFakeNoteLauncher_OpenAndErr(t *testing.T) {
-	l := &FakeNoteLauncher{}
-	if err := l.Open("abc"); err != nil {
-		t.Errorf("Open: %v", err)
-	}
-	if len(l.Calls) != 1 || l.Calls[0] != "open:abc" {
-		t.Errorf("Calls = %+v", l.Calls)
-	}
-	l.Err = errInjected
-	if err := l.Open("def"); err == nil {
-		t.Errorf("Open with Err should fail")
-	}
-	// Calls is still appended even when Err is set — fake records intent.
-	if len(l.Calls) != 2 {
-		t.Errorf("Calls should be appended even on error, got %d", len(l.Calls))
+	if page.Total != 0 || page.ActiveTotal != 0 || page.ArchivedTotal != 0 || len(page.Documents) != 0 {
+		t.Fatalf("empty resolved node set must match nothing, got %+v", page)
 	}
 }
 
-// — links.go —
+func TestFakeStore_ChunksAndSemantic(t *testing.T) {
+	s := NewFakeDocumentStore()
+	e := NewFakeEmbedder()
+	ctx := context.Background()
+	mk := func(id, title, body string, tags ...string) domain.Document {
+		d, err := s.Create(ctx, domain.Document{ID: id, OwnerID: "u", Type: domain.DocFree, Path: id, Title: title, Body: body, Tags: tags})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	a := mk("a", "Alpha", "alpha body", "go")
+	mk("b", "Beta", "beta body")
 
-func TestFakeLinkStore_AddListCountRemove(t *testing.T) {
-	s := &FakeLinkStore{}
-	dt := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
-	if err := s.Add(dt, "id1"); err != nil {
-		t.Fatalf("Add: %v", err)
+	stale, err := s.StaleDocuments(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// Idempotent — adding the same id again does not duplicate.
-	if err := s.Add(dt, "id1"); err != nil {
-		t.Fatalf("Add idempotent: %v", err)
+	if len(stale) != 2 {
+		t.Fatalf("want 2 stale, got %d", len(stale))
 	}
-	if err := s.Add(dt, "id2"); err != nil {
-		t.Fatalf("Add: %v", err)
+
+	texts := []string{"Alpha\n\nalpha body"}
+	vecs, _ := e.Embed(ctx, texts)
+	if err := s.ReplaceChunks(ctx, a.ID, a.OwnerID, s.SnapshotHash(a.ID), texts, vecs); err != nil {
+		t.Fatal(err)
 	}
-	ids, err := s.ListByDate(dt)
-	if err != nil || len(ids) != 2 {
-		t.Errorf("ListByDate: (%+v, %v)", ids, err)
+	stale, _ = s.StaleDocuments(ctx, 10)
+	if len(stale) != 1 || stale[0].Doc.ID != "b" {
+		t.Fatalf("want only b stale, got %#v", stale)
 	}
-	counts, err := s.CountsByDate()
-	if err != nil || counts[dt.Format("2006-01-02")] != 2 {
-		t.Errorf("CountsByDate: (%+v, %v)", counts, err)
+
+	hits, err := s.SemanticSearch(ctx, "u", vecs[0], nil, nil, 10)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := s.Remove(dt, "id1"); err != nil {
-		t.Errorf("Remove: %v", err)
+	if len(hits) != 1 || hits[0].ID != "a" || hits[0].Snippet == "" {
+		t.Fatalf("semantic want [a] with snippet, got %#v", hits)
 	}
-	if ids, _ := s.ListByDate(dt); len(ids) != 1 || ids[0] != "id2" {
-		t.Errorf("After remove ids = %+v", ids)
-	}
-	// Removing missing is no-op
-	if err := s.Remove(dt, "missing"); err != nil {
-		t.Errorf("Remove missing should not error: %v", err)
+	none, _ := s.SemanticSearch(ctx, "u", vecs[0], nil, []string{"missing"}, 10)
+	if len(none) != 0 {
+		t.Fatalf("tag-filtered semantic want 0, got %d", len(none))
 	}
 }
 
-func TestFakeLinkStore_ErrPaths(t *testing.T) {
-	s := &FakeLinkStore{Err: errInjected}
-	if _, err := s.ListByDate(time.Now()); err == nil {
-		t.Errorf("ListByDate with Err should fail")
+func TestFakeDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+
+	// Insert with DocMemory
+	id1, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocMemory, "active-context", "AC", "v1", false, false, "agent", "claude-code")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := s.Add(time.Now(), "x"); err == nil {
-		t.Errorf("Add with Err should fail")
+	got1, _ := s.Get(ctx, "u", id1)
+	if got1.Type != domain.DocMemory {
+		t.Fatalf("initial type: want memory, got %q", got1.Type)
 	}
-	if _, err := s.CountsByDate(); err == nil {
-		t.Errorf("CountsByDate with Err should fail")
+
+	// Re-upsert at same (owner, nil node, path) with DocActiveContext — must converge
+	id2, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocActiveContext, "active-context", "AC", "v2", false, false, "agent", "claude-code")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := s.Remove(time.Now(), "x"); err == nil {
-		t.Errorf("Remove with Err should fail")
+	if id1 != id2 {
+		t.Fatalf("type-converge upsert must reuse same id: %q vs %q", id1, id2)
+	}
+	got2, _ := s.Get(ctx, "u", id2)
+	if got2.Type != domain.DocActiveContext {
+		t.Fatalf("type after converge: want activecontext, got %q", got2.Type)
 	}
 }
 
-// — markdown.go —
-
-func TestFakeMarkdownRenderer(t *testing.T) {
-	r := &FakeMarkdownRenderer{Prefix: ">> "}
-	out, err := r.Render("body", 80)
-	if err != nil || out != ">> body" || r.LastWidth != 80 {
-		t.Errorf("Render = (%q, %v), width=%d", out, err, r.LastWidth)
+// TestFakeFeedTokenStore_Revoke covers FakeFeedTokenStore.Revoke (at 0%).
+func TestFakeFeedTokenStore_Revoke(t *testing.T) {
+	s := NewFakeFeedTokenStore()
+	ctx := context.Background()
+	ft := domain.FeedToken{UserID: "u1", Token: "tok-abc"}
+	if err := s.Create(ctx, ft); err != nil {
+		t.Fatalf("Create: %v", err)
 	}
-	r.Err = errInjected
-	if _, err := r.Render("x", 1); err == nil {
-		t.Errorf("Render with Err should fail")
+	// Revoke with wrong userID should be a no-op (token stays).
+	if err := s.Revoke(ctx, "wrong-user", "tok-abc"); err != nil {
+		t.Fatalf("Revoke(wrong user): %v", err)
 	}
-}
-
-// — output.go —
-
-func TestFakeOutput_CopyPagerSave(t *testing.T) {
-	o := &FakeOutput{}
-	if err := o.Copy("hi"); err != nil {
-		t.Errorf("Copy: %v", err)
+	if uid, err := s.Resolve(ctx, "tok-abc"); err != nil || uid != "u1" {
+		t.Errorf("after revoke with wrong user, token should still resolve: uid=%q err=%v", uid, err)
 	}
-	if len(o.Copies) != 1 || o.Copies[0] != "hi" {
-		t.Errorf("Copies: %+v", o.Copies)
+	// Revoke with correct userID removes the token.
+	if err := s.Revoke(ctx, "u1", "tok-abc"); err != nil {
+		t.Fatalf("Revoke: %v", err)
 	}
-	if err := o.Pager("body", "less", "md"); err != nil {
-		t.Errorf("Pager: %v", err)
-	}
-	if len(o.Pagers) != 1 || o.Pagers[0].Viewer != "less" {
-		t.Errorf("Pagers: %+v", o.Pagers)
-	}
-	path, err := o.SaveFile("name", "md", []byte("data"))
-	if err != nil || !strings.HasSuffix(path, "name.md") {
-		t.Errorf("SaveFile = (%q, %v)", path, err)
-	}
-	// Custom SaveDir (without trailing slash) gets one appended.
-	o.SaveDir = "/var/out"
-	path2, _ := o.SaveFile("a", "csv", []byte{})
-	if path2 != "/var/out/a.csv" {
-		t.Errorf("SaveFile with custom dir: %q", path2)
-	}
-	// And one with trailing slash
-	o.SaveDir = "/var/out/"
-	path3, _ := o.SaveFile("a", "csv", []byte{})
-	if path3 != "/var/out/a.csv" {
-		t.Errorf("SaveFile with trailing slash: %q", path3)
+	if _, err := s.Resolve(ctx, "tok-abc"); err == nil {
+		t.Error("after revoke, Resolve should return an error")
 	}
 }
 
-func TestFakeOutput_ErrPaths(t *testing.T) {
-	o := &FakeOutput{CopyErr: errInjected, PagerErr: errInjected, SaveErr: errInjected}
-	if err := o.Copy("x"); err == nil {
-		t.Errorf("Copy with err should fail")
-	}
-	if err := o.Pager("x", "less", "md"); err == nil {
-		t.Errorf("Pager with err should fail")
-	}
-	if _, err := o.SaveFile("a", "b", nil); err == nil {
-		t.Errorf("SaveFile with err should fail")
-	}
-}
-
-// — palette.go —
-
-func TestFakePaletteEntryReader(t *testing.T) {
-	r := &FakePaletteEntryReader{Entries: []domain.PaletteEntry{{Label: "A"}, {Label: "B"}}}
-	got, err := r.List()
-	if err != nil || len(got) != 2 {
-		t.Errorf("List = (%+v, %v)", got, err)
-	}
-	r.Err = errInjected
-	if _, err := r.List(); err == nil {
-		t.Errorf("List with Err should fail")
-	}
-}
-
-func TestFakePaletteStatsStore(t *testing.T) {
-	s := &FakePaletteStatsStore{}
-	got, err := s.Load()
-	if err != nil || got.Actions == nil {
-		t.Errorf("Load empty: (%+v, %v)", got, err)
-	}
-	st := domain.PaletteStats{Actions: map[string]domain.PaletteActionStat{"a": {Count: 2}}}
-	if err := s.Save(st); err != nil {
-		t.Errorf("Save: %v", err)
-	}
-	got2, _ := s.Load()
-	if got2.Actions["a"].Count != 2 {
-		t.Errorf("Load after Save: %+v", got2)
-	}
-	s.LoadErr = errInjected
-	if _, err := s.Load(); err == nil {
-		t.Errorf("Load with LoadErr should fail")
-	}
-	s.LoadErr = nil
-	s.SaveErr = errInjected
-	if err := s.Save(st); err == nil {
-		t.Errorf("Save with SaveErr should fail")
-	}
-}
-
-// — projects.go —
-
-func TestFakeProjectScanner(t *testing.T) {
-	// Names path
-	s := &FakeProjectScanner{Names: []string{"a", "b"}}
-	got, err := s.List()
-	if err != nil || len(got) != 2 || got[0].Path != "/tmp/a" {
-		t.Errorf("List Names path = (%+v, %v)", got, err)
-	}
-	// Projects path
-	s2 := &FakeProjectScanner{Projects: []domain.Project{{Name: "x", Path: "/srv/x"}}}
-	got2, _ := s2.List()
-	if len(got2) != 1 || got2[0].Path != "/srv/x" {
-		t.Errorf("List Projects path = %+v", got2)
-	}
-	// Err path
-	s.Err = errInjected
-	if _, err := s.List(); err == nil {
-		t.Errorf("List with Err should fail")
-	}
-}
-
-// — sessions.go —
-
-func TestFakeSessionStore_LoadAndFilter(t *testing.T) {
-	s := &FakeSessionStore{Sessions: []domain.Session{
-		{Tag: "a"}, {Tag: "b"}, {Tag: "a"},
-	}}
-	all, err := s.LoadAll()
-	if err != nil || len(all) != 3 {
-		t.Errorf("LoadAll = (%+v, %v)", all, err)
-	}
-	got, _ := s.LoadFiltered(func(x domain.Session) bool { return x.Tag == "a" })
-	if len(got) != 2 {
-		t.Errorf("LoadFiltered tag=a should return 2, got %d", len(got))
-	}
-}
-
-func TestFakeSessionStore_AppendRewriteAndErr(t *testing.T) {
-	s := &FakeSessionStore{}
-	if err := s.Append(domain.Session{Tag: "x"}); err != nil {
-		t.Errorf("Append: %v", err)
-	}
-	if err := s.AppendBatch([]domain.Session{{Tag: "y"}, {Tag: "z"}}); err != nil {
-		t.Errorf("AppendBatch: %v", err)
-	}
-	if len(s.Sessions) != 3 {
-		t.Errorf("Sessions after appends: %d", len(s.Sessions))
-	}
-	if err := s.Rewrite([]domain.Session{{Tag: "only"}}); err != nil {
-		t.Errorf("Rewrite: %v", err)
-	}
-	if len(s.Sessions) != 1 || s.Sessions[0].Tag != "only" {
-		t.Errorf("After Rewrite: %+v", s.Sessions)
-	}
-	s.Err = errInjected
-	if _, err := s.LoadAll(); err == nil {
-		t.Errorf("LoadAll with Err should fail")
-	}
-	if _, err := s.LoadFiltered(func(domain.Session) bool { return true }); err == nil {
-		t.Errorf("LoadFiltered with Err should fail")
-	}
-	if err := s.Append(domain.Session{}); err == nil {
-		t.Errorf("Append with Err should fail")
-	}
-	if err := s.AppendBatch(nil); err == nil {
-		t.Errorf("AppendBatch with Err should fail")
-	}
-	if err := s.Rewrite(nil); err == nil {
-		t.Errorf("Rewrite with Err should fail")
-	}
-}
-
-// — state.go —
-
-func TestFakeActiveSessionStore(t *testing.T) {
-	s := &FakeActiveSessionStore{}
-	if got, _ := s.GetActive(); got != nil {
-		t.Errorf("empty GetActive should be nil, got %v", got)
-	}
-	now := time.Now()
-	if err := s.SetActive(now); err != nil {
-		t.Errorf("SetActive: %v", err)
-	}
-	if got, _ := s.GetActive(); got == nil || !got.Equal(now) {
-		t.Errorf("GetActive after SetActive: %v", got)
-	}
-	if err := s.ClearActive(); err != nil {
-		t.Errorf("ClearActive: %v", err)
-	}
-	if got, _ := s.GetActive(); got != nil {
-		t.Errorf("after ClearActive: %v", got)
-	}
-	// Pause analogue
-	if got, _ := s.GetPause(); got != nil {
-		t.Errorf("empty GetPause should be nil")
-	}
-	if err := s.SetPause(now); err != nil {
-		t.Errorf("SetPause: %v", err)
-	}
-	if got, _ := s.GetPause(); got == nil || !got.Equal(now) {
-		t.Errorf("GetPause after SetPause: %v", got)
-	}
-	if err := s.ClearPause(); err != nil {
-		t.Errorf("ClearPause: %v", err)
-	}
-	if got, _ := s.GetPause(); got != nil {
-		t.Errorf("after ClearPause: %v", got)
-	}
-	// Err paths
-	s.Err = errInjected
-	if _, err := s.GetActive(); err == nil {
-		t.Errorf("GetActive with Err should fail")
-	}
-	if err := s.SetActive(now); err == nil {
-		t.Errorf("SetActive with Err should fail")
-	}
-	if err := s.ClearActive(); err == nil {
-		t.Errorf("ClearActive with Err should fail")
-	}
-	if _, err := s.GetPause(); err == nil {
-		t.Errorf("GetPause with Err should fail")
-	}
-	if err := s.SetPause(now); err == nil {
-		t.Errorf("SetPause with Err should fail")
-	}
-	if err := s.ClearPause(); err == nil {
-		t.Errorf("ClearPause with Err should fail")
-	}
-}
-
-func TestFakeLock(t *testing.T) {
-	l := &FakeLock{}
-	called := 0
-	if err := l.With(func() error { called++; return nil }); err != nil {
-		t.Errorf("With: %v", err)
-	}
-	if called != 1 || l.Calls != 1 {
-		t.Errorf("called=%d Calls=%d", called, l.Calls)
-	}
-	// fn error propagates
-	if err := l.With(func() error { return errInjected }); err == nil {
-		t.Errorf("fn error should propagate")
-	}
-	// Lock error short-circuits fn
-	l.Err = errInjected
-	called = 0
-	if err := l.With(func() error { called++; return nil }); err == nil {
-		t.Errorf("Lock Err should fail")
-	}
-	if called != 0 {
-		t.Errorf("fn should NOT be invoked when Lock Err set")
-	}
-}
-
-// — tmux.go —
-
-func TestFakeTmux_AllMethods(t *testing.T) {
-	tx := &FakeTmux{
-		Session:  "main",
-		Sessions: []string{"main", "scratch"},
-		Options:  map[string]string{"@theme": "storm"},
-	}
-	if err := tx.RefreshClient(); err != nil {
-		t.Errorf("RefreshClient: %v", err)
-	}
-	if tx.Refreshes != 1 {
-		t.Errorf("Refreshes=%d, want 1", tx.Refreshes)
-	}
-	if got := tx.ShowOption("@theme"); got != "storm" {
-		t.Errorf("ShowOption: %q", got)
-	}
-	if got := tx.ShowOption("missing"); got != "" {
-		t.Errorf("ShowOption missing should be empty, got %q", got)
-	}
-	// Options==nil branch
-	tx2 := &FakeTmux{}
-	if got := tx2.ShowOption("anything"); got != "" {
-		t.Errorf("ShowOption with nil Options: %q", got)
-	}
-	if tx.CurrentSessionName() != "main" {
-		t.Errorf("CurrentSessionName: %q", tx.CurrentSessionName())
-	}
-	list, err := tx.ListSessions()
-	if err != nil || len(list) != 2 {
-		t.Errorf("ListSessions = (%+v, %v)", list, err)
-	}
-	if !tx.HasSession("scratch") {
-		t.Errorf("HasSession scratch should be true")
-	}
-	if tx.HasSession("nope") {
-		t.Errorf("HasSession nope should be false")
-	}
-	if err := tx.NewSessionAt("new", "/tmp"); err != nil {
-		t.Errorf("NewSessionAt: %v", err)
-	}
-	if len(tx.New) != 1 || tx.New[0] != "new@/tmp" {
-		t.Errorf("New=%+v", tx.New)
-	}
-	if !tx.HasSession("new") {
-		t.Errorf("New session should be visible to HasSession")
-	}
-	if err := tx.SwitchClient("scratch"); err != nil {
-		t.Errorf("SwitchClient: %v", err)
-	}
-	if len(tx.Switches) != 1 || tx.Switches[0] != "scratch" {
-		t.Errorf("Switches=%+v", tx.Switches)
-	}
-	if err := tx.SplitWindowH("vim", "-c", "echo"); err != nil {
-		t.Errorf("SplitWindowH: %v", err)
-	}
-	if len(tx.Splits) != 1 || tx.Splits[0] != "vim -c echo" {
-		t.Errorf("Splits=%+v", tx.Splits)
-	}
-	if err := tx.RunTmuxAction("split-window"); err != nil {
-		t.Errorf("RunTmuxAction: %v", err)
-	}
-	if len(tx.Actions) != 1 {
-		t.Errorf("Actions=%+v", tx.Actions)
-	}
-}
-
-func TestFakeTmux_ErrPaths(t *testing.T) {
-	tx := &FakeTmux{
-		RefreshErr:      errInjected,
-		SplitErr:        errInjected,
-		ActionErr:       errInjected,
-		ListSessionsErr: errInjected,
-		NewSessionErr:   errInjected,
-		SwitchErr:       errInjected,
-	}
-	if err := tx.RefreshClient(); err == nil {
-		t.Errorf("RefreshClient with err should fail")
-	}
-	if _, err := tx.ListSessions(); err == nil {
-		t.Errorf("ListSessions with err should fail")
-	}
-	if err := tx.NewSessionAt("a", "/"); err == nil {
-		t.Errorf("NewSessionAt with err should fail")
-	}
-	if err := tx.SwitchClient("a"); err == nil {
-		t.Errorf("SwitchClient with err should fail")
-	}
-	if err := tx.SplitWindowH("cmd"); err == nil {
-		t.Errorf("SplitWindowH with err should fail")
-	}
-	if err := tx.RunTmuxAction("x"); err == nil {
-		t.Errorf("RunTmuxAction with err should fail")
-	}
-}
-
-// — wikilink.go —
-
-func TestFakeWikilinkResolver(t *testing.T) {
-	// Nil-entries fast path
-	r := &FakeWikilinkResolver{}
-	if _, _, ok := r.Resolve("anything"); ok {
-		t.Errorf("nil-entries resolver should not match")
-	}
-	r2 := &FakeWikilinkResolver{Entries: map[string]FakeWikilinkEntry{
-		"id1": {URI: "kompendium://note/id1", Title: "Note 1"},
-	}}
-	uri, title, ok := r2.Resolve("id1")
-	if !ok || uri != "kompendium://note/id1" || title != "Note 1" {
-		t.Errorf("Resolve id1: (%q, %q, %v)", uri, title, ok)
-	}
-	if _, _, ok := r2.Resolve("missing"); ok {
-		t.Errorf("missing id should not resolve")
+// TestFakeProjectBindingStore_DeletePath covers FakeProjectBindingStore.DeletePath (at 0%).
+func TestFakeProjectBindingStore_DeletePath(t *testing.T) {
+	s := NewFakeProjectBindingStore()
+	ctx := context.Background()
+	b := domain.ProjectBinding{
+		ID:        "b1",
+		OwnerID:   "u1",
+		NodeID:    "p1",
+		Kind:      domain.BindingPath,
+		MachineID: "mac-1",
+		Path:      "/home/user/proj",
+	}
+	if _, err := s.Upsert(ctx, b); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+	// DeletePath removes the binding.
+	if err := s.DeletePath(ctx, "u1", "mac-1", "/home/user/proj"); err != nil {
+		t.Fatalf("DeletePath: %v", err)
+	}
+	all := s.All()
+	for _, got := range all {
+		if got.ID == "b1" {
+			t.Error("binding should have been deleted by DeletePath")
+		}
 	}
 }

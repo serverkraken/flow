@@ -1,0 +1,21 @@
+package components
+
+// Card is the standard surface container. class appends extra utilities
+// (grid spans, padding overrides, …) onto the base glass card styling.
+// Backward-compatible: existing @Card(class, body) callers render unchanged.
+templ Card(class string, body templ.Component) {
+	<article class={ "relative overflow-hidden rounded-2xl glass shadow-soft p-6", class }>
+		@body
+	</article>
+}
+
+// CardCorner is a glass card with a colored corner triangle for project-hue
+// accents. hueVar is a design token name (e.g. "blue", "green", "purple",
+// "cyan"); it maps to the CSS custom property --<hueVar> (RGB triplet).
+// Usage: @CardCorner("blue", "mb-4") { @content() }
+templ CardCorner(hueVar string, class string) {
+	<article class={ "relative overflow-hidden rounded-2xl glass shadow-soft p-6 pl-7", class }>
+		<span class="card-corner" style={ "--c:var(--" + hueVar + ")" } aria-hidden="true"></span>
+		{ children... }
+	</article>
+}

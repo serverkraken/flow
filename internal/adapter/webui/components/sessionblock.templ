@@ -1,0 +1,79 @@
+package components
+
+// blockClasses assembles the .wtblock class list from the VM flags. The class is
+// namespaced "wtblock" (NOT "block") so it never collides with Tailwind's
+// `block` (display:block) utility used on form labels etc.
+func blockClasses(vm SessionBlockVM) string {
+	cls := "wtblock"
+	if vm.Unassigned {
+		cls += " wtblock-unassigned"
+	}
+	if vm.Running {
+		cls += " wtblock-running"
+	}
+	switch vm.Size {
+	case "sm":
+		cls += " wtblock-sm"
+	case "md":
+		cls += " wtblock-md"
+	}
+	return cls
+}
+
+// blockHueProp returns the CSS custom-property fragment for a known hue
+// ("--c:var(--blue); " etc.) or an empty string for unknown/empty hues.
+// This whitelist prevents arbitrary strings from being injected into inline
+// styles — exactly the same guard used by rowTileClass / valueHue siblings.
+func blockHueProp(hue string) string {
+	switch hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return "--c:var(--" + hue + "); "
+	default:
+		return ""
+	}
+}
+
+// blockStyle builds the inline style: position/height always, plus the hue
+// custom property (--c) for assigned blocks so the rail + tint pick it up.
+func blockStyle(vm SessionBlockVM) string {
+	s := "top:" + itoa(vm.TopPx) + "px; height:" + itoa(vm.HeightPx) + "px"
+	if !vm.Unassigned {
+		s = blockHueProp(vm.Hue) + s
+	}
+	return s
+}
+
+// titleClass dims the title text for unassigned blocks.
+func blockTitleClass(unassigned bool) string {
+	if unassigned {
+		return "b-title text-[.74rem] font-semibold leading-tight text-muted"
+	}
+	return "b-title text-[.78rem] font-semibold leading-tight wtblock-c"
+}
+
+// SessionBlock renders a positioned worktime block in the time grid (ported
+// from studio-worktime-calendar.html:600-627). Hue is injected via --c; size
+// classes drive how much detail (time line, tag) is revealed.
+templ SessionBlock(vm SessionBlockVM) {
+	<button
+		class={ blockClasses(vm) }
+		style={ blockStyle(vm) }
+		data-session-id={ vm.ID }
+		aria-label={ vm.Title + " " + vm.TimeRange }
+	>
+		<span class="px-2.5 py-1.5">
+			<span class={ blockTitleClass(vm.Unassigned) }>
+				if vm.Unassigned {
+					<span class="text-orange" aria-hidden="true">{ vm.Glyph }</span>
+				} else {
+					<span aria-hidden="true">{ vm.Glyph }</span>
+				}
+				<span>{ vm.Title }</span>
+			</span>
+			<span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">{ vm.TimeRange }</span>
+			for _, t := range vm.Tags {
+				<span class="b-extra mt-1.5">@Tag(t)</span>
+			}
+		</span>
+	</button>
+}

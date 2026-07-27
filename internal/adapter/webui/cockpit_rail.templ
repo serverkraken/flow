@@ -1,0 +1,112 @@
+package webui
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// CockpitRailBlocks is the Meta-Spalte's functional panels (Mockup Z.634–668):
+// the Kette (this node → ancestors → inherited rate), the subtree Beiträger
+// row (only when the subtree has activity — Contributors is filled by
+// nodeCockpitData's always-run path so it survives the rail's own SSE
+// reload), the "Kontext für Agenten" instrument panel (L5, only when
+// d.Context != nil — an unwired/failed compose degrades to no panel), and
+// Bindings.
+templ CockpitRailBlocks(d NodeCockpit) {
+	<div class="blk">
+		<span class="eyebrow">{ components.T(ctx, "cockpit.rail.chain") }</span>
+		for _, row := range ChainRows(ctx, d) {
+			<div class="krow">
+				if row.Href != "" {
+					<a class="n" href={ templ.SafeURL(row.Href) } title={ row.Label }>{ row.Label }</a>
+				} else {
+					<span class="n" title={ row.Label }>{ row.Label }</span>
+				}
+				<span class="v">{ row.HoursStr }</span>
+			</div>
+		}
+	</div>
+	if len(d.Contributors) > 0 {
+		<div class="blk">
+			<span class="eyebrow">{ components.T(ctx, "cockpit.rail.contributors") }</span>
+			<p class="text-sm text-meta">{ strings.Join(d.Contributors, ", ") }</p>
+		</div>
+	}
+	if d.Context != nil {
+		<div class="blk">
+			<span class="eyebrow">{ components.T(ctx, "context.rail.title") }</span>
+			<div class={ "meter", templ.KV("full", d.Context.Full) } role="img" aria-label={ fmt.Sprintf(components.T(ctx, "context.meterAria"), d.Context.Pct) }>
+				<i style={ "width:" + strconv.Itoa(d.Context.Pct) + "%" }></i>
+			</div>
+			<div class="meter-l">
+				<span>{ d.Context.UsedStr } tk</span>
+				if d.Context.Full {
+					<span class="warn">{ components.T(ctx, "context.budgetFull") } · { d.Context.CapStr }</span>
+				} else {
+					<span>{ d.Context.CapStr }</span>
+				}
+			</div>
+			<div class="ctxrows">
+				if d.Context.AlwaysN > 0 {
+					<div class="krow"><span class="n">{ components.T(ctx, "context.rail.always") }</span><span class="v">{ fmt.Sprintf(components.T(ctx, "context.docsN"), d.Context.AlwaysN) }</span></div>
+				}
+				<div class="krow"><span class="n">{ components.T(ctx, "context.included") }</span><span class="v">{ fmt.Sprintf(components.T(ctx, "context.docsN"), d.Context.IncludedN) }</span></div>
+				<div class="krow"><span class="n">{ components.T(ctx, "context.dropped") }</span><span class="v">{ strconv.Itoa(d.Context.DroppedN) }</span></div>
+				<div class="krow"><span class="n">{ components.T(ctx, "context.pinned") }</span><span class="v">{ strconv.Itoa(d.Context.PinnedN) }</span></div>
+			</div>
+			for i, p := range d.Context.TopPins {
+				<div class="pin" if i == len(d.Context.TopPins)-1 { style="border-bottom:none" }>
+					<span class="g">{ p.Num }</span><span class="n" title={ p.Title }>{ p.Title }</span>
+				</div>
+			}
+			<div class="mt-3">
+				<a class="more" href={ templ.SafeURL("/kontext/" + d.Context.NodeID) }>{ components.T(ctx, "context.curate") }</a>
+			</div>
+		</div>
+	}
+	<div class="blk">
+		<span class="eyebrow">{ components.T(ctx, "cockpit.bindings.title") }</span>
+		if len(d.Bindings) == 0 {
+			<p class="empty text-faint">{ components.T(ctx, "cockpit.bindings.empty") }</p>
+		} else {
+			for _, b := range d.Bindings {
+				<div class="krow">
+					<span class="n bindtarget font-mono" title={ bindingTarget(b) }>{ bindingTarget(b) }</span>
+					<form hx-post={ "/nodes/" + d.N.ID + "/bindings/delete" } hx-target="#cockpit-rail" hx-swap="innerHTML">
+						<input type="hidden" name="kind" value={ string(b.Kind) }/>
+						<input type="hidden" name="slug" value={ b.RemoteSlug }/>
+						<input type="hidden" name="machine" value={ b.MachineID }/>
+						<input type="hidden" name="path" value={ b.Path }/>
+						<button class="del text-faint hover:text-warn" aria-label={ components.T(ctx, "cockpit.bindings.delete") }>✕</button>
+					</form>
+				</div>
+			}
+		}
+		if d.N.Kind == domain.KindRepo {
+			<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-rail" hx-swap="innerHTML" class="bindadd mt-2 flex items-center gap-2">
+				<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="min-w-0 flex-1 rounded-lg border border-hair2 bg-surface px-2 py-1.5 font-mono"/>
+				<button class="btn btn-q btn-s" type="submit">+</button>
+			</form>
+		}
+		if d.PanelErr != "" {
+			<p class="err mt-2 text-warn" role="alert">{ d.PanelErr }</p>
+		}
+	</div>
+}
+
+// bindingTarget returns the display label for a binding:
+// remote → remoteSlug; path → machineLabel:path (or machineID:path as fallback).
+func bindingTarget(b domain.ProjectBinding) string {
+	if b.Kind == domain.BindingRemote {
+		return b.RemoteSlug
+	}
+	label := b.MachineLabel
+	if label == "" {
+		label = b.MachineID
+	}
+	return label + ":" + b.Path
+}

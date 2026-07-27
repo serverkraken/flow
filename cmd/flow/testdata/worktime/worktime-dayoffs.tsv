@@ -1,0 +1,5 @@
+# worktime day-offs — TSV: date<TAB>kind<TAB>label[<TAB>hours]
+# kinds: holiday | vacation | sick
+2026-01-01	holiday	Neujahr
+2026-04-29	vacation	Jules Geburtstag
+2026-06-01	sick	Krank

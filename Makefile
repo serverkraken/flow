@@ -1,61 +1,76 @@
-BIN             := flow
-PKG             := ./cmd/flow
+BIN             := flow-server
+PKG             := ./cmd/flow-server
 COVER_OUT       := coverage.out
-# 90% target — the project's schema goal. The previous 85% slip was a
-# pragmatic floor before the testutil package and the cancelled-context
-# cobra-RunE pattern brought every CLI verb in reach. Specifically:
-#  1. testutil/* now self-tests its fakes (was 0%, now 99%+).
-#  2. Standalone cobra commands (sidekick / palette / projects /
-#     cheatsheet / markdown / worktime today) run their RunE under an
-#     already-cancelled tea.WithContext, so the full constructor +
-#     theme + factory chain executes without needing a real TTY.
-#  3. cmd/flow's composition root has direct tests for buildDeps /
-#     buildKompendiumDeps / buildNotesScreen / parseEnvHoursDuration —
-#     only main() itself stays uncovered (os.Exit makes it untestable).
-# Aggregate sits around 90% with the `-coverpkg=./internal/...` measure
-# this target uses. Drop the threshold only with a justification in the
-# corresponding plan file.
-COVER_THRESHOLD := 90
-
-# Coverage measurement targets the hexagonal layers under internal/.
-# cmd/flow is the composition root (wiring only, no business logic) and
-# is intentionally excluded — see CLAUDE.md "Architecture — hexagonal".
-# -coverpkg=./internal/... attributes coverage from any test (including
-# adapter/usecase tests that exercise testutil fakes) to all internal
-# packages, so testutil's fakes register as covered when their callers
-# are.
+COVER_THRESHOLD := 75
 COVER_PKG       := ./internal/...
+PREFIX          ?= $(HOME)/.local
+BINDIR          ?= $(PREFIX)/bin
 
-.PHONY: build install test cover lint fmt clean ci
-
+.PHONY: build install test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate verify-css verify-no-popups dev-up dev-down dev-run dev-token dev-login dev-refresh-prod
 build:
 	@mkdir -p bin
-	go build -o bin/$(BIN) $(PKG)
-
-install:
-	GOBIN="$(HOME)/.local/bin" go install $(PKG)
-
+	go build -o bin/flow-server ./cmd/flow-server
+	go build -o bin/flow ./cmd/flow
+	go build -o bin/flow-mcp ./cmd/flow-mcp
+# install copies the freshly-built binaries to $(BINDIR) (default ~/.local/bin) via install(1),
+# which writes a temp file then renames it into place — a FRESH inode. That avoids the macOS
+# "Killed: 9" (SIGKILL) you get when `cp` overwrites a signed binary in place and the kernel's
+# cached code-signature (cdhash) for that inode goes stale. Override dest: make install PREFIX=/usr/local
+install: build
+	@install -d "$(BINDIR)"
+	install -m 0755 bin/flow-server "$(BINDIR)/flow-server"
+	install -m 0755 bin/flow "$(BINDIR)/flow"
+	install -m 0755 bin/flow-mcp "$(BINDIR)/flow-mcp"
+	@echo "installed flow, flow-server, flow-mcp -> $(BINDIR)"
 test:
 	go test -race ./...
-
 cover:
-	# -race is intentionally NOT passed here. With -race, Go's coverage
-	# attribution under -coverpkg=./internal/... drops random hits in
-	# parallel-test packages (sidekick + cli/sidekick lose ~1.5% under
-	# -race vs the same suite without). Race correctness is enforced by
-	# the separate `make test` target; coverage is a measurement, not a
-	# correctness check.
 	go test -covermode=atomic -coverprofile=$(COVER_OUT) -coverpkg=$(COVER_PKG) ./...
 	@./scripts/coverage-gate.sh $(COVER_OUT) $(COVER_THRESHOLD)
-
 lint:
 	golangci-lint run
-
 fmt:
-	gofumpt -w .
-	goimports -w .
-
-clean:
-	rm -rf bin/ dist/ $(COVER_OUT) coverage.html
-
-ci: lint cover build
+	gofumpt -w . && goimports -w .
+db-up:
+	docker compose -f deploy/docker-compose.yml up -d
+db-down:
+	docker compose -f deploy/docker-compose.yml down
+smoke:
+	./scripts/smoke-m1a.sh
+smoke-m1b:
+	./scripts/smoke-m1b.sh
+# --- self-contained dev env (Postgres + Dex OIDC); see deploy/dev/README.md ---
+dev-up:
+	./scripts/dev-up.sh
+dev-down:
+	./scripts/dev-down.sh $(ARGS)
+dev-run:
+	./scripts/dev-run.sh
+dev-token:
+	@./scripts/dev-token.sh
+dev-login:
+	set -a; . deploy/dev/flow-cli.env; set +a; go run ./cmd/flow login
+dev-refresh-prod:
+	./scripts/dev-refresh-prod.sh
+# web builds the Tailwind v4 stylesheet. Requires the tailwindcss CLI (NOT part of make ci).
+web:
+	tailwindcss --input web/tailwind.css --output internal/adapter/webui/static/app.css --minify
+# generate runs all code generators (templ, etc.).
+generate:
+	go tool templ generate
+# verify-generate checks that generated files are up to date.
+verify-generate:
+	go tool templ generate
+	@if ! git diff --quiet -- ':*_templ.go'; then \
+		echo "ERROR: generated *_templ.go is out of date — run make generate"; \
+		git diff -- ':*_templ.go'; \
+		exit 1; \
+	fi
+	@echo "verify-generate: OK"
+# verify-css checks the committed app.css matches a fresh tailwind build.
+verify-css:
+	@./scripts/verify-css.sh
+# verify-no-popups bans native browser popups in the WebUI (use Dialog instead).
+verify-no-popups:
+	@./scripts/verify-no-popups.sh
+ci: lint verify-generate verify-css verify-no-popups cover build

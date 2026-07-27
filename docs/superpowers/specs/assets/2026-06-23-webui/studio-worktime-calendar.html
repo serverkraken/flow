@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>flow — Historie</title>
+
+<!-- ── Fonts (verbatim from Studio) ───────────────────────────────────────
+     Display : Clash Display (Fontshare) — characterful geometric grotesk
+     Body    : Inter (Google) — clean, neutral, highly readable
+     Mono    : JetBrains Mono (Google) — timer + durations + times
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  /* ── tailwind.config — verbatim from Studio (do not diverge) ── */
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Clash Display"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        },
+        colors: {
+          canvas:  'rgb(var(--canvas)  / <alpha-value>)',
+          surface: 'rgb(var(--surface) / <alpha-value>)',
+          sunken:  'rgb(var(--sunken)  / <alpha-value>)',
+          line:    'rgb(var(--line)    / <alpha-value>)',
+          line2:   'rgb(var(--line2)   / <alpha-value>)',
+          ink:     'rgb(var(--ink)     / <alpha-value>)',
+          body:    'rgb(var(--body)    / <alpha-value>)',
+          muted:   'rgb(var(--muted)   / <alpha-value>)',
+          faint:   'rgb(var(--faint)   / <alpha-value>)',
+          blue:    'rgb(var(--blue)    / <alpha-value>)',
+          cyan:    'rgb(var(--cyan)    / <alpha-value>)',
+          green:   'rgb(var(--green)   / <alpha-value>)',
+          purple:  'rgb(var(--purple)  / <alpha-value>)',
+          magenta: 'rgb(var(--magenta) / <alpha-value>)',
+          yellow:  'rgb(var(--yellow)  / <alpha-value>)',
+          orange:  'rgb(var(--orange)  / <alpha-value>)',
+          red:     'rgb(var(--red)     / <alpha-value>)',
+          teal:    'rgb(var(--teal)    / <alpha-value>)',
+          oncolor: 'rgb(var(--oncolor) / <alpha-value>)',
+        },
+        borderRadius: { '2xl': '1.25rem', '3xl': '1.75rem' },
+        boxShadow: {
+          'soft':  '0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10)',
+          'lift':  '0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18)',
+          'ring':  '0 10px 50px -12px rgb(var(--shadow-accent) / .30)',
+          'pop':   '0 8px 30px -6px rgb(var(--shadow) / .14), 0 30px 70px -24px rgb(var(--shadow-accent) / .28)',
+        },
+        keyframes: {
+          breathe: { '0%,100%': { opacity: '1' }, '50%': { opacity: '.45' } },
+          rise:    { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'none' } },
+          pop:     { '0%': { opacity: '0', transform: 'translateY(6px) scale(.98)' }, '100%': { opacity: '1', transform: 'none' } },
+          attn:    { '0%,100%': { opacity: '1' }, '50%': { opacity: '.35' } },
+        },
+        animation: {
+          breathe: 'breathe 2.2s ease-in-out infinite',
+          rise:    'rise .6s cubic-bezier(.21,.85,.27,1) both',
+          pop:     'pop .22s cubic-bezier(.21,.85,.27,1) both',
+          attn:    'attn 1.8s ease-in-out infinite',
+        },
+      },
+    },
+  };
+</script>
+
+<!-- No-flash theme init (verbatim from Studio): set data-theme BEFORE first paint. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('flow-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+
+<style>
+  /* ════════════════════════════════════════════════════════════════════
+     DESIGN TOKENS — verbatim from Studio. One identity, two themes.
+     ════════════════════════════════════════════════════════════════════ */
+  :root {
+    color-scheme: light;
+    --canvas:  251 252 254;
+    --surface: 255 255 255;
+    --sunken:  244 246 251;
+    --line:    230 233 242;
+    --line2:   238 241 248;
+    --ink:      27  34  51;
+    --body:     72  82 106;
+    --muted:   138 147 166;
+    --faint:   174 182 199;
+
+    --blue:     59 111 246;
+    --cyan:     11 165 214;
+    --green:    39 165 103;
+    --purple:  139  92 246;
+    --magenta: 225  29 116;
+    --yellow:  217 138  11;
+    --orange:  234 106  43;
+    --red:     224  69  91;
+    --teal:     14 155 142;
+    --oncolor: 255 255 255;
+
+    --shadow:         27  34  51;
+    --shadow-accent:  59 111 246;
+
+    --code-bg:    15  20  38;
+    --code-fg:   201 212 245;
+    --halo:       59 111 246;
+    --halo-a:    0.16;
+    --scrollthumb: 217 223 236;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --canvas:  14  17  28;
+    --surface: 22  26  40;
+    --sunken:  28  33  50;
+    --line:    42  49  72;
+    --line2:   34  40  60;
+    --ink:     226 231 245;
+    --body:    166 175 199;
+    --muted:   122 132 158;
+    --faint:    82  92 120;
+
+    --blue:    122 162 247;
+    --cyan:    125 207 255;
+    --green:   158 206 106;
+    --purple:  187 154 247;
+    --magenta: 247 110 168;
+    --yellow:  224 175 104;
+    --orange:  255 158 100;
+    --red:     247 118 142;
+    --teal:    115 218 202;
+    --oncolor:  16  19  30;
+
+    --shadow:          0   0   0;
+    --shadow-accent:  18  24  48;
+
+    --code-bg:   10  13  24;
+    --code-fg:  201 212 245;
+    --halo:    122 162 247;
+    --halo-a:    0.20;
+    --scrollthumb: 49  57  84;
+  }
+
+  html, body { background: rgb(var(--canvas)); }
+  body {
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    transition: background-color .35s ease, color .35s ease;
+  }
+  aside, header, nav, article, input, .theme-fade {
+    transition: background-color .35s ease, border-color .35s ease, color .35s ease;
+  }
+
+  .font-display { letter-spacing: -0.015em; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .eyebrow { letter-spacing: .14em; }
+
+  /* Visible, on-brand keyboard focus (verbatim from Studio) */
+  *:focus-visible {
+    outline: 2px solid rgb(var(--blue));
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  /* Theme-toggle knob slide (verbatim from Studio) */
+  .toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
+  :root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+  .toggle-sun { display:inline; }   .toggle-moon { display:none; }
+  :root[data-theme="dark"] .toggle-sun { display:none; }
+  :root[data-theme="dark"] .toggle-moon { display:inline; }
+
+  .scroll-thin::-webkit-scrollbar { height:8px; width:8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background:rgb(var(--scrollthumb)); border-radius:99px; }
+  .scroll-thin::-webkit-scrollbar-track { background:transparent; }
+
+  /* ════════════════════════════════════════════════════════════════════
+     SURFACE-SPECIFIC additions — built strictly from Studio tokens.
+     ════════════════════════════════════════════════════════════════════ */
+
+  /* Time-grid scale: 06:00 → 20:00 = 14h. One hour = 48px → grid 672px tall.
+     A session's top/height is computed from minutes-since-06:00 in inline style. */
+  :root { --hour: 48px; --grid-h: 672px; }
+
+  /* hour gridlines as a repeating background on the day columns */
+  .grid-lines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgb(var(--line2)) 0, rgb(var(--line2)) 1px,
+      transparent 1px, transparent var(--hour)
+    );
+  }
+
+  /* A worktime block. Project hue is injected via --c (an RGB triplet) on the element.
+     Fill is a soft tint of the hue; a 3px left rail is the full hue. */
+  .block {
+    position: absolute;
+    left: 4px; right: 4px;
+    border-radius: 12px;
+    border: 1px solid rgb(var(--c) / .35);
+    background: rgb(var(--c) / .12);
+    overflow: hidden;
+    transition: box-shadow .18s ease, transform .12s ease, outline-color .15s ease;
+    outline: 2px solid transparent;
+    outline-offset: 1px;
+  }
+  :root[data-theme="dark"] .block { background: rgb(var(--c) / .18); border-color: rgb(var(--c) / .42); }
+  .block::before {
+    content:""; position:absolute; inset-block:0; left:0; width:3px; background: rgb(var(--c));
+  }
+  .block:hover { box-shadow: 0 6px 20px -8px rgb(var(--c) / .55); transform: translateY(-1px); z-index: 5; }
+  .block-c   { color: rgb(var(--c)); }                 /* hue-colored text inside a block */
+
+  /* Inner text never overflows: clamp the whole label, force the time line to a
+     single non-wrapping row, and let the title truncate with an ellipsis. */
+  .block > span { display:block; min-width:0; }
+  .block .b-title { display:flex; align-items:center; gap:.375rem; min-width:0; }
+  .block .b-title > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .block .b-time  { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* size-aware reveal: hide tag chip + import hint on short blocks; hide the
+     time line entirely on the very shortest so the title alone fits cleanly. */
+  .block .b-extra { display:none; }
+  .block .b-time  { display:none; }
+  .block.block-sm .b-time  { display:block; }   /* >= ~44px tall */
+  .block.block-md .b-time  { display:block; }
+  .block.block-md .b-extra { display:block; }   /* >= ~80px tall */
+
+  /* Unassigned block — the import mess. Neutral grey fill (reads as "empty"),
+     dashed border, plus a faint WARNING wash so the eye is pulled here first. */
+  .block-unassigned {
+    background:
+      linear-gradient(0deg, rgb(var(--yellow) / .07), rgb(var(--yellow) / .07)),
+      rgb(var(--sunken));
+    border: 1.5px dashed rgb(var(--faint));
+  }
+  :root[data-theme="dark"] .block-unassigned {
+    background:
+      linear-gradient(0deg, rgb(var(--orange) / .10), rgb(var(--orange) / .10)),
+      rgb(var(--sunken));
+    border-color: rgb(var(--muted));
+  }
+  .block-unassigned::before { background: transparent; }
+  .block-unassigned:hover { box-shadow: 0 6px 20px -8px rgb(var(--orange) / .45); border-color: rgb(var(--orange) / .8); }
+
+  /* selected state for any block (bulk mode) */
+  .block.is-selected { outline-color: rgb(var(--blue)); box-shadow: 0 6px 22px -8px rgb(var(--blue) / .6); }
+  .block.is-selected::after {
+    content:"✓"; position:absolute; top:5px; right:6px;
+    font-size:.72rem; font-weight:700; color: rgb(var(--blue));
+  }
+
+  /* running block — live cyan, breathing rail */
+  .block-running { background: rgb(var(--cyan) / .14); border-color: rgb(var(--cyan) / .5); }
+  :root[data-theme="dark"] .block-running { background: rgb(var(--cyan) / .2); }
+  .block-running::before { background: rgb(var(--cyan)); }
+
+  /* now-line across the grid (today) */
+  .now-line { position:absolute; left:0; right:0; height:0; border-top:2px solid rgb(var(--cyan)); z-index:8; pointer-events:none; }
+  .now-line::before {
+    content:""; position:absolute; left:-4px; top:-4px; height:8px; width:8px; border-radius:99px; background:rgb(var(--cyan));
+    box-shadow:0 0 0 3px rgb(var(--cyan) / .25);
+  }
+
+  /* fuzzy-picker option rows */
+  .pick-row[aria-selected="true"] { background: rgb(var(--blue) / .1); }
+
+  /* checkbox styled to brand */
+  .chk {
+    appearance:none; -webkit-appearance:none;
+    height:18px; width:18px; border-radius:6px; border:1.5px solid rgb(var(--faint));
+    background:rgb(var(--surface)); display:inline-grid; place-content:center; cursor:pointer;
+    transition: background .12s ease, border-color .12s ease;
+    flex: none;
+  }
+  .chk:checked { background: rgb(var(--blue)); border-color: rgb(var(--blue)); }
+  .chk:checked::after { content:"✓"; color: rgb(var(--oncolor)); font-size:.72rem; font-weight:800; line-height:1; }
+
+  /* time inputs: keep native semantics but guarantee a stable height + readable
+     fields in both themes (some engines collapse type=time when chrome is hidden). */
+  input[type="time"] {
+    min-height: 42px; line-height: 1.2;
+    color: rgb(var(--ink)); color-scheme: light dark;
+  }
+  :root[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(.6); }
+  input[type="time"]::-webkit-datetime-edit { padding: 0; }
+
+  /* segmented control (Woche | Monat, Alle | …) */
+  .seg { background: rgb(var(--sunken)); border:1px solid rgb(var(--line)); border-radius: 12px; padding:3px; }
+  .seg button { border-radius: 9px; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
+  .seg button[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); box-shadow: var(--tw-shadow, 0 1px 2px rgb(var(--shadow)/.06)); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+
+<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink">
+
+<!-- ════════════════════ DESKTOP SIDEBAR (md+) — verbatim Studio chrome ════════════════════ -->
+<aside class="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40">
+  <div class="px-6 pt-7 pb-6 flex items-center justify-between">
+    <a href="#" class="group inline-flex items-center gap-2.5" aria-label="flow Startseite">
+      <span class="grid place-items-center h-9 w-9 rounded-xl bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-lg shadow-soft">f</span>
+      <span class="font-display text-[1.45rem] font-semibold tracking-tight">flow</span>
+    </a>
+    <button type="button" onclick="toggleTheme()" data-theme-toggle
+            class="relative grid place-items-center h-8 w-8 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+            aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+      <span class="toggle-sun text-[.95rem]" aria-hidden="true">☀</span>
+      <span class="toggle-moon text-[.95rem]" aria-hidden="true">☾</span>
+    </button>
+  </div>
+
+  <nav class="flex-1 px-3 space-y-1" aria-label="Hauptnavigation">
+    <a href="#" aria-current="page"
+       class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium bg-blue/[.08] text-blue">
+      <span class="w-5 text-center text-[.95rem]" aria-hidden="true">▶</span> Heute
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">◆</span> Wissen
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">●</span> Projekte
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">▲</span> Stats
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">★</span> Frei
+    </a>
+  </nav>
+
+  <!-- Live status pill (verbatim Studio) -->
+  <div class="px-3 pb-3">
+    <div class="rounded-xl border border-line bg-sunken/60 px-3.5 py-3">
+      <div class="flex items-center gap-2 text-[.7rem] font-semibold eyebrow uppercase text-green">
+        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span></span>
+        Läuft
+      </div>
+      <div class="mt-1.5 font-mono text-[.95rem] font-medium tnum text-ink" data-mini-timer>02:14:33</div>
+      <div class="text-[.78rem] text-muted truncate">flow · #rebuild</div>
+    </div>
+  </div>
+
+  <div class="px-3 pb-5">
+    <a href="#" class="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sunken transition-colors group">
+      <span class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.8rem] font-semibold">MS</span>
+      <span class="min-w-0">
+        <span class="block text-[.85rem] font-medium leading-tight truncate">Martin S.</span>
+        <span class="block text-[.74rem] text-muted group-hover:text-blue transition-colors">Abmelden ›</span>
+      </span>
+    </a>
+  </div>
+</aside>
+
+<!-- ════════════════════ MOBILE TOP BAR — verbatim Studio chrome ════════════════════ -->
+<header class="md:hidden sticky top-0 z-40 bg-canvas/85 backdrop-blur-xl border-b border-line">
+  <div class="flex items-center justify-between px-4 h-14">
+    <a href="#" class="inline-flex items-center gap-2" aria-label="flow Startseite">
+      <span class="grid place-items-center h-7 w-7 rounded-lg bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-sm">f</span>
+      <span class="font-display text-xl font-semibold tracking-tight">flow</span>
+    </a>
+    <div class="flex items-center gap-2.5">
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-2.5 py-1 text-[.72rem] font-semibold text-green">
+        <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green"></span></span>
+        <span class="font-mono tnum" data-mini-timer>02:14:33</span>
+      </span>
+      <button type="button" onclick="toggleTheme()" data-theme-toggle
+              class="grid place-items-center h-9 w-9 rounded-full border border-line bg-sunken text-body active:scale-95 transition"
+              aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+        <span class="toggle-sun text-base" aria-hidden="true">☀</span>
+        <span class="toggle-moon text-base" aria-hidden="true">☾</span>
+      </button>
+      <button class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.74rem] font-semibold" aria-label="Konto">MS</button>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════ MAIN ════════════════════ -->
+<main class="md:pl-[248px] pb-32 md:pb-12">
+  <div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9">
+
+    <!-- Page heading -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-5 animate-rise">
+      <div>
+        <p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">Worktime · Juni 2026</p>
+        <h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">Historie</h1>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <label class="relative flex-1 sm:flex-none">
+          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted text-sm" aria-hidden="true">›</span>
+          <input type="search" placeholder="Sitzungen suchen…" aria-label="Sitzungen suchen"
+                 class="w-full sm:w-56 rounded-xl border border-line bg-surface py-2.5 pl-9 pr-3 text-[.9rem] placeholder:text-faint shadow-soft focus:border-blue/40 transition-colors" />
+        </label>
+      </div>
+    </div>
+
+    <!-- Sub-tab strip: Heute · Historie · Stats · Frei (Historie active) -->
+    <nav class="mb-6 border-b border-line" aria-label="Worktime-Bereiche">
+      <ul class="flex items-center gap-1 -mb-px overflow-x-auto scroll-thin">
+        <li>
+          <a href="#" class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[.9rem] font-medium text-body hover:text-ink border-b-2 border-transparent transition-colors">
+            <span class="text-faint" aria-hidden="true">▶</span> Heute
+          </a>
+        </li>
+        <li>
+          <a href="#" aria-current="page" class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[.9rem] font-semibold text-blue border-b-2 border-blue">
+            <span aria-hidden="true">▤</span> Historie
+          </a>
+        </li>
+        <li>
+          <a href="#" class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[.9rem] font-medium text-body hover:text-ink border-b-2 border-transparent transition-colors">
+            <span class="text-faint" aria-hidden="true">▲</span> Stats
+          </a>
+        </li>
+        <li>
+          <a href="#" class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[.9rem] font-medium text-body hover:text-ink border-b-2 border-transparent transition-colors">
+            <span class="text-faint" aria-hidden="true">★</span> Frei
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- ════════ TOOLBAR ════════ -->
+    <div class="flex flex-col gap-3 mb-5 animate-rise" style="animation-delay:.04s">
+      <div class="flex flex-wrap items-center gap-2.5 justify-between">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- view toggle -->
+          <div class="seg inline-flex" role="group" aria-label="Ansicht wählen">
+            <button type="button" aria-pressed="true"  class="px-3.5 py-1.5 text-[.85rem] font-semibold text-body">Woche</button>
+            <button type="button" aria-pressed="false" class="px-3.5 py-1.5 text-[.85rem] font-medium text-muted hover:text-ink" onclick="showMonth()">Monat</button>
+          </div>
+
+          <!-- date-range nav -->
+          <div class="inline-flex items-center gap-1 rounded-xl border border-line bg-surface shadow-soft">
+            <button class="grid place-items-center h-9 w-9 rounded-l-xl text-muted hover:text-blue transition-colors" aria-label="Vorige Woche"><span aria-hidden="true">‹</span></button>
+            <span class="px-1 text-[.88rem] font-semibold tnum whitespace-nowrap">16.–22. Juni 2026</span>
+            <button class="grid place-items-center h-9 w-9 rounded-r-xl text-muted hover:text-blue transition-colors" aria-label="Nächste Woche"><span aria-hidden="true">›</span></button>
+          </div>
+          <button class="rounded-xl border border-line bg-surface px-3.5 py-2 text-[.85rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors">Diese Woche</button>
+
+          <!-- filter -->
+          <div class="relative">
+            <label class="sr-only" for="filterSel">Filter</label>
+            <select id="filterSel" class="appearance-none rounded-xl border border-line bg-surface pl-3.5 pr-9 py-2 text-[.85rem] font-medium text-body shadow-soft hover:border-blue/40 focus:border-blue/40 transition-colors">
+              <option>Alle Projekte</option>
+              <option>Ohne Projekt</option>
+              <option>nach Projekt …</option>
+            </select>
+            <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted text-[.7rem]" aria-hidden="true">▾</span>
+          </div>
+        </div>
+
+        <!-- bulk toggle (prominent) -->
+        <button id="selectToggle" type="button" onclick="toggleSelectMode()"
+                class="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-[.88rem] font-semibold text-canvas shadow-soft hover:bg-ink/90 active:scale-[.99] transition">
+          <span aria-hidden="true">▎</span> Auswählen
+        </button>
+      </div>
+
+      <!-- attention banner — the import mess, stated plainly -->
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl border border-orange/30 bg-orange/[.07] px-4 py-2.5">
+        <span class="inline-flex items-center gap-2 text-[.86rem] font-semibold text-orange">
+          <span class="animate-attn" aria-hidden="true">○</span> 7 Sitzungen ohne Projekt
+        </span>
+        <span class="text-[.84rem] text-body">aus dem Import — diese Woche.</span>
+        <button onclick="selectUnassigned()" class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-orange/40 bg-surface px-3 py-1.5 text-[.82rem] font-semibold text-orange hover:bg-orange/10 transition-colors">
+          <span aria-hidden="true">▎</span> Alle ohne Projekt auswählen
+        </button>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         WOCHE — time-grid (default view). Desktop only; mobile = agenda.
+         ════════════════════════════════════════════════════════════════ -->
+    <section id="weekView" class="hidden md:block animate-rise" style="animation-delay:.08s" aria-label="Wochenkalender">
+      <div class="rounded-3xl bg-surface border border-line shadow-soft overflow-hidden">
+       <!-- ONE horizontal scroll context wraps header + select-bar + body so the
+            columns always stay aligned and scroll together below ~860px. -->
+       <div class="overflow-x-auto scroll-thin">
+        <div class="min-w-[860px]">
+
+        <!-- day-header row -->
+        <div class="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line">
+          <div class="border-r border-line2"></div>
+          <!-- Mo -->
+          <button class="day-head group border-r border-line2 px-2 py-3 text-left hover:bg-sunken/60 transition-colors" data-day="Mo" onclick="selectDay('Mo')">
+            <span class="block eyebrow uppercase text-[.62rem] font-semibold text-muted">Mo</span>
+            <span class="mt-0.5 flex items-center gap-1.5">
+              <span class="font-display text-[1.05rem] font-semibold tnum">16</span>
+              <span class="hidden xl:inline font-mono text-[.66rem] tnum text-muted">7h 36m</span>
+            </span>
+            <span class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue"><span class="chk-mini" aria-hidden="true">▢</span> Tag wählen</span>
+          </button>
+          <!-- Di -->
+          <button class="day-head group border-r border-line2 px-2 py-3 text-left hover:bg-sunken/60 transition-colors" data-day="Di" onclick="selectDay('Di')">
+            <span class="block eyebrow uppercase text-[.62rem] font-semibold text-muted">Di</span>
+            <span class="mt-0.5 flex items-center gap-1.5">
+              <span class="font-display text-[1.05rem] font-semibold tnum">17</span>
+              <span class="hidden xl:inline font-mono text-[.66rem] tnum text-muted">6h 05m</span>
+            </span>
+            <span class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue"><span class="chk-mini" aria-hidden="true">▢</span> Tag wählen</span>
+          </button>
+          <!-- Mi -->
+          <button class="day-head group border-r border-line2 px-2 py-3 text-left hover:bg-sunken/60 transition-colors" data-day="Mi" onclick="selectDay('Mi')">
+            <span class="block eyebrow uppercase text-[.62rem] font-semibold text-muted">Mi</span>
+            <span class="mt-0.5 flex items-center gap-1.5">
+              <span class="font-display text-[1.05rem] font-semibold tnum">18</span>
+              <span class="hidden xl:inline font-mono text-[.66rem] tnum text-muted">7h 12m</span>
+            </span>
+            <span class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue"><span class="chk-mini" aria-hidden="true">▢</span> Tag wählen</span>
+          </button>
+          <!-- Do -->
+          <button class="day-head group border-r border-line2 px-2 py-3 text-left hover:bg-sunken/60 transition-colors" data-day="Do" onclick="selectDay('Do')">
+            <span class="block eyebrow uppercase text-[.62rem] font-semibold text-muted">Do</span>
+            <span class="mt-0.5 flex items-center gap-1.5">
+              <span class="font-display text-[1.05rem] font-semibold tnum">19</span>
+              <span class="hidden xl:inline font-mono text-[.66rem] tnum text-muted">5h 48m</span>
+            </span>
+            <span class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue"><span class="chk-mini" aria-hidden="true">▢</span> Tag wählen</span>
+          </button>
+          <!-- Fr -->
+          <button class="day-head group border-r border-line2 px-2 py-3 text-left hover:bg-sunken/60 transition-colors" data-day="Fr" onclick="selectDay('Fr')">
+            <span class="block eyebrow uppercase text-[.62rem] font-semibold text-muted">Fr</span>
+            <span class="mt-0.5 flex items-center gap-1.5">
+              <span class="font-display text-[1.05rem] font-semibold tnum">20</span>
+              <span class="hidden xl:inline font-mono text-[.66rem] tnum text-muted">6h 40m</span>
+            </span>
+            <span class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue"><span class="chk-mini" aria-hidden="true">▢</span> Tag wählen</span>
+          </button>
+          <!-- Sa -->
+          <button class="day-head group border-r border-line2 px-2 py-3 text-left hover:bg-sunken/60 transition-colors" data-day="Sa" onclick="selectDay('Sa')">
+            <span class="block eyebrow uppercase text-[.62rem] font-semibold text-faint">Sa</span>
+            <span class="mt-0.5 flex items-center gap-1.5">
+              <span class="font-display text-[1.05rem] font-semibold tnum text-faint">21</span>
+            </span>
+            <span class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue"><span class="chk-mini" aria-hidden="true">▢</span> Tag wählen</span>
+          </button>
+          <!-- So = today -->
+          <button class="day-head group px-2 py-3 text-left bg-cyan/[.06] hover:bg-cyan/[.1] transition-colors" data-day="So" onclick="selectDay('So')">
+            <span class="flex items-center gap-1.5 eyebrow uppercase text-[.62rem] font-semibold text-cyan whitespace-nowrap">So<span class="rounded-[4px] bg-cyan/15 px-1 py-px text-[.56rem] tracking-normal">heute</span></span>
+            <span class="mt-0.5 flex items-center gap-1.5">
+              <span class="font-display text-[1.05rem] font-semibold tnum text-cyan">22</span>
+              <span class="hidden xl:inline font-mono text-[.66rem] tnum text-cyan">2h 14m</span>
+            </span>
+            <span class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue"><span class="chk-mini" aria-hidden="true">▢</span> Tag wählen</span>
+          </button>
+        </div>
+
+        <!-- "ganze Woche" bar — appears in select mode -->
+        <div id="weekSelectBar" class="hidden items-center justify-between gap-3 border-b border-line bg-blue/[.05] px-4 py-2">
+          <span class="text-[.82rem] text-body">Mehrfachauswahl aktiv — klicke Blöcke, Tag-Köpfe, oder:</span>
+          <div class="flex items-center gap-2">
+            <button onclick="selectAll()" class="inline-flex items-center gap-1.5 rounded-lg border border-blue/40 bg-surface px-3 py-1.5 text-[.8rem] font-semibold text-blue hover:bg-blue/10 transition-colors"><span aria-hidden="true">▦</span> ganze Woche</button>
+            <button onclick="clearSel()" class="rounded-lg px-3 py-1.5 text-[.8rem] font-medium text-muted hover:text-ink transition-colors">Auswahl leeren</button>
+          </div>
+        </div>
+
+        <!-- body: time-axis + 7 day columns (shares the outer scroll context) -->
+        <div class="relative">
+          <div class="grid grid-cols-[56px_repeat(7,minmax(0,1fr))]">
+
+            <!-- time axis — labels sit just below their gridline (origin y=0 = 06:00),
+                 so the first label can never escape upward into the header. -->
+            <div class="relative border-r border-line2 select-none" style="height:var(--grid-h)">
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(0*var(--hour) + 3px)">06</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(1*var(--hour) - 7px)">07</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(2*var(--hour) - 7px)">08</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(3*var(--hour) - 7px)">09</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(4*var(--hour) - 7px)">10</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(5*var(--hour) - 7px)">11</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(6*var(--hour) - 7px)">12</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(7*var(--hour) - 7px)">13</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(8*var(--hour) - 7px)">14</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(9*var(--hour) - 7px)">15</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(10*var(--hour) - 7px)">16</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(11*var(--hour) - 7px)">17</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(12*var(--hour) - 7px)">18</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(13*var(--hour) - 7px)">19</span>
+              <span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style="top:calc(14*var(--hour) - 7px)">20</span>
+            </div>
+
+            <!-- ░░ Mo 16 ░░  (06:00 baseline; px = (start−360)/60*48)
+                 size class: <44px = title only · block-sm = +time · block-md = +tag/hint -->
+            <div class="relative grid-lines border-r border-line2" style="height:var(--grid-h)">
+              <!-- flow 08:30–10:00 (blue) -->
+              <button class="block block-sm" style="--c:var(--blue); top:120px; height:72px" onclick="openEdit(event)" aria-label="flow 08:30 bis 10:00, 1h 30m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">◆</span> <span>flow</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">08:30–10:00 · 1h30</span>
+                </span>
+              </button>
+              <!-- UNASSIGNED 10:15–11:05 (short → title only) -->
+              <button class="block block-unassigned" style="top:204px; height:40px" onclick="openEdit(event)" aria-label="Ohne Projekt 10:15 bis 11:05, 50m — zuweisen">
+                <span class="px-2.5 py-1">
+                  <span class="b-title text-[.73rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt · 50m</span></span>
+                </span>
+              </button>
+              <!-- serverkraken 13:00–15:30 (purple) -->
+              <button class="block block-md" style="--c:var(--purple); top:336px; height:120px" onclick="openEdit(event)" aria-label="serverkraken 13:00 bis 15:30, 2h 30m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">▶</span> <span>serverkraken</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">13:00–15:30 · 2h30</span>
+                  <span class="b-extra mt-1.5"><span class="inline-flex items-center rounded-md bg-purple/15 px-1.5 py-0.5 text-[.62rem] font-medium block-c">#webui</span></span>
+                </span>
+              </button>
+              <!-- UNASSIGNED 16:00–17:40 -->
+              <button class="block block-unassigned block-md" style="top:480px; height:80px" onclick="openEdit(event)" aria-label="Ohne Projekt 16:00 bis 17:40, 1h 40m — zuweisen">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.74rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.64rem] tnum text-muted">16:00–17:40 · 1h40</span>
+                  <span class="b-extra mt-1"><span class="inline-flex items-center rounded-md bg-orange/15 px-1.5 py-0.5 text-[.6rem] font-bold uppercase eyebrow text-orange">zuweisen</span></span>
+                </span>
+              </button>
+            </div>
+
+            <!-- ░░ Di 17 ░░ -->
+            <div class="relative grid-lines border-r border-line2" style="height:var(--grid-h)">
+              <!-- UNASSIGNED 09:05–10:35 -->
+              <button class="block block-unassigned block-sm" style="top:156px; height:72px" onclick="openEdit(event)" aria-label="Ohne Projekt 09:05 bis 10:35, 1h 30m — zuweisen">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.74rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.64rem] tnum text-muted">09:05–10:35 · 1h30</span>
+                </span>
+              </button>
+              <!-- homelab-study 11:00–12:10 (teal) -->
+              <button class="block block-sm" style="--c:var(--teal); top:240px; height:56px" onclick="openEdit(event)" aria-label="homelab-study 11:00 bis 12:10, 1h 10m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">●</span> <span>homelab-study</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">11:00–12:10 · 1h10</span>
+                </span>
+              </button>
+              <!-- UNASSIGNED 14:20–17:05 (long import block) -->
+              <button class="block block-unassigned block-md" style="top:500px; height:132px" onclick="openEdit(event)" aria-label="Ohne Projekt 14:20 bis 17:05, 2h 45m — zuweisen">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.74rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.64rem] tnum text-muted">14:20–17:05 · 2h45</span>
+                  <span class="b-extra mt-1.5 text-[.62rem] italic text-faint">kein Hinweis · Import</span>
+                </span>
+              </button>
+            </div>
+
+            <!-- ░░ Mi 18 ░░ -->
+            <div class="relative grid-lines border-r border-line2" style="height:var(--grid-h)">
+              <!-- flow 07:45–09:30 (blue) -->
+              <button class="block block-md" style="--c:var(--blue); top:84px; height:84px" onclick="openEdit(event)" aria-label="flow 07:45 bis 09:30, 1h 45m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">◆</span> <span>flow</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">07:45–09:30 · 1h45</span>
+                  <span class="b-extra mt-1.5"><span class="inline-flex items-center rounded-md bg-blue/15 px-1.5 py-0.5 text-[.62rem] font-medium block-c">#rebuild</span></span>
+                </span>
+              </button>
+              <!-- UNASSIGNED 10:00–11:30 -->
+              <button class="block block-unassigned block-sm" style="top:192px; height:72px" onclick="openEdit(event)" aria-label="Ohne Projekt 10:00 bis 11:30, 1h 30m — zuweisen">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.74rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.64rem] tnum text-muted">10:00–11:30 · 1h30</span>
+                </span>
+              </button>
+              <!-- flow 13:30–17:30 (blue, long) -->
+              <button class="block block-md" style="--c:var(--blue); top:360px; height:192px" onclick="openEdit(event)" aria-label="flow 13:30 bis 17:30, 4h 00m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">◆</span> <span>flow</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">13:30–17:30 · 4h00</span>
+                  <span class="b-extra mt-1.5"><span class="inline-flex items-center rounded-md bg-blue/15 px-1.5 py-0.5 text-[.62rem] font-medium block-c">#webui</span></span>
+                </span>
+              </button>
+            </div>
+
+            <!-- ░░ Do 19 ░░ -->
+            <div class="relative grid-lines border-r border-line2" style="height:var(--grid-h)">
+              <!-- UNASSIGNED 08:00–09:20 -->
+              <button class="block block-unassigned block-sm" style="top:96px; height:64px" onclick="openEdit(event)" aria-label="Ohne Projekt 08:00 bis 09:20, 1h 20m — zuweisen">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.74rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.64rem] tnum text-muted">08:00–09:20 · 1h20</span>
+                </span>
+              </button>
+              <!-- serverkraken 10:00–12:00 (purple) -->
+              <button class="block block-md" style="--c:var(--purple); top:192px; height:96px" onclick="openEdit(event)" aria-label="serverkraken 10:00 bis 12:00, 2h 00m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">▶</span> <span>serverkraken</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">10:00–12:00 · 2h00</span>
+                  <span class="b-extra mt-1.5"><span class="inline-flex items-center rounded-md bg-purple/15 px-1.5 py-0.5 text-[.62rem] font-medium block-c">#api</span></span>
+                </span>
+              </button>
+              <!-- UNASSIGNED 14:00–16:28 -->
+              <button class="block block-unassigned block-md" style="top:432px; height:118px" onclick="openEdit(event)" aria-label="Ohne Projekt 14:00 bis 16:28, 2h 28m — zuweisen">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.74rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.64rem] tnum text-muted">14:00–16:28 · 2h28</span>
+                  <span class="b-extra mt-1.5 text-[.62rem] italic text-faint">kein Hinweis · Import</span>
+                </span>
+              </button>
+            </div>
+
+            <!-- ░░ Fr 20 ░░ -->
+            <div class="relative grid-lines border-r border-line2" style="height:var(--grid-h)">
+              <!-- homelab-study 09:00–10:30 (teal) -->
+              <button class="block block-sm" style="--c:var(--teal); top:144px; height:72px" onclick="openEdit(event)" aria-label="homelab-study 09:00 bis 10:30, 1h 30m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">●</span> <span>homelab-study</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">09:00–10:30 · 1h30</span>
+                </span>
+              </button>
+              <!-- UNASSIGNED 11:00–12:15 -->
+              <button class="block block-unassigned block-sm" style="top:240px; height:60px" onclick="openEdit(event)" aria-label="Ohne Projekt 11:00 bis 12:15, 1h 15m — zuweisen">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.74rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.64rem] tnum text-muted">11:00–12:15 · 1h15</span>
+                </span>
+              </button>
+              <!-- flow 13:00–16:55 (blue) — anchors the OPEN single-edit popover -->
+              <button id="anchorBlock" class="block block-md" style="--c:var(--blue); top:336px; height:189px" onclick="openEdit(event)" aria-label="flow 13:00 bis 16:55, 3h 55m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight block-c"><span aria-hidden="true">◆</span> <span>flow</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">13:00–16:55 · 3h55</span>
+                  <span class="b-extra mt-1.5"><span class="inline-flex items-center rounded-md bg-blue/15 px-1.5 py-0.5 text-[.62rem] font-medium block-c">#rebuild</span></span>
+                </span>
+              </button>
+            </div>
+
+            <!-- ░░ Sa 21 ░░ (weekend, quiet) -->
+            <div class="relative grid-lines border-r border-line2 bg-sunken/30" style="height:var(--grid-h)">
+              <!-- UNASSIGNED 10:30–11:30 (a stray weekend import) -->
+              <button class="block block-unassigned block-sm" style="top:216px; height:48px" onclick="openEdit(event)" aria-label="Ohne Projekt 10:30 bis 11:30, 1h 00m — zuweisen">
+                <span class="px-2.5 py-1">
+                  <span class="b-title text-[.72rem] font-semibold leading-tight text-muted"><span class="text-orange" aria-hidden="true">○</span> <span>ohne Projekt</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.62rem] tnum text-muted">10:30–11:30 · 1h</span>
+                </span>
+              </button>
+            </div>
+
+            <!-- ░░ So 22 = today ░░ -->
+            <div class="relative grid-lines bg-cyan/[.04]" style="height:var(--grid-h)">
+              <!-- now-line at ~14:12 → (852-360)/60*48 = 393.6px -->
+              <div class="now-line" style="top:394px" aria-hidden="true"></div>
+              <!-- RUNNING session 11:58–läuft (cyan) -->
+              <button class="block block-running block-md" style="top:286px; height:108px" onclick="openEdit(event)" aria-label="Läuft: flow seit 11:58, 2h 14m">
+                <span class="px-2.5 py-1.5">
+                  <span class="b-title text-[.78rem] font-semibold leading-tight" style="color:rgb(var(--cyan))"><span class="animate-breathe" aria-hidden="true">▶</span> <span>flow</span></span>
+                  <span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">11:58–läuft · <span data-run-dur>2h 14m</span></span>
+                  <span class="b-extra mt-1.5"><span class="inline-flex items-center gap-1 rounded-md bg-cyan/15 px-1.5 py-0.5 text-[.62rem] font-semibold" style="color:rgb(var(--cyan))"><span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full rounded-full bg-cyan/60 animate-breathe"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan"></span></span> Läuft</span></span>
+                </span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+        </div><!-- /min-w -->
+       </div><!-- /overflow-x-auto -->
+      </div>
+
+      <!-- legend under the grid -->
+      <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.78rem] text-muted">
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-blue"></span> flow</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-purple"></span> serverkraken</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-teal"></span> homelab-study</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-[3px] border border-dashed border-faint bg-sunken"></span> <span class="text-orange">○</span> ohne Projekt</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-cyan"></span> läuft</span>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MONAT — lighter month-grid state (toggled via Monat). Desktop.
+         ════════════════════════════════════════════════════════════════ -->
+    <section id="monthView" class="hidden animate-rise" aria-label="Monatskalender">
+      <div class="rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="eyebrow uppercase text-[.7rem] font-semibold text-blue mb-0.5">Monat</p>
+            <h2 class="font-display text-lg font-semibold">Juni 2026</h2>
+          </div>
+          <div class="flex items-center gap-2 text-[.72rem] text-muted">
+            <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rounded-[2px] bg-blue"></span> mit Projekt</span>
+            <span class="inline-flex items-center gap-1.5"><span class="text-orange" aria-hidden="true">○</span> ohne Projekt</span>
+          </div>
+        </div>
+
+        <!-- weekday header -->
+        <div class="grid grid-cols-7 gap-2 mb-2">
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Mo</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Di</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Mi</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Do</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Fr</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-faint">Sa</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-faint">So</div>
+        </div>
+
+        <!-- day grid: each cell = day no + stacked mini project bars + ○ flag if unassigned present -->
+        <div class="grid grid-cols-7 gap-2" id="monthGrid"></div>
+
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line2 pt-4 text-[.78rem]">
+          <span class="text-muted">Juni gesamt <span class="font-mono tnum text-ink font-semibold ml-1">118h 42m</span></span>
+          <span class="text-orange font-medium"><span aria-hidden="true">○</span> 21 Sitzungen ohne Projekt im Monat</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MOBILE — agenda list grouped by day (no time-grid). ≤md.
+         ════════════════════════════════════════════════════════════════ -->
+    <section class="md:hidden space-y-6 animate-rise" style="animation-delay:.08s" aria-label="Agenda">
+
+      <!-- Mo 16.06 -->
+      <div>
+        <div class="agenda-head flex items-center justify-between mb-2 pl-1" data-day="Mo">
+          <h2 class="font-display text-[1.05rem] font-semibold">Mo <span class="text-muted font-normal tnum">16.06.</span></h2>
+          <span class="font-mono text-[.78rem] tnum text-muted">7h 36m</span>
+        </div>
+        <ul class="space-y-2.5">
+          <li class="agenda-row flex items-center gap-3 rounded-2xl bg-surface border border-line shadow-soft px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="flow 08:30–10:00 auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[.95rem] flex-none" aria-hidden="true">◆</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate">flow <span class="ml-1 inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.68rem] font-medium text-body">#rebuild</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">08:30–10:00</p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none">1h 30m</span>
+          </li>
+          <!-- unassigned -->
+          <li class="agenda-row flex items-center gap-3 rounded-2xl border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="Ohne Projekt 10:15–11:05 auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-orange/10 text-orange text-[.95rem] flex-none animate-attn" aria-hidden="true">○</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate text-muted">ohne Projekt <span class="ml-1 inline-flex items-center rounded-md bg-orange/15 px-1.5 py-0.5 text-[.62rem] font-bold uppercase eyebrow text-orange">zuweisen</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">10:15–11:05</p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none text-muted">50m</span>
+          </li>
+          <li class="agenda-row flex items-center gap-3 rounded-2xl bg-surface border border-line shadow-soft px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="serverkraken 13:00–15:30 auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-purple/10 text-purple text-[.95rem] flex-none" aria-hidden="true">▶</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate">serverkraken <span class="ml-1 inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.68rem] font-medium text-body">#webui</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">13:00–15:30</p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none">2h 30m</span>
+          </li>
+          <li class="agenda-row flex items-center gap-3 rounded-2xl border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="Ohne Projekt 16:00–17:40 auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-orange/10 text-orange text-[.95rem] flex-none animate-attn" aria-hidden="true">○</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate text-muted">ohne Projekt <span class="ml-1 inline-flex items-center rounded-md bg-orange/15 px-1.5 py-0.5 text-[.62rem] font-bold uppercase eyebrow text-orange">zuweisen</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">16:00–17:40</p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none text-muted">1h 40m</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Di 17.06 -->
+      <div>
+        <div class="agenda-head flex items-center justify-between mb-2 pl-1" data-day="Di">
+          <h2 class="font-display text-[1.05rem] font-semibold">Di <span class="text-muted font-normal tnum">17.06.</span></h2>
+          <span class="font-mono text-[.78rem] tnum text-muted">6h 05m</span>
+        </div>
+        <ul class="space-y-2.5">
+          <li class="agenda-row flex items-center gap-3 rounded-2xl border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="Ohne Projekt 09:05–10:35 auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-orange/10 text-orange text-[.95rem] flex-none animate-attn" aria-hidden="true">○</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate text-muted">ohne Projekt <span class="ml-1 inline-flex items-center rounded-md bg-orange/15 px-1.5 py-0.5 text-[.62rem] font-bold uppercase eyebrow text-orange">zuweisen</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">09:05–10:35</p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none text-muted">1h 30m</span>
+          </li>
+          <li class="agenda-row flex items-center gap-3 rounded-2xl bg-surface border border-line shadow-soft px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="homelab-study 11:00–12:10 auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-teal/10 text-teal text-[.95rem] flex-none" aria-hidden="true">●</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate">homelab-study <span class="ml-1 inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.68rem] font-medium text-body">#ops</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">11:00–12:10</p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none">1h 10m</span>
+          </li>
+          <li class="agenda-row flex items-center gap-3 rounded-2xl border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="Ohne Projekt 14:20–17:05 auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-orange/10 text-orange text-[.95rem] flex-none animate-attn" aria-hidden="true">○</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate text-muted">ohne Projekt <span class="ml-1 inline-flex items-center rounded-md bg-orange/15 px-1.5 py-0.5 text-[.62rem] font-bold uppercase eyebrow text-orange">zuweisen</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">14:20–17:05 · <span class="italic">Import</span></p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none text-muted">2h 45m</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- So 22.06 = today -->
+      <div>
+        <div class="agenda-head flex items-center justify-between mb-2 pl-1" data-day="So">
+          <h2 class="font-display text-[1.05rem] font-semibold text-cyan">So <span class="font-normal tnum">22.06.</span> · heute</h2>
+          <span class="font-mono text-[.78rem] tnum text-cyan">2h 14m</span>
+        </div>
+        <ul class="space-y-2.5">
+          <li class="agenda-row flex items-center gap-3 rounded-2xl border border-cyan/40 bg-cyan/[.07] px-3.5 py-3">
+            <input type="checkbox" class="chk row-chk hidden" aria-label="Läuft flow auswählen" />
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-cyan/15 text-cyan text-[.95rem] flex-none animate-breathe" aria-hidden="true">▶</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.9rem] font-semibold truncate">flow <span class="ml-1 inline-flex items-center gap-1 rounded-md bg-cyan/15 px-1.5 py-0.5 text-[.62rem] font-semibold text-cyan">● Läuft</span></p>
+              <p class="text-[.78rem] text-muted font-mono tnum">11:58–läuft</p>
+            </div>
+            <span class="font-mono text-[.85rem] font-semibold tnum flex-none text-cyan" data-run-dur>2h 14m</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     SINGLE-EDIT POPOVER (the non-bulk path) — rendered OPEN as an example.
+     Anchored visually near the Fr 13:00 flow block.
+     ════════════════════════════════════════════════════════════════════ -->
+<div id="editPopover" class="hidden fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+  <button class="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" aria-label="Schließen" onclick="closeEdit()"></button>
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,380px)] rounded-3xl bg-surface border border-line shadow-pop p-5 animate-pop">
+    <div class="flex items-start justify-between mb-4">
+      <div class="flex items-center gap-2.5">
+        <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[1.05rem]" aria-hidden="true">◆</span>
+        <div>
+          <p id="editTitle" class="font-display text-[1.05rem] font-semibold leading-tight">Sitzung bearbeiten</p>
+          <p class="text-[.76rem] text-muted">Fr 20.06. · 3h 55m</p>
+        </div>
+      </div>
+      <button onclick="closeEdit()" class="grid place-items-center h-8 w-8 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors" aria-label="Schließen"><span aria-hidden="true">✕</span></button>
+    </div>
+
+    <!-- Projekt (opens the fuzzy picker) — div+aria, no <label> wrapper -->
+    <div class="mb-3">
+      <span class="block eyebrow uppercase text-[.64rem] font-semibold text-muted mb-1.5">Projekt</span>
+      <button type="button" aria-label="Projekt ändern – aktuell flow" class="flex w-full items-center justify-between gap-2 rounded-xl border border-line bg-sunken/60 px-3 py-2.5 text-left text-[.9rem] hover:border-blue/40 transition-colors">
+        <span class="flex items-center gap-2 font-medium"><span class="text-blue" aria-hidden="true">◆</span> flow</span>
+        <span class="text-muted text-[.7rem]" aria-hidden="true">▾ ändern</span>
+      </button>
+    </div>
+
+    <!-- Start / Stop -->
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div>
+        <span class="block eyebrow uppercase text-[.64rem] font-semibold text-muted mb-1.5">Start</span>
+        <input type="time" value="13:00" aria-label="Startzeit" class="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors" />
+      </div>
+      <div>
+        <span class="block eyebrow uppercase text-[.64rem] font-semibold text-muted mb-1.5">Stop</span>
+        <input type="time" value="16:55" aria-label="Stoppzeit" class="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors" />
+      </div>
+    </div>
+
+    <!-- Tag -->
+    <div class="mb-3">
+      <span class="block eyebrow uppercase text-[.64rem] font-semibold text-muted mb-1.5">Tag</span>
+      <input type="text" value="#rebuild" aria-label="Tag" class="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors" />
+    </div>
+
+    <!-- Notiz -->
+    <div class="mb-4">
+      <span class="block eyebrow uppercase text-[.64rem] font-semibold text-muted mb-1.5">Notiz</span>
+      <textarea rows="2" aria-label="Notiz" placeholder="kurze Notiz…" class="w-full resize-none rounded-xl border border-line bg-surface px-3 py-2.5 text-[.9rem] placeholder:text-faint focus:border-blue/40 transition-colors">Historie-Kalender gebaut</textarea>
+    </div>
+
+    <div class="flex items-center justify-between gap-2">
+      <button onclick="closeEdit()" class="inline-flex items-center gap-1.5 rounded-xl border border-red/40 px-3 py-2.5 text-[.86rem] font-semibold text-red hover:bg-red/10 transition-colors">
+        <span aria-hidden="true">✗</span> Löschen
+      </button>
+      <div class="flex items-center gap-2">
+        <button onclick="closeEdit()" class="rounded-xl px-3.5 py-2.5 text-[.86rem] font-medium text-muted hover:text-ink transition-colors">Abbrechen</button>
+        <button onclick="closeEdit()" class="rounded-xl bg-ink px-4 py-2.5 text-[.86rem] font-semibold text-canvas hover:bg-ink/90 transition-colors">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     SELECTION ACTION BAR (the hero) — sticky, shown in select mode.
+     Carries the OPEN fuzzy project-picker dropdown.
+     ════════════════════════════════════════════════════════════════════ -->
+<div id="actionBar" class="hidden fixed inset-x-0 bottom-0 md:bottom-5 z-50 px-3 md:pl-[260px] md:pr-6">
+  <div class="mx-auto md:mx-0 max-w-[1100px] rounded-t-3xl md:rounded-3xl bg-surface border border-line shadow-pop p-3 sm:p-3.5"
+       style="padding-bottom:calc(0.875rem + env(safe-area-inset-bottom))">
+    <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+      <!-- count -->
+      <span class="inline-flex items-center gap-2 rounded-xl bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue">
+        <span aria-hidden="true">▎</span><span data-sel-count>8</span> ausgewählt
+      </span>
+      <span class="hidden sm:inline text-[.8rem] text-muted"><span data-sel-unassigned>6</span> ohne Projekt · <span class="font-mono tnum">11h 35m</span></span>
+
+      <div class="flex-1"></div>
+
+      <!-- Projekt zuweisen — wrapper holds the OPEN dropdown above -->
+      <div class="relative">
+        <button id="assignBtn" onclick="togglePicker()" class="inline-flex items-center gap-2 rounded-xl bg-blue px-4 py-2.5 text-[.9rem] font-semibold text-oncolor shadow-soft hover:bg-blue/90 active:scale-[.99] transition">
+          <span aria-hidden="true">◆</span> Projekt zuweisen <span class="text-[.7rem] opacity-80" aria-hidden="true">▴</span>
+        </button>
+
+        <!-- OPEN fuzzy picker dropdown -->
+        <div id="picker" class="absolute bottom-[calc(100%+8px)] right-0 w-[min(86vw,300px)] rounded-2xl bg-surface border border-line shadow-pop p-2 animate-pop" role="listbox" aria-label="Projekt für Auswahl">
+          <div class="px-1.5 pb-2">
+            <label class="relative block">
+              <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-[.8rem]" aria-hidden="true">›</span>
+              <input type="text" autofocus placeholder="Projekt filtern…" aria-label="Projekt filtern"
+                     class="w-full rounded-lg border border-line bg-sunken/60 py-2 pl-7 pr-2 text-[.85rem] placeholder:text-faint focus:border-blue/40 transition-colors" />
+            </label>
+          </div>
+          <ul class="max-h-[230px] overflow-auto scroll-thin">
+            <li class="pick-row flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-sunken" aria-selected="true" role="option">
+              <span class="flex items-center gap-2.5 text-[.9rem] font-medium"><span class="text-blue" aria-hidden="true">◆</span> flow</span>
+              <span class="font-mono text-[.7rem] tnum text-muted">95 €/h</span>
+            </li>
+            <li class="pick-row flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-sunken" aria-selected="false" role="option">
+              <span class="flex items-center gap-2.5 text-[.9rem] font-medium"><span class="text-purple" aria-hidden="true">▶</span> serverkraken</span>
+              <span class="font-mono text-[.7rem] tnum text-muted">110 €/h</span>
+            </li>
+            <li class="pick-row flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-sunken" aria-selected="false" role="option">
+              <span class="flex items-center gap-2.5 text-[.9rem] font-medium"><span class="text-teal" aria-hidden="true">●</span> homelab-study</span>
+              <span class="font-mono text-[.7rem] tnum text-muted">—</span>
+            </li>
+            <li class="border-t border-line2 mt-1 pt-1">
+              <button class="pick-row flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[.9rem] font-medium text-green hover:bg-green/10" role="option" aria-selected="false">
+                <span aria-hidden="true">✚</span> neu: <span class="font-mono">„flux-migration"</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- delete -->
+      <button onclick="clearSel()" class="inline-flex items-center gap-1.5 rounded-xl border border-red/40 bg-surface px-3.5 py-2.5 text-[.88rem] font-semibold text-red hover:bg-red/10 transition-colors">
+        <span aria-hidden="true">✗</span> <span class="hidden sm:inline">Löschen</span>
+      </button>
+      <!-- cancel -->
+      <button onclick="toggleSelectMode()" class="rounded-xl px-3 py-2.5 text-[.88rem] font-medium text-muted hover:text-ink transition-colors">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ MOBILE BOTTOM TAB BAR (≤md) — verbatim Studio chrome ════════════════════ -->
+<nav id="mobileTabs" class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/90 backdrop-blur-xl border-t border-line"
+     aria-label="Hauptnavigation" style="padding-bottom:env(safe-area-inset-bottom)">
+  <ul class="grid grid-cols-5">
+    <li>
+      <a href="#" aria-current="page" class="flex flex-col items-center gap-0.5 py-2.5 text-blue">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▶</span>
+        <span class="text-[.66rem] font-semibold">Heute</span>
+      </a>
+    </li>
+    <li>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">◆</span>
+        <span class="text-[.66rem] font-medium">Wissen</span>
+      </a>
+    </li>
+    <li class="relative">
+      <button class="absolute left-1/2 -translate-x-1/2 -top-5 grid place-items-center rounded-2xl bg-red text-oncolor shadow-ring active:scale-95 transition"
+              aria-label="Sitzung stoppen" style="height:3.25rem;width:3.25rem">
+        <span class="text-lg" aria-hidden="true">■</span>
+      </button>
+      <span class="block py-2.5 text-center text-[.66rem] font-medium text-muted mt-5">Stopp</span>
+    </li>
+    <li>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▲</span>
+        <span class="text-[.66rem] font-medium">Stats</span>
+      </a>
+    </li>
+    <li>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">★</span>
+        <span class="text-[.66rem] font-medium">Frei</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+<!-- ════════════════════ Theme toggle (verbatim from Studio) ════════════════════ -->
+<script>
+  (function () {
+    var root   = document.documentElement;
+    function syncToggles() {
+      var dark = root.getAttribute('data-theme') === 'dark';
+      document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+        b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        b.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');
+      });
+    }
+    window.toggleTheme = function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('flow-theme', next); } catch (e) {}
+      syncToggles();
+    };
+    window.addEventListener('storage', function (e) {
+      if (e.key === 'flow-theme' && e.newValue) {
+        root.setAttribute('data-theme', e.newValue); syncToggles();
+      }
+    });
+    syncToggles();
+  })();
+</script>
+
+<!-- ════════════════════ Live-timer (running session) ════════════════════ -->
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var base = (2 * 3600) + (14 * 60) + 33;   // 2h 14m 33s
+  var start = Date.now();
+  var minis = document.querySelectorAll('[data-mini-timer]');
+  var durs  = document.querySelectorAll('[data-run-dur]');
+  function p(n){ return n < 10 ? '0'+n : ''+n; }
+  function tick() {
+    var e = base + Math.floor((Date.now() - start)/1000);
+    var h = Math.floor(e/3600), m = Math.floor((e%3600)/60), s = e%60;
+    minis.forEach(function(el){ el.textContent = p(h)+':'+p(m)+':'+p(s); });
+    durs.forEach(function(el){ el.textContent = h+'h '+p(m)+'m'; });
+  }
+  tick();
+  setInterval(tick, reduce ? 60000 : 1000);
+})();
+</script>
+
+<!-- ════════════════════ Surface interactions ════════════════════
+     A small, dependency-free script that makes the mockup feel real:
+     bulk select-mode, day/all selection, picker + popover open/close,
+     month-grid generation, view toggle. -->
+<script>
+(function () {
+  var selectMode = false;
+
+  var actionBar   = document.getElementById('actionBar');
+  var weekSelBar  = document.getElementById('weekSelectBar');
+  var selToggle   = document.getElementById('selectToggle');
+  var picker      = document.getElementById('picker');
+  var assignBtn   = document.getElementById('assignBtn');
+  var blocks      = function(){ return Array.prototype.slice.call(document.querySelectorAll('#weekView .block')); };
+  var rowChecks   = function(){ return Array.prototype.slice.call(document.querySelectorAll('.row-chk')); };
+  var dayChks     = function(){ return Array.prototype.slice.call(document.querySelectorAll('.day-chk')); };
+
+  function setSelectMode(on) {
+    selectMode = on;
+    selToggle.classList.toggle('bg-blue', on);
+    selToggle.classList.toggle('bg-ink', !on);
+    selToggle.innerHTML = on ? '<span aria-hidden="true">✓</span> Fertig'
+                             : '<span aria-hidden="true">▎</span> Auswählen';
+    actionBar.classList.toggle('hidden', !on);
+    weekSelBar.classList.toggle('hidden', !on);
+    weekSelBar.classList.toggle('flex', on);
+    dayChks().forEach(function(d){ d.classList.toggle('hidden', !on); d.classList.toggle('flex', on); });
+    rowChecks().forEach(function(c){ c.classList.toggle('hidden', !on); });
+    if (!on) clearSel(true);
+    updateCount();
+  }
+
+  function updateCount() {
+    var n = document.querySelectorAll('#weekView .block.is-selected').length
+          + document.querySelectorAll('.row-chk:checked').length;
+    document.querySelectorAll('[data-sel-count]').forEach(function(el){ el.textContent = n; });
+    // when nothing selected but mode on, keep a sensible demo number visible
+    if (n === 0 && selectMode) {
+      document.querySelectorAll('[data-sel-count]').forEach(function(el){ el.textContent = '0'; });
+    }
+  }
+
+  window.toggleSelectMode = function(){ setSelectMode(!selectMode); if (picker) picker.classList.add('hidden'); };
+
+  window.selectDay = function(day){
+    if (!selectMode) setSelectMode(true);
+    // (demo) select all blocks — column mapping is illustrative
+    blocks().forEach(function(b){ b.classList.add('is-selected'); });
+    updateCount();
+  };
+  window.selectAll = function(){
+    if (!selectMode) setSelectMode(true);
+    blocks().forEach(function(b){ b.classList.add('is-selected'); });
+    rowChecks().forEach(function(c){ c.checked = true; });
+    updateCount();
+  };
+  window.selectUnassigned = function(){
+    setSelectMode(true);
+    document.querySelectorAll('#weekView .block-unassigned').forEach(function(b){ b.classList.add('is-selected'); });
+    rowChecks().forEach(function(c){ if ((c.getAttribute('aria-label')||'').indexOf('Ohne Projekt') === 0) c.checked = true; });
+    updateCount();
+  };
+  window.clearSel = function(silent){
+    blocks().forEach(function(b){ b.classList.remove('is-selected'); });
+    rowChecks().forEach(function(c){ c.checked = false; });
+    if (!silent) updateCount();
+  };
+
+  // block click: in select-mode toggles selection; otherwise opens edit popover
+  document.addEventListener('click', function(e){
+    var blk = e.target.closest && e.target.closest('#weekView .block');
+    if (blk && selectMode) { e.preventDefault(); e.stopImmediatePropagation(); blk.classList.toggle('is-selected'); updateCount(); }
+  }, true);
+
+  rowChecks().forEach(function(c){ c.addEventListener('change', updateCount); });
+
+  window.togglePicker = function(){ picker.classList.toggle('hidden'); };
+  // close picker on outside click
+  document.addEventListener('click', function(e){
+    if (picker && !picker.classList.contains('hidden') &&
+        !picker.contains(e.target) && !assignBtn.contains(e.target)) {
+      picker.classList.add('hidden');
+    }
+  });
+  // picker option → confirm (demo: just close + exit)
+  document.querySelectorAll('#picker [role="option"]').forEach(function(o){
+    o.addEventListener('click', function(){ picker.classList.add('hidden'); setSelectMode(false); });
+  });
+
+  // single-edit popover
+  var pop = document.getElementById('editPopover');
+  window.openEdit = function(e){
+    if (selectMode) return;                 // in select-mode, clicks select instead
+    if (e) e.preventDefault();
+    pop.classList.remove('hidden');
+    // force a synchronous layout so the fixed panel measures correctly on first paint
+    void pop.offsetHeight;
+  };
+  window.closeEdit = function(){ pop.classList.add('hidden'); };
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') { closeEdit(); if (picker) picker.classList.add('hidden'); if (selectMode) setSelectMode(false); }
+  });
+
+  // ── view toggle ──
+  var weekView = document.getElementById('weekView');
+  var monthView = document.getElementById('monthView');
+  var segBtns = document.querySelectorAll('.seg[aria-label="Ansicht wählen"] button');
+  function setView(month) {
+    // only affects md+ (mobile always shows agenda)
+    monthView.classList.toggle('hidden', !month);
+    monthView.classList.toggle('md:block', month);
+    weekView.classList.toggle('md:hidden', month);
+    weekView.classList.toggle('md:block', !month);
+    segBtns.forEach(function(b){
+      var isMonth = b.textContent.trim() === 'Monat';
+      var on = (isMonth === month);
+      b.setAttribute('aria-pressed', on ? 'true':'false');
+      b.classList.toggle('text-body', on);
+      b.classList.toggle('font-semibold', on);
+      b.classList.toggle('text-muted', !on);
+      b.classList.toggle('font-medium', !on);
+    });
+  }
+  window.showMonth = function(){ setView(true); };
+  segBtns.forEach(function(b){ b.addEventListener('click', function(){ setView(b.textContent.trim()==='Monat'); }); });
+
+  // ── month-grid generation (lighter state) ──
+  // data: [dayNumber|null, hoursLabel|null, hasUnassigned, isToday, isWeekendDim]
+  var month = (function(){
+    var cells = [];
+    // June 2026 starts on a Monday (1 = Mon). 30 days.
+    var hours = {1:'7h36',2:'8h12',3:'5h06',4:'7h18',5:'6h40',8:'8h00',9:'7h54',10:'6h12',11:'8h24',12:'7h06',15:'7h36',16:'7h36',17:'6h05',18:'7h12',19:'5h48',20:'6h40',22:'2h14',23:'5h42',24:'6h30',25:'7h10',26:'6h48',29:'7h20',30:'6h55'};
+    var unassigned = {3:1,4:1,10:1,12:1,16:1,17:1,18:1,19:1,20:1,21:1,24:1,25:1};   // days with import mess
+    for (var d=1; d<=30; d++) {
+      var dow = ((d-1) % 7); // 0=Mon
+      var weekend = dow >= 5;
+      cells.push({ d:d, h:hours[d]||null, un:!!unassigned[d], today:d===22, weekend:weekend });
+    }
+    return cells;
+  })();
+
+  function projBars(c){
+    // illustrative stacked mini-bars in project hues; unassigned adds a grey dashed bar
+    if (!c.h) return '<span class="text-faint text-[.66rem]" aria-hidden="true">·</span>';
+    var bars = '';
+    var palette = ['blue','purple','teal'];
+    var n = 1 + (c.d % 3);
+    for (var i=0;i<n;i++){
+      bars += '<span class="block h-1.5 rounded-full bg-'+palette[i%3]+'" style="width:'+(40+((c.d*7+i*13)%55))+'%"></span>';
+    }
+    if (c.un) bars += '<span class="block h-1.5 rounded-full border border-dashed border-faint bg-sunken" style="width:'+(30+(c.d%30))+'%"></span>';
+    return bars;
+  }
+
+  var grid = document.getElementById('monthGrid');
+  if (grid) {
+    grid.innerHTML = month.map(function(c){
+      var base = 'relative rounded-xl border p-2 h-[92px] flex flex-col transition-colors ';
+      var tone = c.weekend ? 'border-line2 bg-sunken/40 '
+               : c.today  ? 'border-cyan/45 bg-cyan/[.06] ring-1 ring-cyan/30 '
+               : 'border-line bg-surface hover:border-blue/30 ';
+      var numCls = c.today ? 'text-cyan font-semibold' : (c.weekend ? 'text-faint' : 'text-muted');
+      var flag = c.un
+        ? '<span class="text-orange text-[.66rem] animate-attn" title="ohne Projekt vorhanden" aria-label="ohne Projekt vorhanden">○</span>'
+        : (c.h ? '<span class="text-green text-[.6rem]" title="erfasst" aria-hidden="true">●</span>' : '');
+      var hl = c.h ? '<span class="font-mono text-[.6rem] tnum '+(c.today?'text-cyan':'text-body')+'">'+c.h+'</span>' : '';
+      return '<div class="'+base+tone+'">'+
+               '<div class="flex items-start justify-between"><span class="text-[.72rem] tnum '+numCls+'">'+c.d+'</span>'+flag+'</div>'+
+               '<div class="mt-auto space-y-1">'+projBars(c)+'</div>'+
+               '<div class="mt-1 text-right">'+hl+'</div>'+
+             '</div>';
+    }).join('');
+  }
+
+  updateCount();
+})();
+</script>
+</body>
+</html>

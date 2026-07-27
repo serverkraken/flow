@@ -12,12 +12,15 @@ func at(y, m, d int) time.Time {
 	return time.Date(y, time.Month(m), d, 0, 0, 0, 0, time.Local)
 }
 
-func rec(d time.Time, total, target time.Duration, sessions ...domain.Session) domain.DayRecord {
-	return domain.DayRecord{Date: d, Total: total, Target: target, Sessions: sessions}
+func rec(d time.Time, total, target time.Duration, sessions ...domain.RecordSession) domain.DayRecord {
+	return domain.DayRecord{Date: d, Total: total, TargetTotal: total, Target: target, Sessions: sessions}
 }
 
-func sess(tag string, elapsed time.Duration) domain.Session {
-	return domain.Session{Tag: tag, Elapsed: elapsed}
+func sess(tag string, elapsed time.Duration) domain.RecordSession {
+	if tag == "" {
+		return domain.RecordSession{Elapsed: elapsed}
+	}
+	return domain.RecordSession{Tags: []string{tag}, Elapsed: elapsed}
 }
 
 // allWorkdays treats every input date as a workday. Lets tests focus on the
@@ -215,41 +218,6 @@ func TestFilterRecords(t *testing.T) {
 	}
 }
 
-func TestBriefBounds(t *testing.T) {
-	wed := time.Date(2026, time.April, 29, 14, 30, 0, 0, time.Local) // Wednesday
-	sun := time.Date(2026, time.May, 3, 14, 30, 0, 0, time.Local)    // Sunday triggers wd==0 → 7
-
-	t.Run("week from Wednesday", func(t *testing.T) {
-		from, to, title := domain.BriefBounds(wed, domain.ReportWeek)
-		if !from.Equal(at(2026, 4, 27)) {
-			t.Errorf("from = %v", from)
-		}
-		if !to.Equal(at(2026, 5, 4)) {
-			t.Errorf("to = %v", to)
-		}
-		if title == "" {
-			t.Error("empty title")
-		}
-	})
-
-	t.Run("week from Sunday clamps to that week", func(t *testing.T) {
-		from, _, _ := domain.BriefBounds(sun, domain.ReportWeek)
-		if !from.Equal(at(2026, 4, 27)) {
-			t.Errorf("from = %v, want 2026-04-27", from)
-		}
-	})
-
-	t.Run("month", func(t *testing.T) {
-		from, to, title := domain.BriefBounds(wed, domain.ReportMonth)
-		if !from.Equal(at(2026, 4, 1)) || !to.Equal(at(2026, 5, 1)) {
-			t.Errorf("month bounds = [%v, %v)", from, to)
-		}
-		if title == "" {
-			t.Error("empty title")
-		}
-	})
-}
-
 func TestPlannedTarget(t *testing.T) {
 	// 7 calendar days, 5 workdays, 8h each → 40h. The two non-workdays
 	// (sat/sun) are skipped.
@@ -261,6 +229,105 @@ func TestPlannedTarget(t *testing.T) {
 	got := domain.PlannedTarget(at(2026, 4, 27), at(2026, 5, 4), wkday, target)
 	if got != 40*time.Hour {
 		t.Errorf("PlannedTarget = %v, want 40h", got)
+	}
+}
+
+// TestAggregate_SaldoUsesTargetTotal proves that when TargetTotal < Total,
+// saldo (Overtime) keys off TargetTotal, not Total. Total stays as the raw
+// tracked duration, and Stats.TargetTotal accumulates the filtered total.
+func TestAggregate_SaldoUsesTargetTotal(t *testing.T) {
+	// 8h worked, only 5h counts toward target (e.g. non-project time excluded),
+	// target is 6h → saldo should be 5h-6h = -1h, NOT 8h-6h = +2h.
+	d1 := at(2026, 4, 28)
+	d2 := at(2026, 4, 29)
+	r1 := domain.DayRecord{Date: d1, Total: 8 * time.Hour, TargetTotal: 5 * time.Hour, Target: 6 * time.Hour}
+	r2 := domain.DayRecord{Date: d2, Total: 8 * time.Hour, TargetTotal: 5 * time.Hour, Target: 6 * time.Hour}
+
+	st := domain.Aggregate([]domain.DayRecord{r1, r2}, allWorkdays, nil)
+
+	// Raw Total stays 8h per day = 16h total.
+	if st.Total != 16*time.Hour {
+		t.Errorf("Total = %v, want 16h (raw logged time)", st.Total)
+	}
+	// TargetTotal accumulates 5h per day = 10h.
+	if st.TargetTotal != 10*time.Hour {
+		t.Errorf("TargetTotal = %v, want 10h", st.TargetTotal)
+	}
+	// Overtime = 2 × (5h - 6h) = -2h (saldo uses TargetTotal, not Total).
+	if st.Overtime != -2*time.Hour {
+		t.Errorf("Overtime = %v, want -2h (TargetTotal−Target per day)", st.Overtime)
+	}
+	// TargetTotal (5h) < Target (6h) → miss on both days.
+	if st.Hits != 0 {
+		t.Errorf("Hits = %d, want 0 (TargetTotal < Target)", st.Hits)
+	}
+	if st.Streak != 0 {
+		t.Errorf("Streak = %d, want 0", st.Streak)
+	}
+}
+
+// TestAggregateRange_SaldoUsesTargetTotal is the AggregateRange counterpart
+// of TestAggregate_SaldoUsesTargetTotal — walkWorkdaysForSaldo must also key
+// off TargetTotal for recorded days.
+func TestAggregateRange_SaldoUsesTargetTotal(t *testing.T) {
+	d := at(2026, 4, 28)
+	r := domain.DayRecord{Date: d, Total: 8 * time.Hour, TargetTotal: 5 * time.Hour, Target: 6 * time.Hour}
+
+	st := domain.AggregateRange(
+		[]domain.DayRecord{r},
+		at(2026, 4, 28), at(2026, 4, 29),
+		allWorkdays,
+		func(time.Time) time.Duration { return 6 * time.Hour },
+		nil,
+	)
+
+	if st.Total != 8*time.Hour {
+		t.Errorf("Total = %v, want 8h", st.Total)
+	}
+	if st.TargetTotal != 5*time.Hour {
+		t.Errorf("TargetTotal = %v, want 5h", st.TargetTotal)
+	}
+	// Saldo: 5h - 6h = -1h
+	if st.Overtime != -1*time.Hour {
+		t.Errorf("Overtime = %v, want -1h", st.Overtime)
+	}
+	if st.Hits != 0 {
+		t.Errorf("Hits = %d, want 0 (TargetTotal < Target)", st.Hits)
+	}
+}
+
+// TestMonthBurndownCompute_SaldoUsesTargetTotal asserts that MonthBurndownReport.Saldo
+// uses TargetTotal (not Total) so partial-project days don't inflate the burndown.
+func TestMonthBurndownCompute_SaldoUsesTargetTotal(t *testing.T) {
+	// A single workday in the month: 8h logged, 5h counts toward target, target 6h.
+	// Expected for that day = 6h. Saldo should be 5h-6h = -1h.
+	now := time.Date(2026, time.April, 28, 14, 0, 0, 0, time.Local)
+	isWorkday := func(d time.Time) bool {
+		return d.Weekday() != time.Saturday && d.Weekday() != time.Sunday
+	}
+	targetFn := func(time.Time) time.Duration { return 6 * time.Hour }
+
+	r := domain.DayRecord{
+		Date:        at(2026, 4, 28),
+		Total:       8 * time.Hour,
+		TargetTotal: 5 * time.Hour,
+		Target:      6 * time.Hour,
+	}
+
+	rep := domain.MonthBurndownCompute(now, []domain.DayRecord{r}, nil, isWorkday, targetFn)
+
+	if rep.Total != 8*time.Hour {
+		t.Errorf("Total = %v, want 8h (raw logged)", rep.Total)
+	}
+	if rep.TargetTotal != 5*time.Hour {
+		t.Errorf("TargetTotal = %v, want 5h", rep.TargetTotal)
+	}
+	// expected-by-now: only days strictly before today (Apr 28) in Apr count;
+	// Apr 28 is "today" so it does NOT count toward expected yet.
+	// Saldo = TargetTotal(5h) - expected(sum of workdays before Apr 28 in April).
+	// The important assertion: Saldo must NOT equal rep.Total - expected (which would be 8h - expected).
+	if rep.Saldo == rep.Total-rep.Target {
+		t.Errorf("Saldo = %v looks like Total-Target; should use TargetTotal", rep.Saldo)
 	}
 }
 

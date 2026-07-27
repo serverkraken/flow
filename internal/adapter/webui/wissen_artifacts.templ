@@ -1,0 +1,172 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// WissenArtifactsPage is the full /wissen/artefakte page (Task 4): the
+// owner-global free-artifact library, managed outside any node. Same
+// AppShell/Base wiring as WissenPage, active tab "docs" (no dedicated Wissen
+// subnav exists to hang a new tab on — rg-verified, WissenPage uses
+// AppShell("docs", nil, nil, ...) too).
+templ WissenArtifactsPage(vm WissenArtifactsVM) {
+	@components.Base("wissen", wissenArtifactsBody(vm))
+}
+
+templ wissenArtifactsBody(vm WissenArtifactsVM) {
+	@components.AppShell("docs", nil, nil, wissenArtifactsOuter(vm))
+}
+
+// wissenArtifactsOuter is the full page's body: a pagehead (Muster
+// wissen.templ's WissenFragment pagehead, here linking back to /wissen) plus
+// the #wissen-artefakte SSE container. CRITICAL (gemini-Fund #2): the
+// pagehead sits OUTSIDE the container on purpose, and the container's
+// hx-get points at the FRAGMENT route /ui/wissen/artefakte — never at this
+// page route — so an SSE-triggered refetch only ever swaps the
+// grid/upload-form/error slot, never re-nests a whole AppShell page inside
+// itself.
+templ wissenArtifactsOuter(vm WissenArtifactsVM) {
+	<div class="pagehead">
+		<a href="/wissen" class="mb-2 inline-block text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+			{ components.T(ctx, "wissen.overview") }
+		</a>
+		<span class="eyebrow">{ components.T(ctx, "nav.knowledge") }</span>
+		<h1>{ components.T(ctx, "wissen.artifacts.title") }</h1>
+	</div>
+	<div
+		id="wissen-artefakte"
+		hx-get="/ui/wissen/artefakte"
+		hx-trigger="sse:artifact.created, sse:artifact.updated, sse:artifact.deleted"
+		hx-swap="innerHTML"
+	>
+		@WissenArtifactsFragment(vm)
+	</div>
+}
+
+// WissenArtifactsFragment is the fragment-only content for GET
+// /ui/wissen/artefakte — also the render target for every upload/rename/
+// delete POST handler (renderFreeArtifacts, httpserver). Deliberately
+// excludes AppShell/pagehead (gemini-Fund #2): only this grid+form+error
+// slot is ever swapped by the SSE container or a mutation response.
+templ WissenArtifactsFragment(vm WissenArtifactsVM) {
+	<div class="sect">
+		if vm.PanelErr != "" {
+			<p class="err mt-2 text-warn" role="alert">{ vm.PanelErr }</p>
+		}
+		if len(vm.Cards) == 0 {
+			<p class="empty text-faint mt-3">{ components.T(ctx, "wissen.artifacts.empty") }</p>
+		} else {
+			<div class="gallery mt-3">
+				for _, a := range vm.Cards {
+					@freeArtifactCard(a)
+				}
+			</div>
+		}
+		@freeArtifactUploadForm()
+	</div>
+}
+
+// freeArtifactCard renders one gallery card for the owner-global free
+// library — Muster artifactCard (cockpit_artifacts.templ), sharing every
+// named Bestand class (.artcard/.artcard-thumb/.artcard-chip/.artcard-name/
+// .artcard-meta/.artcard-actions/.btn/.btn-q/.btn-s), but its actions post
+// to /wissen/artefakte/... instead of /nodes/{id}/artifacts/.... Every free
+// card here is own (never inherited — this IS the owner's library), so
+// rename/delete/replace always render; there is no Inherited guard.
+templ freeArtifactCard(a ArtifactCardVM) {
+	<div class="artcard">
+		if a.IsImage {
+			<div class="artcard-thumb">
+				<img loading="lazy" src={ a.Href } alt={ a.Name }/>
+			</div>
+		} else {
+			<div class="artcard-thumb artcard-chip">
+				<span>▤ { a.TypeLabel }</span>
+			</div>
+		}
+		<div class="artcard-name truncate min-w-0" title={ a.Name }>{ a.Name }</div>
+		<div class="artcard-meta">
+			<span>{ a.SizeStr }</span>
+		</div>
+		<div class="artcard-actions">
+			<form enctype="multipart/form-data" class="artcard-replace">
+				<input type="hidden" name="slug" value={ a.Slug }/>
+				<label class="btn btn-q btn-s">
+					{ components.T(ctx, "cockpit.artifacts.replace") }
+					<input
+						type="file"
+						name="file"
+						class="sr-only"
+						hx-post="/wissen/artefakte"
+						hx-target="#wissen-artefakte"
+						hx-swap="innerHTML"
+						hx-encoding="multipart/form-data"
+						hx-trigger="change"
+					/>
+				</label>
+			</form>
+			<button type="button" class="btn btn-q btn-s" data-dialog-open={ "rename-free-artifact-" + a.Slug }>
+				{ components.T(ctx, "common.rename") }
+			</button>
+			<button
+				type="button"
+				class="btn btn-q btn-s"
+				aria-label={ components.T(ctx, "cockpit.artifacts.delete") }
+				data-dialog-open={ "delete-free-artifact-" + a.Slug }
+			>✕</button>
+		</div>
+		@freeArtifactRenameDialog(a)
+		@components.ConfirmDialog(components.ConfirmSpec{
+			ID:      "delete-free-artifact-" + a.Slug,
+			BodyKey: "cockpit.artifacts.deleteConfirm",
+			ConfirmAttrs: templ.Attributes{
+				"hx-post":   "/wissen/artefakte/" + a.Slug + "/delete",
+				"hx-target": "#wissen-artefakte",
+				"hx-swap":   "innerHTML",
+				"type":      "button",
+			},
+		})
+	</div>
+}
+
+// freeArtifactRenameDialog wraps freeArtifactRenameForm in the shared Dialog
+// shell (Muster artifactRenameDialog, cockpit_artifacts.templ).
+templ freeArtifactRenameDialog(a ArtifactCardVM) {
+	@components.Dialog("rename-free-artifact-"+a.Slug, "cockpit.artifacts.rename", freeArtifactRenameForm(a), false)
+}
+
+templ freeArtifactRenameForm(a ArtifactCardVM) {
+	<form
+		hx-post={ "/wissen/artefakte/" + a.Slug + "/rename" }
+		hx-target="#wissen-artefakte"
+		hx-swap="innerHTML"
+		class="flex flex-col gap-3"
+	>
+		<label class="flex flex-col gap-1">
+			<span class="text-sm text-meta">{ components.T(ctx, "node.name") }</span>
+			<input type="text" name="name" value={ a.Name } required class="rounded-lg border border-hair2 bg-surface px-3 py-2"/>
+		</label>
+		<div class="flex justify-end gap-2">
+			<button type="submit" class="btn btn-pri btn-s">{ components.T(ctx, "common.save") }</button>
+		</div>
+	</form>
+}
+
+// freeArtifactUploadForm is the always-visible new-upload form (Muster
+// artifactUploadForm) — posts to /wissen/artefakte with no "slug" field, so
+// UploadArtifact.Execute always derives a fresh slug (collision → "-1"/"-2"
+// suffix, server-side, ExistingSlugs(owner, "")).
+templ freeArtifactUploadForm() {
+	<form
+		hx-post="/wissen/artefakte"
+		hx-target="#wissen-artefakte"
+		hx-swap="innerHTML"
+		hx-encoding="multipart/form-data"
+		enctype="multipart/form-data"
+		class="artupload mt-3"
+	>
+		<input type="file" name="file" class="field"/>
+		<button type="submit" class="btn btn-q btn-s">{ components.T(ctx, "wissen.artifacts.upload") }</button>
+		<p class="mt-1 text-xs text-faint">{ components.T(ctx, "wissen.artifacts.uploadHint") }</p>
+	</form>
+}

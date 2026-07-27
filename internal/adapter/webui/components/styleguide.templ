@@ -1,0 +1,456 @@
+package components
+
+// StyleguidePage is the /ui showcase: it renders every Slice-0 component inside
+// the real Base + AppShell chrome (so offline assets are exercised end-to-end),
+// in a single page that reads in both themes.
+templ StyleguidePage() {
+	@Base("Design-System", styleguideBody())
+}
+
+templ styleguideBody() {
+	@AppShell("home", nil, styleguideSubnav(), styleguideContent())
+}
+
+templ styleguideSubnav() {
+	@TabStrip([]Tab{
+		{Key: "today", Href: "/", LabelKey: "nav.today"},
+		{Key: "week", Href: "/woche", LabelKey: "nav.week"},
+		{Key: "history", Href: "/historie", LabelKey: "nav.history"},
+		{Key: "frei", Href: "/dayoffs", LabelKey: "nav.dayoffs"},
+	}, "today")
+}
+
+templ styleguideContent() {
+	@Breadcrumb([]Crumb{{Href: "/", Label: "flow"}, {Label: T(ctx, "styleguide.title")}})
+	<header class="mb-8">
+		<p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">{ T(ctx, "styleguide.subtitle") }</p>
+		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ T(ctx, "styleguide.title") }</h1>
+	</header>
+	// Buttons
+	@Card("mb-6", sgButtons())
+	// Badges + Chips
+	@Card("mb-6", sgBadgesChips())
+	// StatTiles
+	@Card("mb-6", sgStatTiles())
+	// EmptyState
+	@Card("mb-6", sgEmpty())
+	// Dialogs
+	@Card("mb-6", sgDialogs())
+	// Pagination (middle page so both edges enabled)
+	@Card("mb-6", sgPagination())
+	// Token swatches
+	@Card("mb-6", sgTokenSwatches())
+	// Brand mark at two sizes
+	@Card("mb-6", sgBrandMark())
+	// Lesesaal: Zwei-Flächen-Primitives + Avatar/Chip-Farbsystem
+	@Card("mb-6", sgLesesaal())
+	// Lesesaal L2: Rückgrat, Cockpit-Baum, Meta-Spalte, instr-Band
+	@Card("mb-6", sgLesesaalL2())
+	// Lesesaal L3: Lese-Ebene (prose/figure/docrail/prov) + Wissen (bigsearch/shelf)
+	@Card("mb-6", sgLesesaalL3())
+	// Lesesaal L4: Schreibtisch-Panelzeile + Zeit-Wochenskala (panelrow/weekbar/day/led-when)
+	@Card("mb-6", sgLesesaalL4())
+	// Lesesaal L5: Kontext-Instrument (meter accent/full-warn) + Kuratieren-Budgetgrenze (cutline)
+	@Card("mb-6", sgLesesaalL5())
+}
+
+templ sgButtons() {
+	<h2 class="font-display text-lg font-semibold mb-4">Buttons</h2>
+	<div class="flex flex-wrap items-center gap-3">
+		@Button(BtnPrimary, T(ctx, "common.save"), "✓", nil)
+		@Button(BtnSecondary, T(ctx, "common.edit"), "", nil)
+		@Button(BtnGhost, T(ctx, "common.cancel"), "", nil)
+		@Button(BtnDanger, T(ctx, "common.delete"), "■", nil)
+		@IconButton("✚", T(ctx, "common.new"), nil)
+	</div>
+}
+
+templ sgBadgesChips() {
+	<h2 class="font-display text-lg font-semibold mb-4">Badges &amp; Chips</h2>
+	<div class="flex flex-wrap items-center gap-3">
+		@Badge(KindDaily)
+		@Badge(KindProject)
+		@Badge(KindFree)
+		@Badge(KindAgent)
+		@Chip("flow", "blue")
+		@Chip("homelab", "teal")
+		@Chip("serverkraken", "purple")
+		@Tag("rebuild")
+	</div>
+}
+
+templ sgStatTiles() {
+	<h2 class="font-display text-lg font-semibold mb-4">StatTiles</h2>
+	<div class="grid grid-cols-3 gap-3">
+		@StatTile("nav.today", "5h 42m", "")
+		@StatTile("nav.week", "32h 10m", "")
+		@StatTile("nav.stats", "6 ▲", "green")
+	</div>
+}
+
+templ sgEmpty() {
+	<h2 class="font-display text-lg font-semibold mb-4">EmptyState</h2>
+	@EmptyState("·", "empty.default", "empty.default")
+}
+
+templ sgDialogs() {
+	<h2 class="font-display text-lg font-semibold mb-4">Dialoge</h2>
+	<div class="flex flex-wrap items-center gap-3">
+		@Button(BtnSecondary, T(ctx, "common.edit"), "", templ.Attributes{"data-dialog-open": "sgEditDlg", "type": "button"})
+		@Button(BtnDanger, T(ctx, "common.delete"), "■", templ.Attributes{"data-dialog-open": "sgDelDlg", "type": "button"})
+	</div>
+	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`), false)
+	@ConfirmDialog(ConfirmSpec{
+		ID:           "sgDelDlg",
+		ConfirmAttrs: templ.Attributes{"type": "button", "data-dialog-close": true},
+	})
+}
+
+templ sgPagination() {
+	<h2 class="font-display text-lg font-semibold mb-4">Pagination</h2>
+	@Pagination(PageNav{Page: 2, Total: 95, PageSize: 20, BaseHref: "/ui"})
+}
+
+templ sgTokenSwatches() {
+	<h2 class="font-display text-lg font-semibold mb-4">Token-Swatches</h2>
+	<div class="grid grid-cols-5 gap-3">
+		@sgSwatch("canvas")
+		@sgSwatch("surface")
+		@sgSwatch("sunken")
+		@sgSwatch("line")
+		@sgSwatch("ink")
+		@sgSwatch("body")
+		@sgSwatch("muted")
+		@sgSwatch("faint")
+		@sgSwatch("blue")
+		@sgSwatch("cyan")
+		@sgSwatch("green")
+		@sgSwatch("purple")
+		@sgSwatch("magenta")
+		@sgSwatch("yellow")
+		@sgSwatch("orange")
+		@sgSwatch("red")
+		@sgSwatch("teal")
+	</div>
+}
+
+templ sgSwatch(token string) {
+	<div>
+		<div class="h-8 rounded-lg border border-line" style={ "background-color: rgb(var(--" + token + "))" } aria-hidden="true"></div>
+		<p class="text-xs text-center mt-1 text-muted">{ token }</p>
+	</div>
+}
+
+templ sgBrandMark() {
+	<h2 class="font-display text-lg font-semibold mb-4">Brand-Mark</h2>
+	<div class="flex items-center gap-4">
+		<div class="flex flex-col items-center gap-2">
+			@BrandMark("h-10 w-10")
+			<p class="text-xs text-muted">h-10 w-10</p>
+		</div>
+		<div class="flex flex-col items-center gap-2">
+			@BrandMark("h-6 w-6")
+			<p class="text-xs text-muted">h-6 w-6</p>
+		</div>
+	</div>
+}
+
+// ── Lesesaal: Zwei-Flächen-Primitives + Avatar/Chip-Farbsystem ──────────────
+
+templ sgLesesaal() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal — Flächen &amp; Identität</h2>
+	<p class="eyebrow mb-3">Eyebrow-Label</p>
+	<div class="panel p-4 mb-4">
+		<p class="text-sm text-body">Papier trägt Inhalt, Fläche trägt Instrumente (Spec §4) — dieser Block liegt auf <span class="typechip">.panel</span>.</p>
+	</div>
+	<div class="flex flex-wrap items-center gap-3 mb-4">
+		@Avatar("A", "av-a", "av-36")
+		@Avatar("B", "av-b", "av-36")
+		@Avatar("C", "av-c", "av-36")
+		@Avatar("D", "av-d", "av-36")
+		@Avatar("E", "av-e", "av-36")
+		@Avatar("F", "av-f", "av-36")
+	</div>
+	<div class="flex flex-wrap items-center gap-2">
+		<span class="typechip tc-b">Backstage</span>
+		<span class="typechip tc-v">Vorhaben</span>
+		<span class="typechip tc-t">Tagebuch</span>
+		<span class="typechip tc-o">Organisation</span>
+		<span class="typechip tc-g">Guide</span>
+		<span class="typechip tc-r">Referenz</span>
+	</div>
+}
+
+// ── Lesesaal L2: Rückgrat, Cockpit-Baum, Meta-Spalte, instr-Band ────────────
+
+templ sgLesesaalL2() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal L2 — Rückgrat &amp; Cockpit</h2>
+	<div class="spine mb-4">
+		<div class="up">
+			<a href="/projekte">Projekte</a>
+			<span class="sep">/</span>
+			<span>ACME</span>
+		</div>
+		<div class="spine-main">
+			<h1>flow-rebuild</h1>
+		</div>
+		<div class="fullpath">
+			/Users/soenne/SourceCode/serverkraken/flow-rebuild-mit-einem-sehr-langen-verschachtelten-pfad-zur-probe
+			<button type="button">Kopieren</button>
+		</div>
+	</div>
+	<div class="eng mb-4">
+		<div class="eng-h">
+			<h2>ACME</h2>
+			<div class="right">
+				<div class="v">128h 30m</div>
+				<div class="k">Gesamt</div>
+			</div>
+		</div>
+		<div class="vh">
+			<span class="t">Website-Relaunch</span>
+			<span class="c">2 Repos</span>
+		</div>
+		<a class="projrow" href="/nodes/1">
+			<div class="grow">
+				<div class="t">flow-rebuild</div>
+				<div class="s">zuletzt aktiv vor 2 Tagen</div>
+				<div class="path">github.com/serverkraken/flow-rebuild</div>
+			</div>
+			<div class="right">
+				<div class="v">42h 10m</div>
+				<div class="k">Diese Woche</div>
+			</div>
+		</a>
+		<div class="vh">
+			<span class="t">Backend-Migration</span>
+			<span class="c">1 Repo</span>
+		</div>
+		<a class="projrow" href="/nodes/2">
+			<div class="grow">
+				<div class="t">flow-mcp</div>
+				<div class="s">zuletzt aktiv heute</div>
+				<div class="path">github.com/serverkraken/flow-mcp</div>
+			</div>
+			<div class="right">
+				<div class="v">6h 05m</div>
+				<div class="k">Diese Woche</div>
+			</div>
+		</a>
+	</div>
+	<div class="rail mb-4">
+		<div class="blk">
+			<span class="eyebrow">Kennzahlen</span>
+			<div class="krow">
+				<span class="n">Diese Woche</span>
+				<span class="v">42h 10m</span>
+			</div>
+			<div class="krow">
+				<span class="n">Dieser Monat</span>
+				<span class="v">128h 30m</span>
+			</div>
+			<div class="krow">
+				<span class="n">Ziel-Quote</span>
+				<span class="v">92%</span>
+			</div>
+		</div>
+	</div>
+	<div class="instr">
+		<div class="livechip">LIVE</div>
+		<a class="btn btn-pri btn-s" href="#">Timer starten</a>
+		<a class="btn btn-q btn-s" href="#">Nachbuchen</a>
+		<div class="stats">Heute <b>3h 12m</b> · Diese Woche <b>42h 10m</b></div>
+	</div>
+}
+
+// ── Lesesaal L3: Lese-Ebene (prose/figure/docrail/prov) + Wissen ────────────
+
+templ sgLesesaalL3() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal L3 — Lese-Ebene &amp; Wissen</h2>
+	<div class="read mb-6">
+		<article class="prose">
+			<p>Ein normaler Absatz eröffnet das Dokument mit ruhigem Fließtext, der die <strong>Lesespalte</strong> auf 680px begrenzt.</p>
+			<blockquote class="lede">Eine Lede fasst den Kontext in einem Satz zusammen, bevor die Details folgen.</blockquote>
+			<h2>Ein Abschnitt mit Haarlinie</h2>
+			<p>Text nach der Überschrift, inklusive einem <a href="#" class="wl">Wikilink</a> auf ein anderes Dokument.</p>
+			<h3>Ein Unterabschnitt</h3>
+			<div class="tblwrap">
+				<table>
+					<thead>
+						<tr><th>Spalte</th><th>Wert</th></tr>
+					</thead>
+					<tbody>
+						<tr><td>Erste Zeile</td><td><code>ok</code></td></tr>
+						<tr><td>Sehr lange Kennung für die Scroll-Probe</td><td>42</td></tr>
+					</tbody>
+				</table>
+			</div>
+			<pre><code>var beispiel = "so sieht ein Codeblock aus"</code></pre>
+			<div class="callout callout-warning">
+				<span class="callout-glyph" aria-hidden="true">!</span>
+				<p class="callout-title">Hinweis</p>
+			</div>
+			<figure>
+				<div class="frame">
+					<svg width="120" height="60" viewBox="0 0 120 60"><rect width="120" height="60" fill="none" stroke="currentColor"></rect></svg>
+				</div>
+				<figcaption><b>Abb. 1</b> — Platzhalter-Figur</figcaption>
+			</figure>
+			<div class="mermaid-error">
+				<p>Diagramm konnte nicht gerendert werden.</p>
+				<pre><code>graph TD; A --&gt; B</code></pre>
+			</div>
+			<details class="mermaid-src">
+				<summary>Quelltext</summary>
+				<pre><code>graph TD; A --&gt; B</code></pre>
+			</details>
+		</article>
+		<aside class="docrail">
+			<div class="blk">
+				<span class="eyebrow">Inhalt</span>
+				<nav class="toc">
+					<a href="#" class="here"><span class="n">01</span>Ein Abschnitt mit Haarlinie</a>
+					<a href="#"><span class="n">02</span>Ein Unterabschnitt</a>
+				</nav>
+			</div>
+			<div class="blk">
+				<span class="eyebrow">Verweise</span>
+				<div class="krow">
+					<span class="n">Rückverlinkt von</span>
+					<span class="v">3</span>
+				</div>
+			</div>
+		</aside>
+	</div>
+	<div class="prov mb-6">
+		<span>Angepinnt von Martin</span>
+		<span class="dotsep">·</span>
+		<span class="mono">/Users/soenne/SourceCode/serverkraken/flow-rebuild-mit-einem-sehr-langen-verschachtelten-pfad-zur-probe</span>
+	</div>
+	<div class="bigsearch mb-4">
+		<span class="ico" aria-hidden="true">⌕</span>
+		<input type="text" placeholder="Wissen durchsuchen…"/>
+		<kbd>⌘K</kbd>
+	</div>
+	<div class="shelf">
+		<a class="row" href="#">
+			<div class="grow">
+				<div class="t">Backstage-Notiz</div>
+				<div class="mono s">notiz · vor 2 Tagen</div>
+			</div>
+			<div class="right">
+				<div class="v">·</div>
+				<div class="k">—</div>
+			</div>
+		</a>
+		<a class="row" href="#">
+			<div class="grow">
+				<div class="t">Vorhaben-Guide</div>
+				<div class="mono s">guide · heute</div>
+			</div>
+			<div class="right">
+				<div class="v">·</div>
+				<div class="k">—</div>
+			</div>
+		</a>
+	</div>
+}
+
+// ── Lesesaal L4: Schreibtisch-Panelzeile + Zeit-Wochenskala ─────────────────
+
+templ sgLesesaalL4() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal L4 — Panelzeile &amp; Wochenskala</h2>
+	<div class="narrow">
+		<div class="panelrow flex items-center gap-3">
+			@Avatar("MS", "av-a", "av-36")
+			<div class="grow">
+				<div class="t">Timer läuft auf flow-rebuild</div>
+				<div class="s"><span class="livechip">LIVE</span> <span class="led-when num dim">09:14</span></div>
+			</div>
+			<a class="btn btn-q btn-s" href="#">Stop</a>
+		</div>
+		<div class="weekbar mt-4" role="img" aria-label="Wochenübersicht: Montag bis Sonntag, gebuchte Stunden pro Tag">
+			for _, d := range []struct {
+				label string
+				val   string
+				cls   string
+			}{
+				{"Mo", "6h 10m", "day has"},
+				{"Di", "7h 40m", "day has"},
+				{"Mi", "5h 05m", "day has"},
+				{"Do", "8h 20m", "day has today"},
+				{"Fr", "—", "day"},
+				{"Sa", "—", "day"},
+				{"So", "—", "day"},
+			} {
+				<div class={ d.cls }>
+					<div class="bar"><i></i></div>
+					<div class="d">{ d.label }</div>
+					<div class="v">{ d.val }</div>
+				</div>
+			}
+		</div>
+		<div class="sect">
+			<div class="sect-h">
+				<span class="eyebrow">Heute</span>
+				<span class="note dim">Soll 8h · bisher 6h 10m · auf Kurs</span>
+			</div>
+			<div class="row">
+				<span class="led-when">09:02–11:30</span>
+				<div class="grow">
+					<div class="t">flow-rebuild</div>
+				</div>
+				<div class="right">
+					<div class="v">2h 28m</div>
+				</div>
+			</div>
+			<div class="row">
+				<span class="led-when">13:00–16:42</span>
+				<div class="grow">
+					<div class="t">homelab-study</div>
+				</div>
+				<div class="right">
+					<div class="v">3h 42m</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// ── Lesesaal L5: Kontext-Instrument (meter) + Kuratieren-Budgetgrenze ───────
+
+templ sgLesesaalL5() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal L5 — Kontext-Instrument &amp; Kuratieren</h2>
+	<div class="narrow">
+		<div class="meter" role="img" aria-label="Kontext-Budget: 40 Prozent belegt">
+			<i style="width:40%"></i>
+		</div>
+		<div class="meter-l">
+			<span>4.800 / 12.000 Tokens</span>
+			<span>40 %</span>
+		</div>
+		<div class="meter full mt-4" role="img" aria-label="Kontext-Budget: 98 Prozent belegt">
+			<i style="width:98%"></i>
+		</div>
+		<div class="meter-l">
+			<span class="warn">fast voll · 12.000</span>
+			<span>98 %</span>
+		</div>
+		<div class="ctxrows">
+			for _, p := range []struct {
+				g string
+				n string
+			}{
+				{"01", "Deploy-Runbook flow-server"},
+				{"02", "OIDC Multi-Issuer Entscheidung"},
+				{"03", "Kompendium Hybrid-Search Notizen"},
+			} {
+				<div class="pin">
+					<span class="g">{ p.g }</span>
+					<span class="n">{ p.n }</span>
+				</div>
+			}
+		</div>
+		<div class="cutline">Budgetgrenze</div>
+	</div>
+}

@@ -1,0 +1,207 @@
+package webui
+
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+templ DocumentPage(vm DocumentVM) {
+	@components.Base("wissen", documentBody(vm))
+}
+
+// documentBody wires the Lesesaal AppShell around the document outer fragment
+// and mounts the shared document-render scripts (DocRenderScripts) once, outside
+// #document-fragment, so an SSE-driven fragment swap never re-adds them — each
+// script's own htmx:afterSwap listener re-scans on every swap. The SAME
+// component is mounted by the node cockpit (cockpit.templ) so both surfaces
+// render a document body identically.
+templ documentBody(vm DocumentVM) {
+	@components.AppShell("docs", nil, nil, documentOuter(vm))
+	@DocRenderScripts()
+}
+
+templ documentOuter(vm DocumentVM) {
+	<div
+		id="content"
+		hx-get={ "/wissen/" + vm.ID }
+		hx-trigger="sse:document.updated"
+		hx-select="#document-fragment"
+		hx-target="#document-fragment"
+		hx-swap="outerHTML"
+	>
+		@DocumentFragment(vm)
+	</div>
+}
+
+// DocumentFragment is the Lesesaal document page (Mockup Z.677–800): the
+// path Spine (".up" crumbs + title), the Provenance row (actor/time/path/
+// reading time + edit/pin), and the `.read` grid (prose + docrail). The
+// docrail carries the ToC block and the Verweise block (outgoing wikilinks +
+// backlinks, Task 6) — the "Im Agenten-Kontext" block is deliberately L5
+// (Anpinnen is the only L3 context interaction). Delete lives on the edit page (editor.templ,
+// edit mode only), not here — matches the Mockup (Z.688–695: only Bearbeiten
+// + Anpinnen) and the same L2 doctrine already applied to nodes ("Move/
+// Status/Delete auf der Edit-Seite").
+templ DocumentFragment(vm DocumentVM) {
+	<article id="document-fragment" data-document-archived={ fmt.Sprintf("%t", vm.Archived) }>
+		<div class="spine">
+			<div class="up">
+				for _, c := range vm.Crumbs {
+					<a href={ templ.SafeURL(c.Href) }>{ c.Label }</a>
+					<span class="sep">/</span>
+				}
+				<span>{ components.T(ctx, "wissen.title") }</span>
+			</div>
+			<div class="spine-main">
+				<h1>{ vm.Title }</h1>
+			</div>
+			if vm.Archived {
+				<div data-archive-banner class="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-line bg-sunken px-4 py-3">
+					<div>
+						<strong>{ components.T(ctx, "document.archive.banner") }</strong>
+						<span class="ml-2 text-sm text-muted">
+							if vm.ArchivedRel != "" {
+								{ fmt.Sprintf(components.T(ctx, "document.archive.provenance"), vm.ArchivedRel) }
+							} else {
+								{ components.T(ctx, "document.archive.hint") }
+							}
+						</span>
+					</div>
+					<button type="button" class="btn btn-q btn-s"
+						hx-post={ "/wissen/" + vm.ID + "/archive" }
+						hx-target="#document-fragment" hx-swap="outerHTML"
+						name="archived" value="false">
+						{ components.T(ctx, "document.restore") }
+					</button>
+				</div>
+			}
+			<div class="prov">
+				if vm.UpdatedByKind == "agent" {
+					@components.AgentAvatar(Initials(vm.UpdatedByRef), "av-28")
+				} else if vm.UpdatedByKind != "" {
+					@components.Avatar(Initials(vm.UpdatedByRef), AvatarTone(vm.UpdatedByRef), "av-28")
+				}
+				<span>
+					if vm.UpdatedByKind != "" {
+						<b class="provref" title={ vm.UpdatedByRef }>{ vm.UpdatedByRef }</b>
+						{ " " }&middot;{ " " }
+					}
+					{ fmt.Sprintf(components.T(ctx, "document.updatedRel"), vm.UpdatedRel) }
+				</span>
+				<span class="dotsep">&middot;</span>
+				<span class="mono">{ vm.Path }</span>
+				<span class="dotsep">&middot;</span>
+				<span>{ fmt.Sprintf("%d ", vm.ReadMinutes) }{ components.T(ctx, "document.readtime") }</span>
+				<span class="dotsep">&middot;</span>
+				if !vm.Archived {
+					<a class="btn btn-q btn-s" href={ templ.SafeURL("/wissen/" + vm.ID + "/bearbeiten") } hx-boost="false">
+						{ components.T(ctx, "wissen.edit") }
+					</a>
+					<button
+						type="button"
+						class="btn btn-q btn-s"
+						hx-post={ "/wissen/" + vm.ID + "/pin" }
+						hx-target="#document-fragment"
+						hx-swap="outerHTML"
+						title={ components.T(ctx, "document.pin.hint") }
+					>
+						if vm.Pinned {
+							{ components.T(ctx, "document.pinned") }
+						} else {
+							{ components.T(ctx, "document.pin") }
+						}
+					</button>
+					<button type="button" class="btn btn-q btn-s text-danger" data-dialog-open={ "archive-" + vm.ID }>
+						{ components.T(ctx, "document.archive") }
+					</button>
+				}
+			</div>
+			if vm.Embed != nil {
+				@DocumentEmbedBadge(vm.ID, *vm.Embed)
+			}
+		</div>
+		<div class="read">
+			@components.MarkdownProse(vm.HTML)
+			<aside class="docrail">
+				@components.Toc("toc-doc")
+				<div class="blk">
+					<span class="eyebrow">{ components.T(ctx, "document.refs") }</span>
+					if len(vm.Outgoing) == 0 && len(vm.Backlinks) == 0 {
+						<div class="krow"><span class="n">{ components.T(ctx, "document.refs.empty") }</span></div>
+					} else {
+						for _, row := range vm.Outgoing {
+							<div class="krow">
+								<a class="n" href={ templ.SafeURL(row.Href) } title={ row.Title }>{ "↪ " + row.Title }</a>
+								<span class="v">{ components.T(ctx, row.Dir) }</span>
+							</div>
+						}
+						for _, row := range vm.Backlinks {
+							<div class="krow">
+								<a class="n" href={ templ.SafeURL(row.Href) } title={ row.Title }>{ "↩ " + row.Title }</a>
+								<span class="v">{ components.T(ctx, row.Dir) }</span>
+							</div>
+						}
+					}
+				</div>
+				if vm.Context != nil {
+					<div class="blk">
+						<span class="eyebrow">{ components.T(ctx, "document.context.title") }</span>
+						if vm.Context.Mode == domain.ContextModeNie {
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.hidden") }</span><span class="v">✗</span></div>
+						} else if vm.Context.State == "included" {
+							<div class="krow"><span class="n">{ vm.Context.NodeName } · { components.T(ctx, "document.context.in") }</span><span class="v" style="color:rgb(var(--live))">✓</span></div>
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.rank") }</span><span class="v">{ vm.Context.RankStr }</span></div>
+						} else if vm.Context.State == "dropped" {
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.dropped") }</span><span class="v">✗</span></div>
+						} else if vm.Context.State == "always" {
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.always") }</span><span class="v" style="color:rgb(var(--live))">✓</span></div>
+						}
+						<div class="krow">
+							<span class="n">{ components.T(ctx, "context.mode.label") }</span>
+							@modeSeg("/wissen/"+vm.ID+"/mode", "#document-fragment", vm.ID, vm.Context.Mode)
+						</div>
+					</div>
+				}
+			</aside>
+		</div>
+		if !vm.Archived {
+			@components.ConfirmDialog(components.ConfirmSpec{
+				ID: "archive-" + vm.ID,
+				TitleKey: "document.archive.title",
+				BodyKey: "document.archive.body",
+				ConfirmLabelKey: "document.archive",
+				ConfirmAttrs: templ.Attributes{
+					"hx-post": "/wissen/" + vm.ID + "/archive",
+					"hx-target": "#document-fragment",
+					"hx-swap": "outerHTML",
+					"name": "archived",
+					"value": "true",
+				},
+			})
+		}
+	</article>
+}
+
+// DocumentEmbedBadge renders the embedding-status affordance (Kristall-era
+// feature, kept — TestWebDocumentView_EmbedBadgeFailedShowsRetry). Restyled
+// to Lesesaal tokens: no `glass` chrome, the retry action is a named
+// `.btn.btn-q.btn-s` button instead of a hand-rolled glass pill.
+templ DocumentEmbedBadge(docID string, e EmbedView) {
+	<div class="mb-4 flex flex-wrap items-center gap-2 seg-sm">
+		<span class={ "inline-flex items-center rounded-full border px-2.5 py-1 font-medium", embedToneClass(e.State) }>
+			{ components.T(ctx, embedLabelKey(e.State)) }
+		</span>
+		if e.LastError != "" {
+			<span class="font-mono text-faint">{ e.LastError }</span>
+		}
+		if e.ShowRetry {
+			<form hx-post={ "/wissen/" + docID + "/reembed" } hx-target="closest div" hx-swap="outerHTML" class="inline">
+				<button type="submit" class="btn btn-q btn-s">
+					{ components.T(ctx, "embed.retry") }
+				</button>
+			</form>
+		}
+	</div>
+}

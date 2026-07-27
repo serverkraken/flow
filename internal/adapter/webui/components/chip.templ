@@ -1,0 +1,25 @@
+package components
+
+// hueText maps a project-hue name onto its text + soft-bg utility classes.
+func hueText(hue string) string {
+	switch hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return "text-" + hue + " bg-" + hue + "/10"
+	default:
+		return "text-body bg-sunken"
+	}
+}
+
+// Chip is a project pill in the given hue (blue|cyan|green|purple|magenta|yellow|orange|red|teal).
+templ Chip(label, hue string) {
+	<span class={ "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[.78rem] font-medium", hueText(hue) }>
+		{ label }
+	</span>
+}
+
+// Tag is a neutral "#"-prefixed tag chip.
+templ Tag(label string) {
+	<span class="inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">
+		#{ label }
+	</span>
+}

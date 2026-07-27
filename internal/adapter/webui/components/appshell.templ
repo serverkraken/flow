@@ -1,0 +1,99 @@
+package components
+
+// BrandMark: schlichte Lesesaal-Wortbild-Raute in Akzent (Gradient tot, Spec §15).
+templ BrandMark(sizeClass string) {
+	<svg viewBox="0 0 24 24" aria-hidden="true" class={ sizeClass }>
+		<g fill="none" stroke="rgb(var(--accent))" stroke-width="1.6" stroke-linejoin="round">
+			<path d="M12 3l7 4v10l-7 4-7-4V7z"></path>
+			<path d="M12 3v18M5 7l7 4 7-4" opacity=".5"></path>
+		</g>
+	</svg>
+}
+
+// AppShell ist die Lesesaal-Topbar-Shell (Spec §5): Wortmarke · drei Bereiche ·
+// Suche (⌘K) · Timer-Pill · Avatar-Menü. Kein Seitenbaum, keine Bottom-Tabs.
+// Signatur bleibt stabil — Seiten-Caller sind unberührt.
+templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
+	<header class="sticky top-0 z-40 bg-paper/90 backdrop-blur-sm border-b border-hair">
+		<div class="topbar-in mx-auto w-full max-w-[1140px] px-4 sm:px-7 h-[58px] flex items-center gap-4 sm:gap-6">
+			<a href="/" class="inline-flex items-center gap-2 shrink-0" aria-label={ T(ctx, "app.name") }>
+				@BrandMark("h-5 w-5")
+				<span class="topbar-mark font-display text-[19px] font-bold tracking-tight">{ T(ctx, "app.name") }<span class="text-accent">.</span></span>
+			</a>
+			<nav class="topbar-nav flex items-center gap-4 sm:gap-6 min-w-0" aria-label={ T(ctx, "nav.primary") }>
+				for _, l := range PrimaryNav() {
+					if l.Key == AreaFor(active) {
+						<a aria-current="page" href={ templ.SafeURL(l.Href) } class="text-[14.5px] font-medium text-ink border-b-2 border-accent pt-[18px] pb-[16px]">{ T(ctx, l.LabelKey) }</a>
+					} else {
+						<a href={ templ.SafeURL(l.Href) } class="text-[14.5px] font-medium text-muted hover:text-ink border-b-2 border-transparent pt-[18px] pb-[16px]">{ T(ctx, l.LabelKey) }</a>
+					}
+				}
+			</nav>
+			<button type="button" data-dialog-open="mobile-nav" aria-label={ T(ctx, "nav.primary") }
+				class="topbar-burger hidden shrink-0 items-center justify-center rounded-lg border border-hair2 bg-surface h-8 w-8 text-ink">
+				<span aria-hidden="true" class="font-mono text-[16px] leading-none">☰</span>
+			</button>
+			<div class="flex-1"></div>
+			<button type="button" data-palette-open aria-label={ T(ctx, "palette.open") }
+				class="searchbtn flex items-center gap-2 rounded-lg border border-hair2 bg-surface px-2.5 py-[7px] text-[13.5px] text-faint hover:border-faint hover:text-meta">
+				<span aria-hidden="true">⌕</span>
+				<span class="searchbtn-lbl">{ T(ctx, "palette.hint") }</span>
+				<kbd class="searchbtn-kbd font-mono text-[11px] border border-hair rounded px-1.5 bg-surface text-faint">⌘K</kbd>
+			</button>
+			<div
+				id="timer-pill"
+				hx-get="/ui/timer"
+				hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
+				hx-swap="innerHTML"
+			></div>
+			<button type="button" data-dialog-open="user-menu" aria-label={ T(ctx, "nav.menu") } class="shrink-0">
+				<span class="ava ava-me av-28" style="width:32px;height:32px;border-radius:8px" aria-hidden="true">{ T(ctx, "app.userInitials") }</span>
+			</button>
+		</div>
+	</header>
+	<main class="pb-16">
+		<div class="mx-auto w-full max-w-[1140px] px-4 sm:px-7 pt-6 md:pt-8">
+			if breadcrumb != nil {
+				@breadcrumb
+			}
+			if subnav != nil {
+				@subnav
+			}
+			@content
+		</div>
+	</main>
+	// Avatar-Menü: Werkzeuge + Abmelden (ersetzt Sidebar-Sekundärnav + More-Drawer)
+	<dialog id="user-menu" aria-modal="true" aria-labelledby="user-menu-title"
+		class="fixed m-0 mt-[64px] ml-auto mr-4 w-[240px] rounded-[14px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20">
+		<div class="px-4 pt-3 pb-2 border-b border-hair">
+			<span id="user-menu-title" class="eyebrow">{ T(ctx, "nav.menu") }</span>
+		</div>
+		<div class="py-1.5">
+			for _, l := range UtilityNav() {
+				<a href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-body hover:bg-wash hover:text-ink">{ T(ctx, l.LabelKey) }</a>
+			}
+			<form action="/auth/logout" method="post" hx-boost="false" class="border-t border-hair mt-1.5 pt-1.5">
+				<button class="w-full text-left px-4 py-2.5 text-[14px] font-medium text-meta hover:bg-wash hover:text-ink">{ T(ctx, "nav.logout") }</button>
+			</form>
+		</div>
+	</dialog>
+	// Mobile-Nav (Burger-Fix 2026-07-05): die drei Bereiche unter 620px, wenn sie
+	// nicht mehr in die Topbar-Zeile passen (Mockup-Lücke bei 375px).
+	<dialog id="mobile-nav" aria-modal="true" aria-labelledby="mobile-nav-title"
+		class="fixed m-0 mt-[54px] ml-4 mr-auto w-[240px] rounded-[14px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20">
+		<div class="px-4 pt-3 pb-2 border-b border-hair">
+			<span id="mobile-nav-title" class="eyebrow">{ T(ctx, "nav.primary") }</span>
+		</div>
+		<div class="py-1.5">
+			for _, l := range PrimaryNav() {
+				if l.Key == AreaFor(active) {
+					<a aria-current="page" href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-ink bg-wash">{ T(ctx, l.LabelKey) }</a>
+				} else {
+					<a href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-body hover:bg-wash hover:text-ink">{ T(ctx, l.LabelKey) }</a>
+				}
+			}
+		</div>
+	</dialog>
+	@PaletteDialog()
+	<script src={ AssetURL("js/dialog.js") } defer></script>
+}

@@ -1,0 +1,200 @@
+package webui
+
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// WochePage is the full Woche (week) page on the Lesesaal AppShell.
+templ WochePage(vm WocheVM) {
+	@components.Base("woche", wocheBody(vm))
+}
+
+// wocheBody mounts the Woche page with NO sub-tab-strip (subnav = nil,
+// matching the Zeit-Hub / Document pattern) — the Heute/Woche/Historie pill
+// strip is replaced by the "‹ Zeit" spine back-link (WocheFragment).
+templ wocheBody(vm WocheVM) {
+	@components.AppShell("zeit", nil, nil, wocheOuter(vm))
+}
+
+// wocheOuter is the SSE-swap container: it reloads the inner WocheFragment on
+// any session / day-off / settings mutation, preserving the displayed week via
+// the ?week= query echoed back into hx-get.
+templ wocheOuter(vm WocheVM) {
+	<div id="content"
+		hx-get={ wocheFragmentURL(vm.WeekStart, vm.IsCurrent) }
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:dayoff.changed, sse:settings.changed"
+		hx-swap="innerHTML">
+		@WocheFragment(vm)
+	</div>
+}
+
+// WocheFragment is the Lesesaal Woche page (the "Statistik" destination,
+// Offene Entsch. #4/#5): the "‹ Zeit" spine, the pagehead (KW label + KW-nav),
+// the vertical .weekbar skyline, the Mo–So .row detail list, the two
+// Kennzahlen panels (Woche gesamt + Kennzahlen), and the monthly Statistik/
+// Burndown panel. No glass/Card/shadow-soft/font-display chrome — Kristall is
+// fully retired from this page.
+templ WocheFragment(vm WocheVM) {
+	<div class="narrow">
+		<div class="spine">
+			<div class="up">
+				<a href="/zeit">{ components.T(ctx, "zeit.back") }</a>
+			</div>
+		</div>
+		<div class="pagehead flex items-end gap-5 flex-wrap">
+			<div class="flex-1 min-w-0">
+				<span class="eyebrow">{ components.T(ctx, "woche.eyebrow") }</span>
+				<h1>{ vm.KWLabel } · { vm.WeekLabel }</h1>
+				{{ track := components.T(ctx, "stats.onTrack") }}
+				if !vm.Kennzahlen.OnTrack {
+					{{ track = components.T(ctx, "stats.behind") }}
+				}
+				<p class="sub">{ fmt.Sprintf(components.T(ctx, "woche.sub"), vm.Total.Total, vm.Total.Target, track) }</p>
+			</div>
+			@wocheNav(vm)
+		</div>
+		@wocheWeekBarSection(vm)
+		@wocheDaysSection(vm)
+		@wocheKennzahlenSection(vm)
+		<div class="sect">
+			@wocheStatsPanel(vm.Stats)
+		</div>
+	</div>
+}
+
+// wocheNav is the KW-nav control row (‹ / "Diese Woche" / ›) as plain
+// Lesesaal buttons (.btn-q.btn-s), replacing the Kristall glass-pill stepper.
+// Forward navigation is clamped: on the current week neither the › button
+// nor "Diese Woche" is shown.
+templ wocheNav(vm WocheVM) {
+	<div class="flex items-center gap-2">
+		<button type="button" class="btn btn-q btn-s" aria-label={ components.T(ctx, "woche.prev") }
+			hx-get={ wocheWeekURL(vm.PrevWeek) } hx-target="#content" hx-swap="innerHTML">
+			<span aria-hidden="true">‹</span>
+		</button>
+		if !vm.IsCurrent {
+			<button type="button" class="btn btn-q btn-s"
+				hx-get="/ui/woche/fragment" hx-target="#content" hx-swap="innerHTML">
+				{ components.T(ctx, "woche.thisWeek") }
+			</button>
+		}
+		if vm.CanForward {
+			<button type="button" class="btn btn-q btn-s" aria-label={ components.T(ctx, "woche.next") }
+				hx-get={ wocheWeekURL(vm.NextWeek) } hx-target="#content" hx-swap="innerHTML">
+				<span aria-hidden="true">›</span>
+			</button>
+		} else {
+			<span class="btn-s text-faint" aria-hidden="true">›</span>
+		}
+	</div>
+}
+
+// wocheWeekBarSection is the "Diese Woche" skyline (Mockup-consistent with
+// the Zeit-Hub's .weekbar): a bar per Mo..So day, driven by vm.WeekDays
+// ([]ZeitWeekDay) — the SAME shared builder (webui.BuildWeekBars) and "H:MM"
+// format (FmtClockShort) the Zeit-Hub weekbar uses, so the two pages' weekbar
+// skylines can never drift apart again (L4 Final-Review Finding 1). The
+// Mo–So detail rows below (wocheDaysSection) still read from vm.Days and
+// keep their own FmtVerbose ("6h 10m") page prose — only this skyline
+// changed.
+templ wocheWeekBarSection(vm WocheVM) {
+	<div class="sect">
+		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "zeit.thisWeek") }</span></div>
+		<div class="weekbar" role="img" aria-label={ components.T(ctx, "zeit.weekAria") }>
+			for _, d := range vm.WeekDays {
+				<div class={ "day", templ.KV("has", d.Has), templ.KV("today", d.Today) }>
+					<div class="bar"><i style={ zeitDayBarStyle(d) }></i></div>
+					<div class="d">{ d.Label }</div>
+					<div class="v">{ d.ValueStr }</div>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// wocheDaysSection is the Mo–So detail list: haarlinien-.row's instead of
+// cards, one per day (wocheDayRow).
+templ wocheDaysSection(vm WocheVM) {
+	<div class="sect">
+		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "woche.days") }</span></div>
+		for _, d := range vm.Days {
+			@wocheDayRow(d)
+		}
+	</div>
+}
+
+// wocheDayRow is one Mo–So .row: the weekday label (.led-when), the date +
+// either a day-off .typechip or the Saldo delta line (.grow), and the
+// duration/target (.right) — a single unified row (replacing the Kristall
+// wocheDayRow/wocheWeekendRow split, which differed only in card chrome).
+templ wocheDayRow(d WocheDayVM) {
+	<div class="row">
+		<span class="led-when">{ d.Label }</span>
+		<div class="grow">
+			<div class="t">{ d.DateLabel }</div>
+			if d.Weekend {
+				<span class="s">{ components.T(ctx, "woche.weekend") }</span>
+			} else if d.DayOff {
+				<span class={ "typechip", wocheDayOffTypeChip(d.DayOffHue) }>{ d.DayOffLabel }</span>
+			} else if d.Saldo != "" {
+				<span class={ "s", wocheVariantHue(d.Variant) }>{ d.Saldo }</span>
+			}
+		</div>
+		<div class="right">
+			if d.Weekend {
+				<div class="v text-faint">—</div>
+			} else {
+				<div class={ "v", wocheVariantHue(d.Variant) }>{ d.Dur }</div>
+				<div class="k">/ { d.TargetDur }</div>
+			}
+		</div>
+	</div>
+}
+
+// wocheKennzahlenSection is the "Zwei-Flächen-Panels" row: the Woche-gesamt
+// panel (Ist/Soll from components.WeekTotalVM) and the Kennzahlen panel
+// (Ø-Tag/Ziele/Saldo from components.KennzahlenVM) — plain .panel/.krow
+// blocks, NOT components.WeekTotalBanner/KennzahlenPanel (those stay retired
+// Kristall glass cards). Wraps + stacks on narrow viewports via flex-wrap.
+templ wocheKennzahlenSection(vm WocheVM) {
+	<div class="sect">
+		<div class="flex gap-4 flex-wrap mt-3.5">
+			<section class="panel p-5 flex-1 min-w-60">
+				<span class="eyebrow">{ components.T(ctx, "week.total") }</span>
+				<div class="krow"><span class="n">{ components.T(ctx, "woche.logged") }</span><span class={ "v", wocheVariantHue(vm.Total.Variant) }>{ vm.Total.Total }</span></div>
+				<div class="krow border-b-0"><span class="n">{ components.T(ctx, "week.target") }</span><span class="v">{ vm.Total.Target }</span></div>
+			</section>
+			<section class="panel p-5 flex-1 min-w-60">
+				<span class="eyebrow">{ components.T(ctx, "kennzahlen.title") }</span>
+				<div class="krow"><span class="n">{ components.T(ctx, "kennzahlen.avg") }</span><span class="v">{ vm.Kennzahlen.AvgPerDay }</span></div>
+				<div class="krow"><span class="n">{ components.T(ctx, "kennzahlen.goals") }</span><span class="v">{ fmt.Sprintf("%d / %d", vm.Kennzahlen.GoalsHit, vm.Kennzahlen.GoalsTotal) }</span></div>
+				<div class="krow border-b-0"><span class="n">{ components.T(ctx, "kennzahlen.balance") }</span><span class="v">{ vm.Kennzahlen.Balance }</span></div>
+			</section>
+		</div>
+	</div>
+}
+
+// wocheStatsPanel is the monthly Statistik/Burndown block (Offene Entsch. #4
+// — this glance metric moved here from Home): a plain Lesesaal .panel/.krow
+// block built from WocheStatsVM (domain.MonthBurndownReport), never the
+// Kristall components.BurndownBanner glass card.
+templ wocheStatsPanel(vm WocheStatsVM) {
+	<section class="panel p-5">
+		<span class="eyebrow">{ components.T(ctx, "woche.statsTitle") }</span>
+		<div class="krow"><span class="n">{ components.T(ctx, "stats.monthTotal") }</span><span class="v">{ vm.Total }</span></div>
+		<div class="krow"><span class="n">{ components.T(ctx, "week.target") }</span><span class="v">{ vm.Target }</span></div>
+		<div class="krow"><span class="n">{ components.T(ctx, "kennzahlen.balance") }</span><span class="v">{ vm.Saldo }</span></div>
+		<div class="krow border-b-0">
+			<span class="n">{ components.T(ctx, "woche.pace") }</span>
+			<span class={ "v", wocheStatsHue(vm.OnTrack) }>
+				if vm.OnTrack {
+					{ components.T(ctx, "stats.onTrack") }
+				} else {
+					{ components.T(ctx, "stats.behind") }
+				}
+			</span>
+		</div>
+	</section>
+}

@@ -1,0 +1,148 @@
+package webui
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// HomePage is the full Schreibtisch (Home) landing page on the AppShell — L4
+// Task 2 rebuild: Jetzt (the one running timer, display-only) ·
+// Weiterarbeiten (MRU bookable nodes) · Zuletzt im Wissen (shared
+// WissenRowVM) · Puls (shared pulseRow/pulseSection). The Topbar-Pill (Spec
+// §10) owns Start/Switch; the Jetzt row's Stop (bound timer only) posts to
+// the same /ui/timer/stop.
+templ HomePage(vm HomeVM) {
+	@components.Base("home", homeBody(vm))
+}
+
+templ homeBody(vm HomeVM) {
+	@components.AppShell("home", nil, nil, homeOuter(vm))
+}
+
+// homeOuter is the SSE-swap container: reloads inner HomeFragment on every
+// event that can change a Schreibtisch row (session/document/dayoff/
+// activity). settings.changed is kept for Bestand-Parität even though no
+// Home value depends on settings anymore — losing the trigger silently would
+// be a regression a future settings-dependent row could re-introduce
+// unnoticed.
+templ homeOuter(vm HomeVM) {
+	<div id="content"
+		hx-get="/ui/home"
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:document.created, sse:document.updated, sse:document.deleted, sse:dayoff.changed, sse:activity.logged, sse:settings.changed"
+		hx-swap="innerHTML">
+		@HomeFragment(vm)
+	</div>
+}
+
+// HomeFragment is the inner content re-rendered live on SSE events.
+templ HomeFragment(vm HomeVM) {
+	if vm.Err != "" {
+		<p class="alert-err" role="alert">{ vm.Err }</p>
+	}
+	<div class="narrow">
+		<div class="pagehead">
+			<span class="eyebrow">{ vm.Today }</span>
+			<h1>{ components.T(ctx, "home.desk") }</h1>
+			<p class="sub">{ components.T(ctx, "home.deskSub") }</p>
+		</div>
+		@homeNowSection(vm)
+		@homeContinueSection(vm)
+		@homeWissenSection(vm)
+		@pulseSection("home.puls", vm.Puls)
+	</div>
+}
+
+// homeNowSection is "Jetzt": the running timer's display state (Spec §10 —
+// no second Start/Stop surface, no Start-CTA when idle). A bound running
+// timer's Stop posts to the one /ui/timer/stop with hx-swap="none" — the
+// response is TimerWidget markup (the sheet body), never TimerPill, so it
+// must not swap #timer-pill; the pill (its own sse:session.stopped trigger)
+// and this #content fragment (homeOuter's SSE trigger set) pick up the
+// change on their own.
+templ homeNowSection(vm HomeVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "home.now") }</span>
+			<a class="more" href="/zeit">{ components.T(ctx, "nav.zeit") } ›</a>
+		</div>
+		if vm.Now != nil {
+			<div class="row panelrow">
+				@components.NodeAvatar(vm.Now.NodeID, vm.Now.LogoRef, vm.Now.Initials, vm.Now.Tone, "av-36")
+				<div class="grow">
+					<div class="t">
+						{ components.T(ctx, "home.timerOn") }
+						if vm.Now.NodeHref != "" {
+							{ " " }<a class="targetlink" href={ templ.SafeURL(vm.Now.NodeHref) }>{ vm.Now.NodeName }</a>
+						}
+					</div>
+					<div class="s">{ fmt.Sprintf(components.T(ctx, "home.timerSince"), vm.Now.SinceStr, components.T(ctx, homeCountsLabelKey(vm.Now.CountsWork))) }</div>
+				</div>
+				<span class="livechip">{ components.T(ctx, "cockpit.pulse.live") }</span>
+				<div class="right">
+					<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.Now.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.Now.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.Now.BaseSeconds) }</div>
+					<div class="k">{ fmt.Sprintf(components.T(ctx, "home.todayTotal"), vm.TodayLogged) }</div>
+				</div>
+				if vm.Now.NodeID != "" {
+					<button type="button" class="btn btn-q btn-s" hx-post="/ui/timer/stop" hx-swap="none">{ components.T(ctx, "timer.stop") }</button>
+				}
+			</div>
+		} else {
+			<div class="row panelrow">
+				<div class="grow">
+					<div class="t">{ components.T(ctx, "home.noTimer") }</div>
+				</div>
+				<div class="right"><div class="k">{ fmt.Sprintf(components.T(ctx, "home.todayTotal"), vm.TodayLogged) }</div></div>
+			</div>
+		}
+	</div>
+}
+
+// homeContinueSection is "Weiterarbeiten": the MRU bookable nodes
+// (BuildRecentNodes, home_continue.go).
+templ homeContinueSection(vm HomeVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "home.continue") }</span>
+			<a class="more" href="/nodes">{ components.T(ctx, "home.continueAll") } ›</a>
+		</div>
+		if len(vm.Continue) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "home.emptyRecent") }</p>
+		} else {
+			for _, row := range vm.Continue {
+				<a class="row" href={ templ.SafeURL("/nodes/" + row.ID) }>
+					@components.NodeAvatar(row.ID, row.LogoRef, row.Initials, row.Tone, "av-36")
+					<div class="grow">
+						<div class="t">{ row.Name }</div>
+						<div class="path">{ row.FullPath }</div>
+					</div>
+					<div class="right">
+						<div class="v">{ row.ValueStr }</div>
+						<div class="k">{ components.T(ctx, row.LabelKey) }</div>
+					</div>
+				</a>
+			}
+		}
+	</div>
+}
+
+// homeWissenSection is "Zuletzt im Wissen": the shared wissenRow
+// (wissen.templ) — the exact same row the /wissen "Zuletzt aktualisiert"
+// list renders, so only .right .v (no .k) shows, matching that surface
+// rather than the Mockup's illustrative two-line .right (Z.401–403).
+templ homeWissenSection(vm HomeVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "home.recentWissen") }</span>
+			<a class="more" href="/wissen">{ components.T(ctx, "nav.wissen") } ›</a>
+		</div>
+		if len(vm.RecentWissen) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "home.emptyRecent") }</p>
+		} else {
+			for _, row := range vm.RecentWissen {
+				@wissenRow(row)
+			}
+		}
+	</div>
+}

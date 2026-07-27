@@ -1,0 +1,11 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: flow
+      POSTGRES_USER: flow
+      POSTGRES_PASSWORD: flow
+    ports: ["5432:5432"]
+    volumes: ["flow_pgdata:/var/lib/postgresql/data"]
+volumes:
+  flow_pgdata:

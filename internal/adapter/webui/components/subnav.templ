@@ -1,0 +1,36 @@
+package components
+
+import "fmt"
+
+// Tab is one sub-navigation entry. Count > 0 renders a count chip (Kristall
+// pill-tabs, mockup .tab .cnt).
+type Tab struct {
+	Key, Href, LabelKey string
+	Count               int
+}
+
+// TabStrip renders the Kristall pill tab strip; the active tab is glass-raised
+// and aria-current.
+templ TabStrip(tabs []Tab, active string) {
+	<div class="mb-6">
+		<nav class="pill-tabs scroll-thin" aria-label={ T(ctx, "nav.primary") }>
+			for _, t := range tabs {
+				if t.Key == active {
+					<a href={ templ.SafeURL(t.Href) } aria-current="page" class="pill-tab">
+						{ T(ctx, t.LabelKey) }
+						if t.Count > 0 {
+							<span class="pill-cnt tnum">{ fmt.Sprint(t.Count) }</span>
+						}
+					</a>
+				} else {
+					<a href={ templ.SafeURL(t.Href) } class="pill-tab">
+						{ T(ctx, t.LabelKey) }
+						if t.Count > 0 {
+							<span class="pill-cnt tnum">{ fmt.Sprint(t.Count) }</span>
+						}
+					</a>
+				}
+			}
+		</nav>
+	</div>
+}

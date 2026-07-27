@@ -1,0 +1,54 @@
+package webui
+
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// modeSeg is the shared Auto/Immer/Nie context-mode switcher (Lesesaal L5.5
+// Task 4, Soenne-Entscheid — Offene Entscheidung #5): a `.seg .seg-sm`
+// Dreisegment (Bestand primitive, tailwind.css:335-337/486, same widget as
+// cockpit_main.templ's Wissen-Scope toggle) with the active mode carrying
+// aria-pressed="true". Each segment posts postURL with the target mode via
+// hx-vals (doc+mode), swapping target with the fresh fragment — used on
+// Kuratieren's rang/always/hidden rows (postURL=/kontext/{node}/mode,
+// target=#kontext-fragment) and the document page's context block
+// (postURL=/wissen/{id}/mode, target=#document-fragment).
+templ modeSeg(postURL, target, docID string, cur domain.ContextMode) {
+	<div class="seg seg-sm" role="group" aria-label={ components.T(ctx, "context.mode.label") }>
+		@modeSegBtn(postURL, target, docID, domain.ContextModeAuto, cur, "context.mode.auto", "context.mode.autoHint")
+		@modeSegBtn(postURL, target, docID, domain.ContextModeImmer, cur, "context.mode.immer", "context.mode.immerHint")
+		@modeSegBtn(postURL, target, docID, domain.ContextModeNie, cur, "context.mode.nie", "context.mode.nieHint")
+	</div>
+}
+
+// modeSegBtn is one segment of modeSeg. aria-pressed needs the literal
+// "true"/"false" string (unlike templ's `?=` boolean-attribute sugar, which
+// only toggles presence) — ariaBoolAttr renders that string explicitly,
+// extending the historie.templ/cockpit_main.templ `.seg` precedent (built for
+// 2 states) to this 3-state control.
+templ modeSegBtn(postURL, target, docID string, mode, cur domain.ContextMode, labelKey, hintKey string) {
+	<button
+		type="button"
+		class="px-3 py-1.5"
+		hx-post={ postURL }
+		hx-target={ target }
+		hx-swap="outerHTML"
+		hx-vals={ fmt.Sprintf(`{"doc":"%s","mode":"%s"}`, docID, mode) }
+		aria-pressed={ ariaBoolAttr(cur == mode) }
+		aria-label={ components.T(ctx, hintKey) }
+		title={ components.T(ctx, hintKey) }
+	>
+		{ components.T(ctx, labelKey) }
+	</button>
+}
+
+// ariaBoolAttr renders b as the literal aria-pressed attribute value.
+func ariaBoolAttr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}

@@ -1,0 +1,34 @@
+package components
+
+// paceGlyph picks a filled ● for hit/today states, hollow ○ for missed/off.
+func paceGlyph(state string) string {
+	if state == "off" || state == "behind" {
+		return "○"
+	}
+	return "●"
+}
+
+// paceColor maps a pace state onto its semantic text color.
+func paceColor(state string) string {
+	switch state {
+	case "ahead", "ontrack":
+		return "text-green"
+	case "behind":
+		return "text-yellow"
+	case "running":
+		return "text-cyan"
+	case "holiday":
+		return "text-blue"
+	default:
+		return "text-faint"
+	}
+}
+
+// PaceDots renders the inline goal-pace dot strip (one glyph per day).
+templ PaceDots(dots []PaceDot) {
+	<span class="inline-flex items-center gap-1" aria-hidden="true">
+		for _, d := range dots {
+			<span class={ "text-[.7rem]", paceColor(d.State) }>{ paceGlyph(d.State) }</span>
+		}
+	</span>
+}

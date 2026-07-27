@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1.7
+#
+# flow-server image (rebuild branch).
+#
+# Builder: golang:1.25-alpine (matches go.mod toolchain go 1.25.7). Unlike the
+# next chart's image there is NO Node/npm step — the WebUI assets are committed
+# and go:embed-ed: internal/adapter/webui/static/app.css plus the generated
+# *_templ.go. templ is a go.mod tool directive, so we regenerate via
+# `go tool templ generate ./...` (a no-op against the committed files, kept for
+# a clean-room build).
+#
+# -buildvcs=false: the build runs from a git worktree whose .git is a file (and
+# CI checks out a detached tree); flow-server reads no VCS/version stamp, so we
+# disable VCS stamping to keep both local `podman build` and CI deterministic.
+#
+# Runtime: distroless/static-debian12:nonroot — no shell, uid 65532.
+#
+# Build: podman build -t flow-server:dev -f deploy/podman/Dockerfile.server .
+
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Build the Tailwind v4 stylesheet IN the image so the go:embed-ed app.css is
+# always fresh (fixes the "commit app.css by hand" gotcha). Pin the standalone
+# CLI; pick the binary for the build arch (amd64/arm64). The base image is
+# Alpine (musl libc), so use the *-musl* standalone builds — the glibc builds
+# fail at runtime with "tailwindcss: not found" (missing dynamic loader). The
+# musl build is dynamically linked against the C++ runtime, so install
+# libstdc++/libgcc too (otherwise it fails relocating __cxxabiv/std symbols).
+ARG TAILWIND_VERSION=v4.1.5
+RUN set -eux; \
+    apk add --no-cache libstdc++ libgcc; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64)  tw="tailwindcss-linux-x64-musl" ;; \
+      aarch64) tw="tailwindcss-linux-arm64-musl" ;; \
+      *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+    esac; \
+    wget -q -O /usr/local/bin/tailwindcss \
+      "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${tw}"; \
+    chmod +x /usr/local/bin/tailwindcss; \
+    tailwindcss --input web/tailwind.css \
+      --output internal/adapter/webui/static/app.css --minify
+
+RUN go tool templ generate ./...
+RUN CGO_ENABLED=0 GOFLAGS="-trimpath -buildvcs=false" \
+    go build -ldflags="-s -w" -o /out/flow-server ./cmd/flow-server
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/flow-server /usr/local/bin/flow-server
+USER nonroot
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/flow-server"]

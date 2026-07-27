@@ -1,0 +1,409 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// NodesPage is the full-page tree view for GET /nodes.
+templ NodesPage(d NodesPageData) {
+	@components.Base("projekte", nodesBody(d))
+}
+
+templ nodesBody(d NodesPageData) {
+	@components.AppShell("projekte", nil, nil, nodesOuter(d))
+}
+
+// nodesOuter wraps the fragment in an SSE-reactive container so node.* events
+// auto-refresh the tree without a full page reload.
+templ nodesOuter(d NodesPageData) {
+	<div
+		id="content"
+		hx-get={ "/ui/nodes/list?status=" + d.Status }
+		hx-trigger="sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted"
+		hx-swap="innerHTML"
+	>
+		@NodesFragment(d)
+	</div>
+}
+
+// NodesFragment is the SSE-swappable inner tree — served at both
+// GET /ui/nodes/list and GET /ui/nodes/tree. The Projekte page renders the
+// node tree as content (Mockup Z.442–570): an engagement header (double
+// rule), vorhaben sub-heads, and repo rows with a large short name plus the
+// full mono path underneath — glyph-free throughout (Spec §7 Farb-Gesetz:
+// kind stays a neutral .typechip, color lives only in the avatar).
+templ NodesFragment(d NodesPageData) {
+	<div class="pagehead flex items-end gap-5 flex-wrap">
+		<div class="flex-1">
+			<span class="eyebrow">{ components.T(ctx, "nav.projects") }</span>
+			<h1>{ components.T(ctx, "nodes.title") }</h1>
+			<p class="sub">{ ProjectsSummary(ctx, d.VM) }</p>
+		</div>
+		<a href="/nodes/new" class="btn btn-q">{ components.T(ctx, "nodes.new") }</a>
+	</div>
+	<div class="mb-4 flex flex-wrap gap-2 text-sm">
+		<a href="/nodes" class={ nodeFilterChip(d.Status == "") }>{ components.T(ctx, "nodes.filterActive") }</a>
+		<a href="/nodes?status=archived" class={ nodeFilterChip(d.Status == "archived") }>{ components.T(ctx, "nodes.filterArchived") }</a>
+		<a href="/nodes?status=all" class={ nodeFilterChip(d.Status == "all") }>{ components.T(ctx, "nodes.filterAll") }</a>
+	</div>
+	if len(d.VM.Engagements) == 0 {
+		@components.EmptyState("", "nodes.empty", "nodes.emptyHint")
+	} else {
+		for _, es := range d.VM.Engagements {
+			@engagementSection(es)
+		}
+	}
+}
+
+// engagementSection renders one .eng block: the double-ruled header, each
+// vorhaben's group (rows indented .lvl2 under it), then any repos parented
+// directly on the engagement — as a "Direkt am Engagement" group when vorhaben
+// groups exist alongside them, or as plain top-level rows when they're the
+// engagement's only children (Mockup's "Privat" section has no vh head at all).
+templ engagementSection(es EngagementSection) {
+	<section class="eng">
+		<a class="eng-h" href={ templ.SafeURL("/nodes/" + es.N.ID) }>
+			@components.NodeAvatar(es.N.ID, es.N.LogoRef, es.Initials, es.Tone, "av-36")
+			<h2>{ ShortName(es.N.Name) }</h2>
+			<span class="typechip">{ components.T(ctx, "node.kind."+string(es.N.Kind)) }</span>
+			<div class="right"><div class="v">{ es.HoursStr }</div><div class="k">{ es.RateNote }</div></div>
+		</a>
+		if len(es.Groups) > 0 {
+			for _, g := range es.Groups {
+				@vorhabenHead(g)
+				for _, row := range g.Rows {
+					@projRow(row, true)
+				}
+			}
+			if len(es.DirectRepos) > 0 {
+				<div class="vh">
+					<span class="t">{ components.T(ctx, "nodes.group.direct") }</span>
+					<span class="c">{ repoCountNote(len(es.DirectRepos)) }</span>
+				</div>
+				for _, row := range es.DirectRepos {
+					@projRow(row, true)
+				}
+			}
+		} else {
+			for _, row := range es.DirectRepos {
+				@projRow(row, false)
+			}
+		}
+	</section>
+}
+
+// vorhabenHead renders one .vh sub-head: short name, neutral "vorhaben"
+// typechip, and the group's repo/sub-vorhaben count note. The head links to
+// the vorhaben's cockpit — group-head vorhaben have no .projrow of their own,
+// so without the link they'd be unreachable from the Projekte page.
+templ vorhabenHead(g VorhabenGroup) {
+	<a class="vh" href={ templ.SafeURL("/nodes/" + g.N.ID) }>
+		<span class="t">{ g.Short }</span>
+		<span class="typechip">{ components.T(ctx, "node.kind.vorhaben") }</span>
+		<span class="c">{ g.CountNote }</span>
+	</a>
+}
+
+// projRow renders one repo (or nested-vorhaben) line: avatar, short name +
+// full mono path (word-break:break-all via .path — Spec §11 Eindämmung), and
+// the right-aligned doc-count/hours + status note. indented adds .lvl2 when
+// the row sits under a .vh head (vs. a bare top-level row).
+templ projRow(row ProjRow, indented bool) {
+	<a class={ "projrow", templ.KV("lvl2", indented) } href={ templ.SafeURL("/nodes/" + row.ID) }>
+		@components.NodeAvatar(row.ID, row.LogoRef, row.Initials, row.Tone, "av-28")
+		<div class="grow">
+			if row.IsVorhaben {
+				<div class="t">
+					{ row.Short }
+					<span class="dim font-normal">· { components.T(ctx, "node.kind."+row.KindLabel) }</span>
+				</div>
+				<div class="s">{ projRowUnderNote(ctx, row.Full) }</div>
+			} else {
+				<div class="t">{ row.Short }</div>
+				if row.Desc != "" {
+					<div class="s truncate" title={ row.Desc }>{ row.Desc }</div>
+				}
+				<div class="path">{ row.Full }</div>
+			}
+		</div>
+		<div class="right">
+			<div class="v">{ row.RightV }</div>
+			<div class="k">{ components.T(ctx, row.RightK) }</div>
+		</div>
+	</a>
+}
+
+// nodeKindBadge renders the kind pill (glyph + i18n label, kind-toned).
+templ nodeKindBadge(kind domain.NodeKind) {
+	{{ k := NodeKindStyle(kind) }}
+	<span class={ "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.72rem] font-medium", kindToneClass(k.Tone) }>
+		<span aria-hidden="true">{ k.Glyph }</span> { components.T(ctx, k.LabelKey) }
+	</span>
+}
+
+// NodeForm renders the create (editing==nil) or edit form for a node.
+templ NodeForm(d NodeFormData, editing *domain.Node) {
+	@components.Base("projekte", nodeFormBody(d, editing))
+}
+
+templ nodeFormBody(d NodeFormData, editing *domain.Node) {
+	@components.AppShell("projekte", nil, nil, nodeFormInner(d, editing))
+}
+
+templ nodeFormInner(d NodeFormData, editing *domain.Node) {
+	<h1 class="mb-4 font-display text-2xl font-semibold">
+		if editing != nil {
+			{ components.T(ctx, "node.edit.title") }
+		} else {
+			{ components.T(ctx, "node.create.title") }
+		}
+	</h1>
+	if d.Error != "" {
+		<div class="mb-4 rounded-2xl bg-red/10 px-4 py-2 text-sm font-medium text-red" role="alert">{ d.Error }</div>
+	}
+	<form method="post" action={ nodeFormAction(editing) } enctype="multipart/form-data" hx-boost="false" class="max-w-2xl space-y-4 text-sm">
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.name") }</label>
+			<input name="name" value={ d.Vals.Name } required class="field"/>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.slug") }</label>
+			<input name="slug" value={ d.Vals.Slug } class="field font-mono"/>
+		</div>
+		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+			<div>
+				<label class="block text-muted">{ components.T(ctx, "node.kind") }</label>
+				<select name="kind" id="node-kind" class="field">
+					@nodeKindOption("engagement", "node.kind.engagement", d.Vals.Kind)
+					@nodeKindOption("vorhaben", "node.kind.vorhaben", d.Vals.Kind)
+					@nodeKindOption("repo", "node.kind.repo", d.Vals.Kind)
+				</select>
+			</div>
+			<div>
+				<label class="block text-muted">{ components.T(ctx, "node.parent") }</label>
+				if editing != nil {
+					<select name="parentId" id="node-parent" class="field opacity-50 cursor-not-allowed" disabled>
+						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+						for _, p := range d.Parents {
+							if d.Vals.ParentID == p.ID {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
+							} else {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
+							}
+						}
+					</select>
+					<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
+					@nodeMoveForm(d, editing)
+				} else {
+					<select name="parentId" id="node-parent" class="field">
+						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+						for _, p := range d.Parents {
+							if d.Vals.ParentID == p.ID {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
+							} else {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
+							}
+						}
+					</select>
+				}
+			</div>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.description") }</label>
+			<textarea name="description" rows="6" class="field font-mono">{ d.Vals.Description }</textarea>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.upstream") }</label>
+			<input name="upstreamGit" value={ d.Vals.UpstreamGit } placeholder="git@github.com:org/repo.git" class="field font-mono"/>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.status") }</label>
+			<select name="status" class="field">
+				@nodeStatusOption("active", "node.status.active", d.Vals.Status)
+				@nodeStatusOption("paused", "node.status.paused", d.Vals.Status)
+				@nodeStatusOption("archived", "node.status.archived", d.Vals.Status)
+			</select>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.counts.label") }</label>
+			<select name="countsMode" class="field">
+				@nodeCountsOption("inherit", "node.counts.inherit", d.Vals.CountsMode)
+				@nodeCountsOption("work", "node.counts.work", d.Vals.CountsMode)
+				@nodeCountsOption("privat", "node.counts.privat", d.Vals.CountsMode)
+			</select>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.color") }</label>
+			<div class="flex flex-wrap gap-2">
+				@nodeColorRadio("", d.Vals.Color)
+				for _, name := range domain.NodeColors {
+					@nodeColorRadio(name, d.Vals.Color)
+				}
+			</div>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.glyph") }</label>
+			<div class="flex flex-wrap gap-2">
+				@nodeGlyphRadio("", d.Vals.Glyph)
+				for _, g := range domain.NodeGlyphs {
+					@nodeGlyphRadio(g, d.Vals.Glyph)
+				}
+			</div>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.icon") }</label>
+			<div class="flex flex-wrap gap-2">
+				@nodeIconRadio("", d.Vals.Icon)
+				for _, key := range domain.NodeIcons {
+					@nodeIconRadio(key, d.Vals.Icon)
+				}
+			</div>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.logo") }</label>
+			if editing != nil && editing.LogoRef != "" {
+				<div class="mb-2 flex items-center gap-3">
+					<img src={ "/nodes/" + editing.ID + "/logo?v=" + editing.LogoRef } alt="" class="h-12 w-12 rounded-xl object-cover"/>
+					<label class="flex items-center gap-2 text-[.82rem]">
+						<input type="checkbox" name="logoRemove" value="1"/> { components.T(ctx, "node.logo.remove") }
+					</label>
+				</div>
+			}
+			<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" class="field"/>
+			<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.logo.hint") }</p>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "wissen.tags") }</label>
+			<input name="tags" value={ d.Vals.TagsCSV } placeholder="tag1 tag2"
+				class="field font-mono"/>
+		</div>
+		<div id="node-rate" class="flex flex-wrap items-end gap-3">
+			<div>
+				<label class="block text-muted">{ components.T(ctx, "node.rate") }</label>
+				<input name="rateAmount" value={ d.Vals.RateAmount } placeholder="95.00" class="field w-32"/>
+			</div>
+			<div>
+				<label class="block text-muted">{ components.T(ctx, "node.rateCurrency") }</label>
+				<input name="rateCurrency" value={ orDefault(d.Vals.RateCurrency, "EUR") } class="field w-20"/>
+			</div>
+			<span class="text-xs text-faint">{ components.T(ctx, "node.rateHint") }</span>
+		</div>
+		<div class="flex gap-2">
+			@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "✓", templ.Attributes{"type": "submit"})
+			<a href="/nodes" class="btn btn-q">{ components.T(ctx, "common.cancel") }</a>
+		</div>
+	</form>
+	if editing != nil {
+		<form id="node-move-form" method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/move") } hx-boost="false"></form>
+		<form method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/delete") } hx-boost="false" class="mt-3 max-w-2xl">
+			@components.Button(components.BtnDanger, components.T(ctx, "common.delete"), "✗", templ.Attributes{"type": "submit"})
+		</form>
+	}
+	<script src={ AssetURL("js/nodeform.js") } defer></script>
+}
+
+// nodeMoveForm renders the reparent controls on the edit page (Task 7: moved
+// here from the cockpit page's old cockpitMoveForm — the cockpit no longer has
+// a Struktur tab to host it). It sits INSIDE the main edit <form>, so it must
+// not open its own <form> (nested forms are invalid HTML; the browser drops
+// the inner tag and the stray </form> closes the edit form early, orphaning
+// every control below — logo upload, Speichern). The controls bind via the
+// form attribute to the empty #node-move-form element rendered AFTER the edit
+// form, which posts to POST /nodes/{id}/move (full-page redirect, no htmx
+// swap). Only called from the editing!=nil branch of the Parent field.
+templ nodeMoveForm(d NodeFormData, editing *domain.Node) {
+	<div class="mt-2">
+		<label class="block text-muted">{ components.T(ctx, "node.moveTitle") }</label>
+		<div class="flex flex-wrap items-end gap-2">
+			<select name="parentId" form="node-move-form" class="field">
+				<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+				for _, p := range d.MoveTargets {
+					if editing.ParentID != nil && *editing.ParentID == p.ID {
+						<option value={ p.ID } selected>{ nodeParentLabel(p) }</option>
+					} else {
+						<option value={ p.ID }>{ nodeParentLabel(p) }</option>
+					}
+				}
+			</select>
+			@components.Button(components.BtnSecondary, components.T(ctx, "node.move"), "→", templ.Attributes{"type": "submit", "form": "node-move-form"})
+		</div>
+	</div>
+}
+
+templ nodeKindOption(val, labelKey, current string) {
+	if val == current || (current == "" && val == "engagement") {
+		<option value={ val } selected>{ components.T(ctx, labelKey) }</option>
+	} else {
+		<option value={ val }>{ components.T(ctx, labelKey) }</option>
+	}
+}
+
+templ nodeStatusOption(val, labelKey, current string) {
+	if val == current || (current == "" && val == "active") {
+		<option value={ val } selected>{ components.T(ctx, labelKey) }</option>
+	} else {
+		<option value={ val }>{ components.T(ctx, labelKey) }</option>
+	}
+}
+
+// nodeCountsOption renders one Work/Privat tri-state option; an empty current
+// value defaults to "inherit" (nil override).
+templ nodeCountsOption(val, labelKey, current string) {
+	if val == current || (current == "" && val == "inherit") {
+		<option value={ val } selected>{ components.T(ctx, labelKey) }</option>
+	} else {
+		<option value={ val }>{ components.T(ctx, labelKey) }</option>
+	}
+}
+
+templ nodeColorRadio(name, current string) {
+	<label class="cursor-pointer">
+		if name == current {
+			<input type="radio" name="color" value={ name } checked class="peer sr-only"/>
+		} else {
+			<input type="radio" name="color" value={ name } class="peer sr-only"/>
+		}
+		if name == "" {
+			<span class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-line text-xs text-faint peer-checked:ring-2 peer-checked:ring-blue">∅</span>
+		} else {
+			<span class="inline-block h-6 w-6 rounded-full ring-offset-1 peer-checked:ring-2 peer-checked:ring-blue" style={ "background-color:" + ColorHex(name) }></span>
+		}
+	</label>
+}
+
+templ nodeGlyphRadio(g, current string) {
+	<label class="cursor-pointer">
+		if g == current {
+			<input type="radio" name="glyph" value={ g } checked class="peer sr-only"/>
+		} else {
+			<input type="radio" name="glyph" value={ g } class="peer sr-only"/>
+		}
+		<span class="inline-flex h-6 w-6 items-center justify-center rounded border border-line font-mono peer-checked:ring-2 peer-checked:ring-blue">
+			if g == "" {
+				∅
+			} else {
+				{ g }
+			}
+		</span>
+	</label>
+}
+
+// nodeIconRadio renders one icon-picker cell; "" is the no-icon choice.
+templ nodeIconRadio(key, current string) {
+	<label class="cursor-pointer" title={ key }>
+		if key == current {
+			<input type="radio" name="icon" value={ key } checked class="peer sr-only"/>
+		} else {
+			<input type="radio" name="icon" value={ key } class="peer sr-only"/>
+		}
+		<span class="inline-flex h-8 w-8 items-center justify-center rounded border border-line text-muted peer-checked:ring-2 peer-checked:ring-blue peer-checked:text-ink">
+			if key == "" {
+				∅
+			} else {
+				@NodeIcon(key, "h-5 w-5")
+			}
+		</span>
+	</label>
+}
+

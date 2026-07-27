@@ -1,0 +1,95 @@
+package components
+
+// InsertPickerRow is one selectable option in a generic editor insert-picker
+// (Lesesaal L6 Task 6 — "Artefakt einfügen"/"Seite verlinken"): Value is the
+// exact markdown fragment (![[slug]] or [[path]]) editor-insert.js writes
+// into the target textarea at selectionStart when the row is clicked.
+type InsertPickerRow struct {
+	Label string
+	Sub   string
+	Value string
+}
+
+// InsertPickerVM configures one instance of the generic InsertPicker
+// dropdown — the Lesesaal-styled sibling of ProjectFuzzyPicker
+// (fuzzypicker.templ) for the editor toolbar's two pickers (Artefakt/Seite).
+// Unlike ProjectFuzzyPicker (the whole node list preloaded once, filtered
+// purely client-side), this picker's row set comes from the server both on
+// open and on every filter keystroke (GET Endpoint, ?node=/?projectId=/?q=/
+// ?aq=). Both pickers live inside the editor's single <form> (which also
+// carries type/path/title/tags/body) — without an hx-params allowlist, any
+// htmx request from an element in that form serializes the WHOLE form
+// (including the full document body) into the request. QueryParam names the
+// filter <input>'s own "name" (kept distinct per picker instance so two
+// pickers sharing one <form> never collide on the same query key); Params
+// is the full hx-params allowlist for that same input (QueryParam plus
+// whatever else the handler needs, e.g. "projectId,node,aq" for the
+// Artefakt-picker's node context).
+// Include is the hx-include CSS selector that PULLS extra form fields into the
+// picker's GET request: htmx 2.x only auto-includes the enclosing <form> on
+// non-GET verbs, so a GET picker request otherwise sends only the filter
+// input's own value (hx-params can filter, never add). The Artefakt-picker
+// sets Include="[name=node], [name=projectId]"; the Seiten-picker leaves it
+// empty (it needs no node context).
+type InsertPickerVM struct {
+	ID         string
+	ResultsID  string
+	Endpoint   string
+	FilterKey  string
+	EmptyKey   string
+	QueryParam string
+	Params     string
+	Include    string
+	Rows       []InsertPickerRow
+}
+
+// InsertPicker renders one picker's static shell (filter input + results
+// container). It starts `hidden` — editor-insert.js's data-insert-toggle
+// handler removes the attribute on open and restores it on selection/Escape/
+// click-outside. Named classes only (insert-picker*): the Lesesaal design
+// gate forbids the arbitrary Tailwind values ProjectFuzzyPicker itself still
+// carries (Bestand, not to be copied into this new surface).
+templ InsertPicker(vm InsertPickerVM) {
+	<div id={ vm.ID } class="insert-picker" hidden data-insert-picker
+		role="listbox" aria-label={ T(ctx, vm.FilterKey) }>
+		<input type="text" name={ vm.QueryParam } data-insert-filter
+			placeholder={ T(ctx, vm.FilterKey) } aria-label={ T(ctx, vm.FilterKey) }
+			class="insert-picker-input"
+			hx-get={ vm.Endpoint }
+			hx-trigger="input changed delay:150ms"
+			hx-target={ "#" + vm.ResultsID }
+			hx-swap="innerHTML"
+			if vm.Include != "" {
+				hx-include={ vm.Include }
+			}
+			hx-params={ vm.Params }
+			autocomplete="off"/>
+		<div id={ vm.ResultsID } class="insert-picker-list scroll-thin">
+			@InsertPickerRows(vm.Rows, vm.EmptyKey)
+		</div>
+	</div>
+}
+
+// InsertPickerRows renders just the row list (or the empty state) — the
+// fragment returned by both GET /ui/editor/artefakte and GET
+// /ui/editor/seiten, so it serves as the swap target for the toggle
+// button's initial open AND the filter input's re-filter requests alike.
+templ InsertPickerRows(rows []InsertPickerRow, emptyKey string) {
+	if len(rows) == 0 {
+		<p class="insert-picker-empty">{ T(ctx, emptyKey) }</p>
+	} else {
+		<ul class="insert-picker-rows">
+			for _, row := range rows {
+				<li>
+					<button type="button" class="insert-picker-row" data-insert-value={ row.Value }
+						role="option" aria-selected="false">
+						<span class="insert-picker-label truncate">{ row.Label }</span>
+						if row.Sub != "" {
+							<span class="insert-picker-sub truncate">{ row.Sub }</span>
+						}
+					</button>
+				</li>
+			}
+		</ul>
+	}
+}
