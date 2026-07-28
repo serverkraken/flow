@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -69,6 +70,39 @@ func countLines(s string) int {
 		return 0
 	}
 	return strings.Count(strings.TrimSuffix(s, "\n"), "\n") + 1
+}
+
+const (
+	// shrinkRatio ist der Anteil des Bodys, ab dem ein Schreibvorgang als
+	// zerstörend gilt. shrinkMinBytes ist die absolute Untergrenze: ohne sie
+	// schlägt der Guard bei kleinen Dokumenten ständig an, wo ein legitimer
+	// Abschnittstausch schnell die halbe Datei ist — und Agenten gewöhnen sich
+	// an allowShrink=true.
+	shrinkRatio    = 0.5
+	shrinkMinBytes = 1024
+)
+
+// checkShrink verweigert einen Schreibvorgang, der mehr als shrinkRatio des
+// Bodys UND mehr als shrinkMinBytes entfernt, solange allow nicht gesetzt ist.
+// action ist "patch" oder "update" und prägt die Meldung.
+func checkShrink(action string, d bodyDelta, allow bool) error {
+	if allow || d.BytesBefore == 0 {
+		return nil
+	}
+	removed := d.BytesBefore - d.BytesAfter
+	if removed <= shrinkMinBytes {
+		return nil
+	}
+	if float64(removed)/float64(d.BytesBefore) <= shrinkRatio {
+		return nil
+	}
+	pct := (removed*100 + d.BytesBefore/2) / d.BytesBefore
+	msg := fmt.Sprintf("%s would remove %d of %d bytes (%d%%), %d lines to %d. Pass allowShrink=true if intended",
+		action, removed, d.BytesBefore, pct, d.LinesBefore, d.LinesAfter)
+	if action == "patch" {
+		msg += ", or use flow_update_doc with the full body"
+	}
+	return errors.New(msg)
 }
 
 func (h *handlers) documentResult(ctx context.Context, action string, d domain.Document) *mcp.CallToolResult {
