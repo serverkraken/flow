@@ -71,3 +71,45 @@ func TestGuardMutation(t *testing.T) {
 		t.Fatalf("human-owned without confirm = %v, want an error naming confirm + the type", err)
 	}
 }
+
+// TestPatchMarkdownReplaceSectionSpansSubsections nagelt die Baum-Semantik fest:
+// ein Abschnitt schließt seine Unterabschnitte ein. Das ist gewolltes Verhalten,
+// kein Bug — der Bug war, dass es weder dokumentiert noch sichtbar war.
+func TestPatchMarkdownReplaceSectionSpansSubsections(t *testing.T) {
+	base := "# Doc\n\n## One\n\nintro\n\n### One A\n\ndetail a\n\n### One B\n\ndetail b\n\n## Two\n\nkeep two\n"
+
+	got, err := patchMarkdown(base, patchDocIn{Operation: "replace_section", Section: "One", Body: "replacement"})
+	if err != nil {
+		t.Fatalf("replace_section on H2 with subsections: %v", err)
+	}
+	want := "# Doc\n\n## One\n\nreplacement\n\n## Two\n\nkeep two\n"
+	if got != want {
+		t.Fatalf("replace_section on H2 with subsections =\n%q\nwant\n%q", got, want)
+	}
+	if strings.Contains(got, "detail a") || strings.Contains(got, "detail b") {
+		t.Fatalf("subsections survived the replacement: %q", got)
+	}
+	if !strings.Contains(got, "keep two") {
+		t.Fatalf("the following H2 section was swallowed: %q", got)
+	}
+}
+
+// TestPatchMarkdownReplaceSectionOnH1SpansWholeDocument ist die Regression für
+// den Verlustfall vom 2026-07-28: keine H2/H3 erfüllt gotLevel <= 1, also endet
+// die H1-Sektion erst am Dateiende. Das Verhalten bleibt — der Schrumpf-Guard
+// (Task 3/5) ist die Absicherung, nicht eine Änderung dieser Semantik.
+func TestPatchMarkdownReplaceSectionOnH1SpansWholeDocument(t *testing.T) {
+	base := "# Review\n\nintro\n\n## Findings\n\nS1 S2 S3\n\n## Method\n\nhow it was done\n"
+
+	got, err := patchMarkdown(base, patchDocIn{Operation: "replace_section", Section: "Review", Body: "corrected intro"})
+	if err != nil {
+		t.Fatalf("replace_section on H1: %v", err)
+	}
+	want := "# Review\n\ncorrected intro\n"
+	if got != want {
+		t.Fatalf("replace_section on H1 =\n%q\nwant\n%q", got, want)
+	}
+	if strings.Contains(got, "Findings") || strings.Contains(got, "Method") {
+		t.Fatalf("chapters survived — semantics changed unexpectedly: %q", got)
+	}
+}
