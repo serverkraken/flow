@@ -23,7 +23,8 @@
       img.setAttribute('data-lb-done', '1');
       img.setAttribute('tabindex', '0');
       img.setAttribute('role', 'button');
-      if (label) img.setAttribute('aria-label', label);
+      var alt = img.getAttribute('alt') || '';
+      if (label) img.setAttribute('aria-label', alt ? alt + ' — ' + label : label);
     });
   }
 
@@ -60,7 +61,7 @@
     if (e.target.id !== 'doc-lightbox') return;
     var t = e.target.querySelector('.lightbox-img');
     if (t) t.removeAttribute('src');                 // Bild freigeben, kein Aufblitzen beim nächsten Öffnen
-    if (opener) { opener.focus(); opener = null; }
+    if (opener) { if (opener.isConnected) opener.focus(); opener = null; }
   }, true);
 
   if (document.readyState !== 'loading') upgrade();
