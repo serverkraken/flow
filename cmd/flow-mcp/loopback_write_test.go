@@ -771,3 +771,52 @@ func TestLoopback_Reauth_TransparentRetryOn401(t *testing.T) {
 		t.Fatalf("builds = %d, want >= 2 (initial + rebuild on 401)", builds)
 	}
 }
+
+func TestLoopback_PatchAndUpdateReportBodyDelta(t *testing.T) {
+	sess := authedWriteServer(t)
+
+	// Ein kleiner Patch: die Delta-Felder sind da, der Guard (Task 5) greift nicht.
+	res, out := callText(t, sess, "flow_patch_doc", map[string]any{
+		"id": "d-human", "operation": "set_checkbox", "checkbox": "F40 context", "checked": true,
+		"confirm": true,
+	})
+	if res.IsError {
+		t.Fatalf("checkbox patch errored: %s", out)
+	}
+	for _, want := range []string{`"bytesBefore":`, `"bytesAfter":`, `"linesBefore":`, `"linesAfter":`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("patch response %q is missing %s", out, want)
+		}
+	}
+
+	// flow_update_doc mit leerem Body: bytesAfter/linesAfter MÜSSEN als 0
+	// erscheinen. Mit `int` + omitempty würde json genau diese Null
+	// verschlucken — also ausgerechnet den Totalverlust.
+	res, out = callText(t, sess, "flow_update_doc", map[string]any{"id": "d-memory", "body": ""})
+	if res.IsError {
+		t.Fatalf("emptying update errored: %s", out)
+	}
+	if !strings.Contains(out, `"bytesAfter":0`) || !strings.Contains(out, `"linesAfter":0`) {
+		t.Fatalf("emptying update response = %q, want bytesAfter:0 and linesAfter:0", out)
+	}
+
+	// Ein Update ohne body lässt den Text unangetastet — kein Delta.
+	res, out = callText(t, sess, "flow_update_doc", map[string]any{"id": "d-memory-2", "title": "Renamed"})
+	if res.IsError {
+		t.Fatalf("title-only update errored: %s", out)
+	}
+	if strings.Contains(out, `"bytesBefore":`) || strings.Contains(out, `"linesAfter":`) {
+		t.Fatalf("title-only update response = %q, want no delta fields", out)
+	}
+
+	// create hat kein Vorher.
+	res, out = callText(t, sess, "flow_create_doc", map[string]any{
+		"type": "memory", "path": "notes/delta", "title": "D", "body": "fresh",
+	})
+	if res.IsError {
+		t.Fatalf("create errored: %s", out)
+	}
+	if strings.Contains(out, `"bytesBefore":`) {
+		t.Fatalf("create response = %q, want no delta fields", out)
+	}
+}

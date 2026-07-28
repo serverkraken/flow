@@ -40,6 +40,13 @@ type documentWriteResult struct {
 	UpdatedAt string `json:"updatedAt"`
 	Version   string `json:"version"`
 	Hash      string `json:"hash"`
+	// Pointer, nicht int: omitempty würde bei einem int die 0 unterschlagen —
+	// also ausgerechnet "bytesAfter": 0, den Totalverlust, den diese Felder
+	// sichtbar machen sollen. nil heißt "kein Vorher" (create, move).
+	BytesBefore *int `json:"bytesBefore,omitempty"`
+	BytesAfter  *int `json:"bytesAfter,omitempty"`
+	LinesBefore *int `json:"linesBefore,omitempty"`
+	LinesAfter  *int `json:"linesAfter,omitempty"`
 }
 
 // bodyDelta misst, wie stark ein Schreibvorgang den Body verändert. Er speist
@@ -105,7 +112,7 @@ func checkShrink(action string, d bodyDelta, allow bool) error {
 	return errors.New(msg)
 }
 
-func (h *handlers) documentResult(ctx context.Context, action string, d domain.Document) *mcp.CallToolResult {
+func (h *handlers) documentResult(ctx context.Context, action string, d domain.Document, delta *bodyDelta) *mcp.CallToolResult {
 	project := "none"
 	if d.NodeID != nil {
 		project = *d.NodeID
@@ -121,6 +128,10 @@ func (h *handlers) documentResult(ctx context.Context, action string, d domain.D
 	version := d.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	out := makeWriteResult(action, d.ID, project, version, d.Body)
 	out.Type, out.Path, out.Title = string(d.Type), d.Path, d.Title
+	if delta != nil {
+		out.BytesBefore, out.BytesAfter = &delta.BytesBefore, &delta.BytesAfter
+		out.LinesBefore, out.LinesAfter = &delta.LinesBefore, &delta.LinesAfter
+	}
 	return writeResult(out)
 }
 

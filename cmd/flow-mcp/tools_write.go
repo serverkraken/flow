@@ -63,7 +63,7 @@ func (h *handlers) createDoc(ctx context.Context, req *mcp.CallToolRequest, in c
 			return err
 		}
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "created", d)
+		out = h.documentResult(ctx, "created", d, nil)
 		return nil
 	})
 	if err != nil {
@@ -97,6 +97,11 @@ func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in u
 		if in.Title == nil && in.Body == nil && in.Tags == nil {
 			return errGuard{fmt.Errorf("nothing to update: pass title, body, and/or tags")}
 		}
+		var delta *bodyDelta
+		if in.Body != nil {
+			bd := newBodyDelta(cur.Body, *in.Body)
+			delta = &bd
+		}
 		expected, err := expectedUpdatedAt(in.ExpectedUpdatedAt, cur.UpdatedAt)
 		if err != nil {
 			return errGuard{err}
@@ -109,7 +114,7 @@ func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in u
 		}
 		h.removeResource(d.ID)
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "updated", d)
+		out = h.documentResult(ctx, "updated", d, delta)
 		return nil
 	})
 	if err != nil {
@@ -147,6 +152,7 @@ func (h *handlers) patchDoc(ctx context.Context, req *mcp.CallToolRequest, in pa
 		if err != nil {
 			return errGuard{err}
 		}
+		delta := newBodyDelta(cur.Body, body)
 		expected, err := expectedUpdatedAt(in.ExpectedUpdatedAt, cur.UpdatedAt)
 		if err != nil {
 			return errGuard{err}
@@ -157,7 +163,7 @@ func (h *handlers) patchDoc(ctx context.Context, req *mcp.CallToolRequest, in pa
 		}
 		h.removeResource(d.ID)
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "patched", d)
+		out = h.documentResult(ctx, "patched", d, &delta)
 		return nil
 	})
 	if err != nil {
@@ -222,7 +228,7 @@ func (h *handlers) moveDoc(ctx context.Context, req *mcp.CallToolRequest, in mov
 		}
 		h.removeResource(cur.ID)
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "moved", d)
+		out = h.documentResult(ctx, "moved", d, nil)
 		return nil
 	})
 	if err != nil {
