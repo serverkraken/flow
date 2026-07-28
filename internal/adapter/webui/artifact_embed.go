@@ -114,7 +114,12 @@ func (r *artifactEmbedHTMLRenderer) render(w util.BufWriter, _ []byte, node ast.
 
 	_, _ = w.WriteString(`<figure class="figure">`)
 	if ref.IsImage {
-		_, _ = w.WriteString(`<div class="frame"><img loading="lazy" src="`)
+		// class="zoomable": Klick-zum-Vergrößern (static/js/lightbox.js). Ein
+		// aufgelöster IsImage-Embed hat per Definition eine nutzbare Quelle,
+		// also ist die Klasse hier bedingungslos korrekt — anders als beim
+		// Core-Image in wikilink.go, wo ein geblocktes Ziel eine leere src
+		// hinterlässt.
+		_, _ = w.WriteString(`<div class="frame"><img class="zoomable" loading="lazy" src="`)
 		_, _ = w.WriteString(html.EscapeString(ref.Href + "?v=" + ref.Ref))
 		_, _ = w.WriteString(`" alt="`)
 		_, _ = w.WriteString(html.EscapeString(ref.Name))

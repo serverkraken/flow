@@ -534,6 +534,28 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      Prosaspalte horizontal aufzureißen. */
   .filechip { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; padding: 9px 14px; border: 1px solid rgb(var(--hair2)); border-radius: 10px; background: rgb(var(--surface)); color: rgb(var(--ink)); text-decoration: none; font-size: 13.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .filechip:hover { background: rgb(var(--wash)); }
+  /* Bild-Lightbox (fr-doc-lightbox): jedes Bitmap-Bild im Dokument öffnet
+     beim Klick #doc-lightbox. Die Klasse setzt der Renderer server-seitig,
+     bedienbar macht sie static/js/lightbox.js — ohne JS bleibt genau der
+     Cursor-Hinweis hier wirkungslos, das Bild aber lesbar (siehe
+     img.zoomable[data-lb-done] unten: der Cursor erscheint erst, wenn das
+     Skript die Bedienbarkeit tatsächlich hergestellt hat). Der Fokus-Ring
+     kommt vom globalen *:focus-visible weiter oben. Layout ist ein Grid mit
+     zwei Zeilen (Bar auto, Bild minmax(0,1fr)) statt Flexbox: eine
+     minmax(0,1fr)-Grid-Zeile hat eine definite Größe, gegen die
+     max-height:100% auf dem Bild auflöst — das Seitenverhältnis bleibt ohne
+     Balken erhalten, ganz ohne hartkodierte Bar-Höhe. display:grid sitzt
+     bewusst auf dialog.lightbox[open] und NICHT auf dialog.lightbox: eine
+     Autoren-Deklaration von display auf dem unqualifizierten Selektor würde
+     die UA-Regel dialog:not([open]) { display:none } aushebeln (Autor
+     schlägt UA hier unabhängig von Spezifität) und den geschlossenen Dialog
+     auf jeder Seite sichtbar/tabbar rendern. Diese Qualifikation NICHT
+     vereinfachen. */
+  img.zoomable[data-lb-done] { cursor: zoom-in; }
+  dialog.lightbox { max-width: 92vw; max-height: 92vh; }
+  dialog.lightbox[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); justify-items: center; }
+  dialog.lightbox .lightbox-bar { display: flex; justify-content: flex-end; justify-self: stretch; margin-bottom: 8px; }
+  dialog.lightbox .lightbox-img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; background: rgb(var(--surface)); }
   /* Cockpit-Artefakt-Galerie (Lesesaal L6 Task 5, Spec OE #2/#3): eigene
      Klassen fürs Karten-Grid, den Bild-Thumb, den Datei-Chip (monospace
      Glyph statt Emoji) und die Aktionsleiste. Grid kollabiert unten

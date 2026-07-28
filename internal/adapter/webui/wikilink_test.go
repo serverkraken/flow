@@ -219,3 +219,74 @@ func TestSafeImageRenderer_AllowsFreeArtifactServeRoute(t *testing.T) {
 		}
 	}
 }
+
+// --- fr-doc-lightbox: zoombare Bilder ------------------------------------
+
+// TestZoomable_ArtifactEmbedImage pins that a resolved ![[slug]] image embed
+// carries the class the lightbox selects on. The file chip (non-image
+// artifact) must NOT get it — there is nothing to enlarge.
+func TestZoomable_ArtifactEmbedImage(t *testing.T) {
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	resolve := func(slug string) (ArtifactRef, bool) {
+		switch slug {
+		case "bild":
+			return ArtifactRef{
+				Href: "/nodes/node-1/artifacts/bild", Ref: "abcdef123456",
+				Name: "bild.png", Mime: "image/png", IsImage: true,
+			}, true
+		case "datei":
+			return ArtifactRef{
+				Href: "/nodes/node-1/artifacts/datei", Ref: "abcdef123456",
+				Name: "datei.pdf", Mime: "application/pdf", SizeStr: "1.0 KB",
+			}, true
+		}
+		return ArtifactRef{}, false
+	}
+
+	img := string(mustHTML(RenderDocument(ctx, "![[bild]]\n", resolveNone, resolve)))
+	if !strings.Contains(img, `class="zoomable"`) {
+		t.Fatalf("resolved image embed must be zoomable:\n%s", img)
+	}
+
+	chip := string(mustHTML(RenderDocument(ctx, "![[datei]]\n", resolveNone, resolve)))
+	if strings.Contains(chip, "zoomable") {
+		t.Fatalf("a non-image artifact chip must not be zoomable:\n%s", chip)
+	}
+}
+
+// TestZoomable_CoreImageWithValidSrc covers the second image syntax: a core
+// ![alt](url) pointing at an allowed artifact serve route earns the class,
+// in both the node-scoped and the free-library form.
+func TestZoomable_CoreImageWithValidSrc(t *testing.T) {
+	for _, url := range []string{
+		"/nodes/n1/artifacts/bild",
+		"/nodes/n1/artifacts/bild?v=abcdef123456",
+		"/artefakte/bild",
+	} {
+		out := string(mustHTML(RenderDocument(context.Background(), "![x]("+url+")\n", resolveNone, nil)))
+		if !strings.Contains(out, `class="zoomable"`) {
+			t.Fatalf("core image with allowed src %q must be zoomable:\n%s", url, out)
+		}
+	}
+}
+
+// TestZoomable_BlockedSrcHasNoClass is the load-bearing negative: a rejected
+// destination leaves safeImageHTMLRenderer emitting an <img> with an empty
+// src (bluemonday then drops the attribute entirely). Marking THAT image
+// zoomable would open an empty lightbox on click, so the class must be tied
+// to a usable src — not emitted unconditionally.
+func TestZoomable_BlockedSrcHasNoClass(t *testing.T) {
+	for _, url := range []string{
+		"https://evil.example/x.png",
+		"data:image/png;base64,AAAA",
+		"//evil.example/x.png",
+	} {
+		out := string(mustHTML(RenderDocument(context.Background(), "![x]("+url+")\n", resolveNone, nil)))
+		if !strings.Contains(out, "<img") {
+			t.Fatalf("%s: the <img> element itself must survive:\n%s", url, out)
+		}
+		if strings.Contains(out, "zoomable") {
+			t.Fatalf("%s: an image with a blocked (empty) src must not be zoomable:\n%s", url, out)
+		}
+	}
+}

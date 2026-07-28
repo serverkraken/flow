@@ -308,6 +308,8 @@ func init() {
 			// Artifact embeds ![[slug]] (Lesesaal L6 Task 3)
 			"document.figure.download":   "Download",
 			"document.figure.unresolved": "Unresolved artifact reference",
+			// Image lightbox (fr-doc-lightbox): aria-label of the clickable image
+			"document.image.zoom": "Enlarge image",
 			// Provenance row + docrail (Lesesaal L3 Task 5)
 			"document.readtime":           "min read",
 			"document.updatedRel":         "updated %s",

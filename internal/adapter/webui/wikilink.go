@@ -190,7 +190,15 @@ func (r *safeImageHTMLRenderer) render(w util.BufWriter, source []byte, node ast
 	if !artifactSrcRe.MatchString(dst) {
 		dst = ""
 	}
-	_, _ = w.WriteString(`<img src="`)
+	_, _ = w.WriteString(`<img`)
+	// Nur ein Bild mit nutzbarer Quelle bekommt die Zoom-Affordanz. Ein
+	// abgelehntes Ziel rendert oben zu dst == "" — das <img> bleibt (ohne
+	// brauchbare src, bluemonday wirft das leere Attribut ganz weg), und ein
+	// zoomable darauf würde beim Klick ein leeres Overlay öffnen.
+	if dst != "" {
+		_, _ = w.WriteString(` class="zoomable"`)
+	}
+	_, _ = w.WriteString(` src="`)
 	_, _ = w.WriteString(html.EscapeString(dst))
 	_, _ = w.WriteString(`" alt="`)
 	_, _ = w.WriteString(html.EscapeString(imageAltText(source, n)))
