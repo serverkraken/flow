@@ -325,18 +325,39 @@ func checkShrink(action string, d bodyDelta, allow bool) error {
 	if action == "patch" {
 		msg += ", or use flow_update_doc with the full body"
 	}
-	return fmt.Errorf("%s.", msg)
+	return errors.New(msg)
 }
 ```
 
-`fmt` ist in `write.go:8` bereits importiert.
+`fmt` ist in `write.go:8` bereits importiert. **`errors` nicht** — der Import muss ergänzt werden (alphabetisch vor `encoding/hex`… nein: nach `encoding/json`, vor `fmt`):
+
+```go
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/serverkraken/flow/internal/domain"
+)
+```
+
+**Kein abschließender Punkt am Fehlertext.** `golangci-lint` v2 führt die ST-Checks unter `staticcheck`, und ST1005 verbietet Fehlertexte mit abschließendem Satzzeichen — empirisch geprüft, `fmt.Errorf("%s.", msg)` bricht `make lint`. Der Punkt **innerhalb** der Meldung (nach „lines to 25") ist unbedenklich, nur das Ende zählt. `errors.New` mit einer Variablen wird von ST1005 nicht geprüft.
 
 - [ ] **Step 4: Test laufen lassen, Erfolg bestätigen**
 
 Run: `cd /Users/msoent/SourceCode/serverkraken/flow-patch-doc-shrink-guard && go test ./cmd/flow-mcp/ -run TestCheckShrink -v`
 Expected: PASS.
 
-Hinweis: `go vet` beanstandet `fmt.Errorf` mit abschließendem Punkt nicht, wohl aber ein abschließendes `\n` — deshalb steht dort ein Punkt und kein Newline.
+- [ ] **Step 4b: Lint für das Paket laufen lassen**
+
+Run: `cd /Users/msoent/SourceCode/serverkraken/flow-patch-doc-shrink-guard && golangci-lint run ./cmd/flow-mcp/`
+Expected: keine Findings. Erscheint hier ST1005, endet der Fehlertext doch auf einem Satzzeichen — dann das Ende korrigieren, nicht den Linter abschalten.
 
 - [ ] **Step 5: Commit**
 

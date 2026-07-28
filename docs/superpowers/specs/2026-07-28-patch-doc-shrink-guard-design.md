@@ -167,11 +167,15 @@ Nennt Umfang **und** Ausweg, weil ein Agent sonst nur „abgelehnt" liest:
 
 ```
 patch would remove 13183 of 14204 bytes (93%), 312 lines to 25.
-Pass allowShrink=true if intended, or use flow_update_doc with the full body.
+Pass allowShrink=true if intended, or use flow_update_doc with the full body
 ```
 
 Prozent gerundet auf ganze Zahlen. Bei `flow_update_doc` lautet das erste Wort
 `update` statt `patch` und der Ausweg-Satz nennt nur `allowShrink=true`.
+
+**Ohne abschließenden Punkt.** `golangci-lint` v2 führt die ST-Checks unter
+`staticcheck`; ST1005 verbietet Fehlertexte mit abschließendem Satzzeichen
+(empirisch geprüft). Der Punkt *innerhalb* der Meldung ist unbedenklich.
 
 ### 3.5 Neues Eingabefeld
 
