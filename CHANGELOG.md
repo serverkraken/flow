@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/serverkraken/flow/compare/v2.1.0...v2.2.0) (2026-07-28)
+
+
+### Features
+
+* **webui:** click a document image to see it enlarged ([#67](https://github.com/serverkraken/flow/issues/67)) ([9d2c18c](https://github.com/serverkraken/flow/commit/9d2c18c646eecaec204d1ddf0ef7a02c7c2e9c5f))
+
 ## [2.1.0](https://github.com/serverkraken/flow/compare/v2.0.1...v2.1.0) (2026-07-27)
 
 
