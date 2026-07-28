@@ -91,11 +91,16 @@ type bodyDelta struct {
 func newBodyDelta(before, after string) bodyDelta
 ```
 
-Zeilen werden als `strings.Count(s, "\n") + 1` für nicht-leere Strings gezählt
-und als `0` für den leeren String. Der Sonderfall ist bewusst: `strings.Split`
-liefert für `""` ein Ergebnis der Länge 1, aber „ein leerer Body hat 0 Zeilen"
-ist die Aussage, die ein Aufrufer im Delta erwartet — und `linesAfter: 0` ist
-genau das Signal, das den Totalverlust anzeigt.
+Zeilen werden als `strings.Count(strings.TrimSuffix(s, "\n"), "\n") + 1`
+gezählt, für den leeren String als `0`. Zwei Sonderfälle, beide bewusst:
+
+- **Ein abschließender Newline erzeugt keine Extrazeile.**
+  `replaceMarkdownSection` (`write.go:205`) schließt **immer** mit `\n` ab; die
+  naive Formel `Count(s, "\n") + 1` zählte deshalb bei praktisch jedem Body eine
+  Zeile zu viel.
+- **Ein leerer Body hat 0 Zeilen**, obwohl `strings.Split` für `""` ein Ergebnis
+  der Länge 1 liefert. `linesAfter: 0` ist genau das Signal, das den
+  Totalverlust anzeigt.
 
 ### 3.2 Antwortfelder (`documentWriteResult`)
 
@@ -130,8 +135,12 @@ const (
     shrinkMinBytes = 1024 // absolute Untergrenze
 )
 
-func checkShrink(d bodyDelta, allow bool) error
+func checkShrink(action string, d bodyDelta, allow bool) error
 ```
+
+`action` ist `"patch"` oder `"update"`. Es prägt das erste Wort der Meldung und
+entscheidet, ob `flow_update_doc` als Ausweg genannt wird (§3.4) — bei
+`flow_update_doc` selbst wäre der Verweis zirkulär.
 
 Greift, wenn **beide** Bedingungen zutreffen und `allow` false ist:
 
@@ -203,7 +212,7 @@ GetDocument
   → guardMutation(cur, in.Confirm)          bestehend
   → patchMarkdown(cur.Body, in)             bestehend
   → newBodyDelta(cur.Body, body)            NEU
-  → checkShrink(delta, in.AllowShrink)      NEU  → errGuard
+  → checkShrink("patch", delta, in.AllowShrink)  NEU  → errGuard
   → expectedUpdatedAt / PatchDocument       bestehend (CAS)
   → documentResult(ctx, "patched", d, &delta)
 ```
