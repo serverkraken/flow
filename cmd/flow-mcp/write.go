@@ -41,6 +41,36 @@ type documentWriteResult struct {
 	Hash      string `json:"hash"`
 }
 
+// bodyDelta misst, wie stark ein Schreibvorgang den Body verändert. Er speist
+// sowohl das Größensignal in der Antwort als auch den Schrumpf-Guard, damit die
+// Zahl in der Fehlermeldung und die Zahl in der Antwort nicht auseinanderlaufen
+// können.
+type bodyDelta struct {
+	BytesBefore int
+	BytesAfter  int
+	LinesBefore int
+	LinesAfter  int
+}
+
+func newBodyDelta(before, after string) bodyDelta {
+	return bodyDelta{
+		BytesBefore: len(before),
+		BytesAfter:  len(after),
+		LinesBefore: countLines(before),
+		LinesAfter:  countLines(after),
+	}
+}
+
+// countLines zählt Textzeilen: ein leerer Body hat 0, ein abschließender
+// Newline erzeugt keine Extrazeile. Letzteres ist wichtig, weil
+// replaceMarkdownSection immer mit "\n" abschließt.
+func countLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	return strings.Count(strings.TrimSuffix(s, "\n"), "\n") + 1
+}
+
 func (h *handlers) documentResult(ctx context.Context, action string, d domain.Document) *mcp.CallToolResult {
 	project := "none"
 	if d.NodeID != nil {

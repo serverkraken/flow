@@ -113,3 +113,28 @@ func TestPatchMarkdownReplaceSectionOnH1SpansWholeDocument(t *testing.T) {
 		t.Fatalf("chapters survived — semantics changed unexpectedly: %q", got)
 	}
 }
+
+func TestNewBodyDelta(t *testing.T) {
+	tests := []struct {
+		name           string
+		before, after  string
+		wantBB, wantBA int
+		wantLB, wantLA int
+	}{
+		{"empty after", "# A\n\nbody\n", "", 10, 0, 3, 0},
+		{"empty before", "", "new\n", 0, 4, 0, 1},
+		{"both empty", "", "", 0, 0, 0, 0},
+		{"trailing newline counts once", "a\n", "a\nb\n", 2, 4, 1, 2},
+		{"no trailing newline", "a\nb", "a", 3, 1, 2, 1},
+		{"growth", "short", "much longer body", 5, 16, 1, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := newBodyDelta(tt.before, tt.after)
+			want := bodyDelta{BytesBefore: tt.wantBB, BytesAfter: tt.wantBA, LinesBefore: tt.wantLB, LinesAfter: tt.wantLA}
+			if got != want {
+				t.Fatalf("newBodyDelta(%q, %q) = %+v, want %+v", tt.before, tt.after, got, want)
+			}
+		})
+	}
+}
