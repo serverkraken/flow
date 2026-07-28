@@ -86,11 +86,11 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.createDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_doc",
-		Description: "CAS-safe partial update of a document's title, body, and/or tags. Returns id, canonical project, version, updatedAt, and hash. Modifying a human-owned note requires confirm=true.",
+		Description: "CAS-safe partial update of a document's title, body, and/or tags. Returns id, canonical project, version, updatedAt, hash, and — when body is supplied — the body delta (bytesBefore/bytesAfter, linesBefore/linesAfter). Modifying a human-owned note requires confirm=true. A write that removes more than half the body requires allowShrink=true.",
 	}, h.updateDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_patch_doc",
-		Description: "CAS-safe Markdown mutation without loading a large document into model context: replace_section, append_section, or set_checkbox (optionally changing checkbox label/status atomically). Returns id, canonical project, version, updatedAt, and hash.",
+		Description: "CAS-safe Markdown mutation without loading a large document into model context: replace_section, append_section, or set_checkbox (optionally changing checkbox label/status atomically). A section spans its subsections, so replacing the topmost heading replaces the whole document — to edit the intro, target the first subheading instead, or use flow_update_doc with the full body. A write that removes more than half the body requires allowShrink=true. Returns id, canonical project, version, updatedAt, hash, and the body delta (bytesBefore/bytesAfter, linesBefore/linesAfter).",
 	}, h.patchDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_move_doc",
