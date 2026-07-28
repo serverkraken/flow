@@ -79,7 +79,7 @@ type updateDocIn struct {
 	Tags              *[]string `json:"tags,omitempty" jsonschema:"replace the whole tag set; omit to leave unchanged; [] to clear"`
 	ExpectedUpdatedAt string    `json:"expectedUpdatedAt,omitempty" jsonschema:"optional RFC3339 document version; the update fails with a conflict if it is stale"`
 	Confirm           bool      `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
-	AllowShrink       bool      `json:"allowShrink,omitempty" jsonschema:"required (true) to apply a write that removes more than half the document body"`
+	AllowShrink       bool      `json:"allowShrink,omitempty" jsonschema:"required (true) to apply a write that removes more than half the document body and more than 1 KB"`
 }
 
 func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in updateDocIn) (*mcp.CallToolResult, any, error) {
@@ -137,7 +137,7 @@ type patchDocIn struct {
 	Label             *string `json:"label,omitempty" jsonschema:"optional replacement checklist label applied atomically with checked"`
 	ExpectedUpdatedAt string  `json:"expectedUpdatedAt,omitempty" jsonschema:"optional RFC3339 document version; the patch fails with a conflict if stale"`
 	Confirm           bool    `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
-	AllowShrink       bool    `json:"allowShrink,omitempty" jsonschema:"required (true) to apply a write that removes more than half the document body"`
+	AllowShrink       bool    `json:"allowShrink,omitempty" jsonschema:"required (true) to apply a write that removes more than half the document body and more than 1 KB"`
 }
 
 func (h *handlers) patchDoc(ctx context.Context, req *mcp.CallToolRequest, in patchDocIn) (*mcp.CallToolResult, any, error) {

@@ -174,8 +174,8 @@ func TestCheckShrink(t *testing.T) {
 		// Über 50 %, aber unter der absoluten Untergrenze: kleine Dokumente
 		// dürfen nicht ständig anschlagen.
 		{"above ratio, below floor", bodyDelta{BytesBefore: 612, BytesAfter: 280, LinesBefore: 20, LinesAfter: 9}},
-		// Genau an der Untergrenze — > ist echt größer, 1024 selbst reicht nicht.
-		{"exactly at the byte floor", bodyDelta{BytesBefore: 4096, BytesAfter: 3072, LinesBefore: 100, LinesAfter: 75}},
+		// Ratio unter 50 % — darf nicht anschlagen, auch wenn Bytes entfernt wurden.
+		{"well below both thresholds", bodyDelta{BytesBefore: 4096, BytesAfter: 3072, LinesBefore: 100, LinesAfter: 75}},
 		// Genau 1024 Bytes entfernt, aber Ratio über 50% — isoliert die Byte-Grenze richtig.
 		{"exactly at the byte floor, ratio above threshold", bodyDelta{BytesBefore: 2000, BytesAfter: 976, LinesBefore: 100, LinesAfter: 49}},
 		// Viele Bytes entfernt, aber genau die Hälfte — > ist echt größer.
