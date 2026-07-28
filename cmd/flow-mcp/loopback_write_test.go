@@ -820,3 +820,108 @@ func TestLoopback_PatchAndUpdateReportBodyDelta(t *testing.T) {
 		t.Fatalf("create response = %q, want no delta fields", out)
 	}
 }
+
+func TestLoopback_ShrinkGuardRefusesH1WipeUnlessAllowed(t *testing.T) {
+	sess := authedWriteServer(t)
+
+	// Ein Dokument, das groß genug ist, um die 1-KB-Untergrenze zu reißen:
+	// eine H1 plus 60 Kapitel, ~2,9 KB.
+	big := "# Review\n\n" + strings.Repeat("## Chapter\n\nfindings findings findings findings\n\n", 60)
+	res, out := callText(t, sess, "flow_create_doc", map[string]any{
+		"type": "memory", "path": "notes/big", "title": "Big", "body": big,
+	})
+	if res.IsError {
+		t.Fatalf("seeding the big doc failed: %s", out)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(out), &created); err != nil {
+		t.Fatalf("cannot read the created id from %q: %v", out, err)
+	}
+
+	// replace_section auf die H1 — genau der Verlustfall. Muss abgelehnt werden.
+	res, out = callText(t, sess, "flow_patch_doc", map[string]any{
+		"id": created.ID, "operation": "replace_section", "section": "Review", "body": "corrected intro",
+	})
+	if !res.IsError {
+		t.Fatalf("H1 wipe was accepted; response = %q", out)
+	}
+	for _, want := range []string{"would remove", "allowShrink", "bytes"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("refusal %q does not mention %q", out, want)
+		}
+	}
+
+	// Der Body ist unangetastet — der Guard sitzt vor dem Netzwerkaufruf.
+	_, got := callText(t, sess, "flow_get_doc", map[string]any{"id": created.ID})
+	if !strings.Contains(got, "findings") {
+		t.Fatalf("document was modified despite the refusal: %q", got)
+	}
+
+	// Mit allowShrink=true geht derselbe Aufruf durch.
+	res, out = callText(t, sess, "flow_patch_doc", map[string]any{
+		"id": created.ID, "operation": "replace_section", "section": "Review", "body": "corrected intro",
+		"allowShrink": true,
+	})
+	if res.IsError {
+		t.Fatalf("allowShrink=true was still refused: %s", out)
+	}
+	if !strings.Contains(out, `"action":"patched"`) {
+		t.Fatalf("allowShrink patch = %q, want action patched", out)
+	}
+	_, got = callText(t, sess, "flow_get_doc", map[string]any{"id": created.ID})
+	if strings.Contains(got, "findings") {
+		t.Fatalf("allowShrink patch did not apply: %q", got)
+	}
+}
+
+func TestLoopback_ShrinkGuardAppliesToUpdateAndIsSeparateFromConfirm(t *testing.T) {
+	sess := authedWriteServer(t)
+
+	big := "# Notes\n\n" + strings.Repeat("a line of human prose that is worth keeping\n", 60)
+	res, out := callText(t, sess, "flow_create_doc", map[string]any{
+		"type": "memory", "path": "notes/big-update", "title": "BigU", "body": big,
+	})
+	if res.IsError {
+		t.Fatalf("seeding failed: %s", out)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(out), &created); err != nil {
+		t.Fatalf("cannot read the created id from %q: %v", out, err)
+	}
+
+	res, out = callText(t, sess, "flow_update_doc", map[string]any{"id": created.ID, "body": "oops"})
+	if !res.IsError || !strings.Contains(out, "allowShrink") {
+		t.Fatalf("clobbering update = (IsError=%v, %q), want a shrink refusal", res.IsError, out)
+	}
+	if strings.Contains(out, "flow_update_doc") {
+		t.Fatalf("the update refusal should not point at flow_update_doc: %q", out)
+	}
+
+	res, out = callText(t, sess, "flow_update_doc", map[string]any{
+		"id": created.ID, "body": "oops", "allowShrink": true,
+	})
+	if res.IsError {
+		t.Fatalf("allowShrink=true update was refused: %s", out)
+	}
+
+	// confirm allein darf den Schrumpf-Guard NICHT entschärfen: sonst wäre er
+	// ausgerechnet auf human-owned Notes wirkungslos, die confirm ohnehin
+	// verlangen.
+	humanBig := "# Keep\n\n" + strings.Repeat("something the human wrote and wants to keep\n", 60)
+	res, out = callText(t, sess, "flow_update_doc", map[string]any{
+		"id": "d-human", "body": humanBig, "confirm": true,
+	})
+	if res.IsError {
+		t.Fatalf("growing the human note failed: %s", out)
+	}
+	res, out = callText(t, sess, "flow_update_doc", map[string]any{
+		"id": "d-human", "body": "wiped", "confirm": true,
+	})
+	if !res.IsError || !strings.Contains(out, "allowShrink") {
+		t.Fatalf("confirm=true alone bypassed the shrink guard: (IsError=%v, %q)", res.IsError, out)
+	}
+}
