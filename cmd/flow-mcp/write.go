@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -39,9 +40,79 @@ type documentWriteResult struct {
 	UpdatedAt string `json:"updatedAt"`
 	Version   string `json:"version"`
 	Hash      string `json:"hash"`
+	// Pointer, nicht int: omitempty würde bei einem int die 0 unterschlagen —
+	// also ausgerechnet "bytesAfter": 0, den Totalverlust, den diese Felder
+	// sichtbar machen sollen. nil heißt "kein Vorher" (create, move).
+	BytesBefore *int `json:"bytesBefore,omitempty"`
+	BytesAfter  *int `json:"bytesAfter,omitempty"`
+	LinesBefore *int `json:"linesBefore,omitempty"`
+	LinesAfter  *int `json:"linesAfter,omitempty"`
 }
 
-func (h *handlers) documentResult(ctx context.Context, action string, d domain.Document) *mcp.CallToolResult {
+// bodyDelta misst, wie stark ein Schreibvorgang den Body verändert. Er speist
+// sowohl das Größensignal in der Antwort als auch den Schrumpf-Guard, damit die
+// Zahl in der Fehlermeldung und die Zahl in der Antwort nicht auseinanderlaufen
+// können.
+type bodyDelta struct {
+	BytesBefore int
+	BytesAfter  int
+	LinesBefore int
+	LinesAfter  int
+}
+
+func newBodyDelta(before, after string) bodyDelta {
+	return bodyDelta{
+		BytesBefore: len(before),
+		BytesAfter:  len(after),
+		LinesBefore: countLines(before),
+		LinesAfter:  countLines(after),
+	}
+}
+
+// countLines zählt Textzeilen: ein leerer Body hat 0, ein abschließender
+// Newline erzeugt keine Extrazeile. Letzteres ist wichtig, weil
+// replaceMarkdownSection immer mit "\n" abschließt.
+func countLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	return strings.Count(strings.TrimSuffix(s, "\n"), "\n") + 1
+}
+
+const (
+	// shrinkRatio ist der Anteil des Bodys, ab dem ein Schreibvorgang als
+	// zerstörend gilt. shrinkMinBytes ist die absolute Untergrenze: ohne sie
+	// schlägt der Guard bei kleinen Dokumenten ständig an, wo ein legitimer
+	// Abschnittstausch schnell die halbe Datei ist — und Agenten gewöhnen sich
+	// an allowShrink=true.
+	shrinkRatio    = 0.5
+	shrinkMinBytes = 1024
+)
+
+// checkShrink verweigert einen Schreibvorgang, der mehr als shrinkRatio des
+// Bodys UND mehr als shrinkMinBytes entfernt, solange allow nicht gesetzt ist.
+// action ist "patch" oder "update" und prägt die Meldung.
+func checkShrink(action string, d bodyDelta, allow bool) error {
+	if allow || d.BytesBefore == 0 {
+		return nil
+	}
+	removed := d.BytesBefore - d.BytesAfter
+	if removed <= shrinkMinBytes {
+		return nil
+	}
+	if float64(removed)/float64(d.BytesBefore) <= shrinkRatio {
+		return nil
+	}
+	pct := (removed*100 + d.BytesBefore/2) / d.BytesBefore
+	msg := fmt.Sprintf("%s would remove %d of %d bytes (%d%%), %d lines to %d. Pass allowShrink=true if intended",
+		action, removed, d.BytesBefore, pct, d.LinesBefore, d.LinesAfter)
+	if action == "patch" {
+		msg += ", or use flow_update_doc with the full body"
+	}
+	return errors.New(msg)
+}
+
+func (h *handlers) documentResult(ctx context.Context, action string, d domain.Document, delta *bodyDelta) *mcp.CallToolResult {
 	project := "none"
 	if d.NodeID != nil {
 		project = *d.NodeID
@@ -57,6 +128,10 @@ func (h *handlers) documentResult(ctx context.Context, action string, d domain.D
 	version := d.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	out := makeWriteResult(action, d.ID, project, version, d.Body)
 	out.Type, out.Path, out.Title = string(d.Type), d.Path, d.Title
+	if delta != nil {
+		out.BytesBefore, out.BytesAfter = &delta.BytesBefore, &delta.BytesAfter
+		out.LinesBefore, out.LinesAfter = &delta.LinesBefore, &delta.LinesAfter
+	}
 	return writeResult(out)
 }
 

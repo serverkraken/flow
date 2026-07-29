@@ -63,7 +63,7 @@ func (h *handlers) createDoc(ctx context.Context, req *mcp.CallToolRequest, in c
 			return err
 		}
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "created", d)
+		out = h.documentResult(ctx, "created", d, nil)
 		return nil
 	})
 	if err != nil {
@@ -79,6 +79,7 @@ type updateDocIn struct {
 	Tags              *[]string `json:"tags,omitempty" jsonschema:"replace the whole tag set; omit to leave unchanged; [] to clear"`
 	ExpectedUpdatedAt string    `json:"expectedUpdatedAt,omitempty" jsonschema:"optional RFC3339 document version; the update fails with a conflict if it is stale"`
 	Confirm           bool      `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
+	AllowShrink       bool      `json:"allowShrink,omitempty" jsonschema:"required (true) to apply a write that removes more than half the document body and more than 1 KB"`
 }
 
 func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in updateDocIn) (*mcp.CallToolResult, any, error) {
@@ -97,6 +98,14 @@ func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in u
 		if in.Title == nil && in.Body == nil && in.Tags == nil {
 			return errGuard{fmt.Errorf("nothing to update: pass title, body, and/or tags")}
 		}
+		var delta *bodyDelta
+		if in.Body != nil {
+			bd := newBodyDelta(cur.Body, *in.Body)
+			if err := checkShrink("update", bd, in.AllowShrink); err != nil {
+				return errGuard{err}
+			}
+			delta = &bd
+		}
 		expected, err := expectedUpdatedAt(in.ExpectedUpdatedAt, cur.UpdatedAt)
 		if err != nil {
 			return errGuard{err}
@@ -109,7 +118,7 @@ func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in u
 		}
 		h.removeResource(d.ID)
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "updated", d)
+		out = h.documentResult(ctx, "updated", d, delta)
 		return nil
 	})
 	if err != nil {
@@ -128,6 +137,7 @@ type patchDocIn struct {
 	Label             *string `json:"label,omitempty" jsonschema:"optional replacement checklist label applied atomically with checked"`
 	ExpectedUpdatedAt string  `json:"expectedUpdatedAt,omitempty" jsonschema:"optional RFC3339 document version; the patch fails with a conflict if stale"`
 	Confirm           bool    `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
+	AllowShrink       bool    `json:"allowShrink,omitempty" jsonschema:"required (true) to apply a write that removes more than half the document body and more than 1 KB"`
 }
 
 func (h *handlers) patchDoc(ctx context.Context, req *mcp.CallToolRequest, in patchDocIn) (*mcp.CallToolResult, any, error) {
@@ -147,6 +157,10 @@ func (h *handlers) patchDoc(ctx context.Context, req *mcp.CallToolRequest, in pa
 		if err != nil {
 			return errGuard{err}
 		}
+		delta := newBodyDelta(cur.Body, body)
+		if err := checkShrink("patch", delta, in.AllowShrink); err != nil {
+			return errGuard{err}
+		}
 		expected, err := expectedUpdatedAt(in.ExpectedUpdatedAt, cur.UpdatedAt)
 		if err != nil {
 			return errGuard{err}
@@ -157,7 +171,7 @@ func (h *handlers) patchDoc(ctx context.Context, req *mcp.CallToolRequest, in pa
 		}
 		h.removeResource(d.ID)
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "patched", d)
+		out = h.documentResult(ctx, "patched", d, &delta)
 		return nil
 	})
 	if err != nil {
@@ -222,7 +236,7 @@ func (h *handlers) moveDoc(ctx context.Context, req *mcp.CallToolRequest, in mov
 		}
 		h.removeResource(cur.ID)
 		h.addResource(ctx, d)
-		out = h.documentResult(ctx, "moved", d)
+		out = h.documentResult(ctx, "moved", d, nil)
 		return nil
 	})
 	if err != nil {
