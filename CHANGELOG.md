@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/serverkraken/flow/compare/v2.2.0...v2.2.1) (2026-07-29)
+
+
+### Bug Fixes
+
+* **flow-mcp:** Größendelta + Schrumpf-Guard für flow_patch_doc ([#69](https://github.com/serverkraken/flow/issues/69)) ([744b7c0](https://github.com/serverkraken/flow/commit/744b7c095504589158105fdc44411cd646668119))
+
 ## [2.2.0](https://github.com/serverkraken/flow/compare/v2.1.0...v2.2.0) (2026-07-28)
 
 
