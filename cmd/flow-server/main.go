@@ -44,6 +44,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := checkMachineRevocation(cfg); err != nil {
+		return err
+	}
 	pool, err := pgstore.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -61,6 +64,7 @@ func run() error {
 	verifier, err := oidcverify.New(ctx, oidcverify.VerifierPairs(oidcverify.PairConfig{
 		WebIssuer: cfg.OIDCIssuer, WebClient: cfg.OIDCClientID,
 		CLIIssuer: cfg.OIDCCliIssuer, CLIClient: cfg.OIDCCliClientID,
+		MachineIssuer: cfg.OIDCMachineIssuer, MachineClient: cfg.OIDCMachineClientID,
 	}))
 	if err != nil {
 		return err
@@ -102,9 +106,17 @@ func run() error {
 	workerWG.Add(1)
 	go func() { defer workerWG.Done(); embedWorker.Run(ctx) }()
 
+	// Translate config → adapter. The httpserver package must not import
+	// config (adapter → usecase → ports ← domain), so the mapping happens here.
+	machines := make(map[string]httpserver.MachineAccount, len(cfg.MachineAccounts))
+	for sub, acct := range cfg.MachineAccounts {
+		machines[sub] = httpserver.MachineAccount{OwnerSub: acct.OwnerSub, Label: acct.Label}
+	}
+
 	srv := &httpserver.Server{
 		Ready:    func(ctx context.Context) error { return pool.Ping(ctx) },
 		Verifier: verifier,
+		Machines: machines,
 		Emitter:  emitter,
 		Ensure: usecase.EnsureUser{
 			Users: userStore,
@@ -299,6 +311,36 @@ func getenvInt(key string, def int) int {
 		}
 	}
 	return def
+}
+
+// checkMachineRevocation closes a revocation gap: resolveMachine (see
+// internal/adapter/httpserver/machineauth.go) looks the delegated owner up
+// with Users.GetBySub, which bypasses the allowlist that EnsureUser.Allow
+// applies to human tokens. Removing an owner from FLOW_ALLOWED_SUBS alone
+// therefore does NOT disable machine accounts delegated to them — revocation
+// has two switches, and only one is obvious. This cannot be fixed in the
+// middleware: Allow also consults group claims, and the delegation path has
+// no owner token and therefore no groups to check.
+//
+// The check only fires when the owner is PROVABLY not allowed: a sub
+// allowlist is configured, the owner's sub is absent from it, AND no group
+// allowlist is in play. Any other shape — no allowlist configured at all, or
+// groups in play — is deliberately left alone: a group-allowed owner cannot
+// be verified without their token, and failing startup in that shape would
+// lock out legitimate deployments that rely on group-based access.
+func checkMachineRevocation(cfg config.Config) error {
+	if len(cfg.AllowedSubs) == 0 || len(cfg.AllowedGroups) > 0 {
+		return nil
+	}
+	for _, acct := range cfg.MachineAccounts {
+		if !cfg.AllowedSubs[acct.OwnerSub] {
+			return fmt.Errorf(
+				"config: machine account %q delegates to owner %q, which is not in FLOW_ALLOWED_SUBS — "+
+					"remove the entry from FLOW_MACHINE_ACCOUNTS or re-allow the owner",
+				acct.Label, acct.OwnerSub)
+		}
+	}
+	return nil
 }
 
 func contextBudget(getenv func(string) string) int {
