@@ -169,6 +169,18 @@ Die Fallunterscheidung hängt an **`MachineClient`**, nicht am Issuer:
   bestehende Zusammenfassungsregel (`pairs.go:13`) bleibt, sie gilt jetzt nur
   für bis zu drei Clients statt zwei.
 
+Die Zusammenfassung faltet **nach Issuer allgemein**, nicht nur gegen den
+`WebIssuer`: jeder Issuer, der schon in der Liste steht, bekommt den Client an
+seinen Eintrag angehängt. Nur gegen den `WebIssuer` zu falten ließ eine
+Konfigurationsform kaputt — `MachineIssuer == CLIIssuer`, beide ungleich
+`WebIssuer` — und erzeugte genau die zwei Einträge mit demselben Issuer, die
+§4.1 als unbrauchbar beschreibt. Damit ist die Invariante „ein Eintrag je
+Issuer", auf die `Verify` sich verlässt, **strukturell** garantiert statt nur
+in den heute bekannten Topologien. Gefaltet statt mit einem Startfehler
+abgelehnt, weil ein geteilter Issuer eine legitime Topologie ist und kein
+Tippfehler: Authentik im globalen Issuer-Modus vergibt für alle Provider
+denselben Issuer, Dex ebenso.
+
 `MachineIssuer` wird also auch in Dev gesetzt (auf den Dex-Issuer); dass §6 alle
 drei Variablen gemeinsam verlangt, gilt in beiden Umgebungen gleich.
 
@@ -301,6 +313,43 @@ am Ende, das den Eintrag für Menschen lesbar hält, und die Fehlermeldungen aus
   erst beim ersten Browser-Login entsteht, wäre eine Startreihenfolge-Falle. Ein
   unbekannter Besitzer-Sub ergibt den 403 aus §5.2.
 
+### 6.3 Start-WARNung: Widerruf hat zwei Schalter
+
+`cmd/flow-server/main.go`, `warnOnUnverifiableMachineOwners` — läuft direkt nach
+`config.Load`, vor jeder DB-Verbindung.
+
+Geprüft wird: steht der **Besitzer-Sub** jedes Eintrags aus
+`FLOW_MACHINE_ACCOUNTS` auch in `FLOW_ALLOWED_SUBS`? Wenn nicht, ein
+`slog.Warn` je Eintrag, mit `label` und `owner_sub`.
+
+Der Grund ist eine Asymmetrie, die man sonst erst im Ernstfall bemerkt:
+`resolveMachine` löst den Besitzer per `Users.GetBySub` auf und geht damit an
+`EnsureUser.Allow` **vorbei**. Einen Menschen aus `FLOW_ALLOWED_SUBS` zu
+streichen sperrt also seinen Browser-Login aus, lässt aber jedes auf ihn
+delegierte Maschinen-Token weiterlaufen. **Widerruf hat zwei Schalter, und nur
+einer ist offensichtlich** — der Eintrag muss auch aus `FLOW_MACHINE_ACCOUNTS`
+verschwinden. In der Middleware ist das nicht zu reparieren: `Allow` zieht auch
+Gruppen-Claims heran, und der Delegationspfad hat kein Besitzer-Token, also
+auch keine Gruppen zum Prüfen.
+
+**Nicht-fatal, und zwar zwingend.** `usecase.AllowList`
+(`internal/usecase/allow.go:10`) erlaubt bei Treffer auf **Username ODER
+Subject**; ein per Username geführter Allowlist-Eintrag ist eine
+erstklassige, getestete Betriebsform. `config.MachineAccount` trägt aber nur
+den **Sub** des Besitzers — ein username-geführter Eintrag ist hier also
+strukturell unsichtbar. Ein fehlender Sub ist damit **mehrdeutig**: er kann
+einen widerrufenen Besitzer bedeuten oder schlicht eine username-geführte
+Allowlist für einen vollständig erlaubten Besitzer. Ein Abbruch auf einer
+Bedingung, die nichts beweist, würde eine unterstützte Deployment-Form
+aussperren — anders als die Teilkonfiguration aus §6.2, die eindeutig falsch
+ist. Deshalb entscheidet die Bedingung nur über das Loggen, nie über den Start.
+
+Die Warnung feuert zudem nur, wenn eine Sub-Allowlist gesetzt und **keine**
+Gruppen-Allowlist im Spiel ist: mit Gruppen ist ein gruppen-erlaubter Besitzer
+ohne sein Token ohnehin nicht prüfbar. Die Ausgabe ist nach Maschinen-Sub
+sortiert, damit wiederholte Starts bei identischer Konfiguration dieselbe
+Reihenfolge loggen statt bei jedem Neustart einen anderen Eintrag zu nennen.
+
 ---
 
 ## 7. Actor & Audit (`internal/actor`)
@@ -340,9 +389,19 @@ auf einem Telefon.
 | Maschinen-Token, Sub nicht in `FLOW_MACHINE_ACCOUNTS` | 403 | `machine token not mapped to an owner` |
 | Mapping zeigt auf unbekannten Besitzer-Sub | 403 | `machine account "<label>" maps to an unknown owner` |
 | Maschinen-Token auf nicht freigegebener Route | 403 | `machine tokens are not accepted on this route` |
+| Besitzer-Lookup scheitert am Store selbst (z. B. Postgres nicht erreichbar) | 500 | `server error` |
 
 Klartext über `http.Error`, wie im Rest des Servers. Kein JSON-Fehlerobjekt nur
-für diese vier Fälle.
+für diese fünf Fälle.
+
+Die letzte Zeile ist beim Entwurf durchgerutscht und im Code nachgezogen worden
+(`machineauth.go`, `errMachineStore`). Sie gehört hierher, weil sie sich in der
+**Abhilfe** von der Zeile darüber unterscheidet: ein vorübergehender
+Store-Fehler als „unknown owner" gemeldet schickt den Operator dazu,
+`FLOW_MACHINE_ACCOUNTS` für ein Mapping zu editieren, das nie falsch war. Der
+Text des Store-Fehlers erreicht die Antwort bewusst nicht — 500 `server error`
+ist derselbe generische Körper, den auch der menschliche Pfad bei einem
+`Ensure.Execute`-Fehlschlag liefert.
 
 ---
 
@@ -454,12 +513,33 @@ Danach:
   `Machine`.
 - Nicht konfiguriert: kein Maschinen-Paar, `Machine` nie true.
 - Ein Token mit Maschinen-Audience, aber vom CLI-Issuer signiert → abgelehnt.
+- **Mehrwertiges `aud`**: `aud` ist im JWT legitim ein Array, und ein
+  Issuer-Eintrag kann mehrere Audiences tragen (Dev-Topologie; Authentik im
+  globalen statt `per_provider`-Issuer-Modus). Beide Reihenfolgen von
+  `[flow-machine flow-dev]` müssen **dasselbe** Urteil ergeben. Die Prüfung ist
+  maschinen-bevorzugend, nicht reihenfolgeabhängig: trifft irgendeine der
+  Token-Audiences eine Maschinen-Audience, ist es ein Maschinen-Token. Die
+  Eskalation Richtung „Maschine" ist die sichere Richtung — „Maschine" ist die
+  **engere** Einstufung (Delegation, sechs Routen), „Mensch" öffnet
+  `EnsureUser` samt eigenem Tenant und jede `s.auth`-Route.
+- **`VerifierPairs` emittiert nie zwei Einträge für einen Issuer** — auch nicht,
+  wenn `MachineIssuer == CLIIssuer` und beide vom `WebIssuer` abweichen. Genau
+  darauf beruht die Invariante aus §4.1; wird sie verletzt, gewinnt der erste
+  Eintrag und jedes Maschinen-Token endet in einem unerklärten 401.
 
 **`httpserver`**
 
 - Maschinen-Token auf `POST /api/v1/documents` → 201; das Dokument trägt die
   `owner_id` des **Besitzers** und `updated_by_kind = agent`,
-  `updated_by_ref = wartung-agent`.
+  `updated_by_ref = wartung-agent`. Das ist ein **echter End-to-End-Test**
+  (`machineauth_e2e_test.go`): das Token läuft durch `Routes()` und die
+  Middleware in den Handler und in einen Store, und geprüft wird die
+  **persistierte** Zeile, nicht nur der Antwortkörper. Dass der Lookup unter der
+  `owner_id` des Besitzers überhaupt etwas findet, ist dabei selbst schon die
+  Delegations-Aussage — flow-Stores sind owner-scoped. Die beiden
+  Nachbartests (`machineauth_test.go` für den gebauten Kontext,
+  `usecase/create_document_test.go` für die Provenance aus einem Agent-Kontext)
+  decken je eine Hälfte ab; die **Naht** dazwischen deckt nur dieser Test.
 - Maschinen-Token auf `DELETE /api/v1/documents/{id}` → 403 mit dem Routentext.
 - Maschinen-Token auf einer `authAny`-Route → 403, **nicht** 401.
 - Maschinen-Token mit unbekanntem Sub → 403 mit dem Mapping-Text.
