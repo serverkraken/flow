@@ -97,7 +97,10 @@ func reachedHandler(mux http.Handler, method, path string) (reached bool, code i
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	code, body = rec.Code, rec.Body.String()
-	reached = !(code == http.StatusForbidden &&
-		strings.Contains(body, "machine tokens are not accepted on this route"))
+	// De Morgan's: "reached" is true unless the response is BOTH a 403 AND
+	// carries the machine-refusal string — any other status or body counts
+	// as having reached past the middleware.
+	reached = code != http.StatusForbidden ||
+		!strings.Contains(body, "machine tokens are not accepted on this route")
 	return
 }
