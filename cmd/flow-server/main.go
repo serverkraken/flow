@@ -58,8 +58,10 @@ func run() error {
 	if os.Getenv("FLOW_MIGRATE_ONLY") == "1" {
 		return nil
 	}
-	verifier, err := oidcverify.New(ctx, oidcverify.VerifierPairs(
-		cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCCliIssuer, cfg.OIDCCliClientID))
+	verifier, err := oidcverify.New(ctx, oidcverify.VerifierPairs(oidcverify.PairConfig{
+		WebIssuer: cfg.OIDCIssuer, WebClient: cfg.OIDCClientID,
+		CLIIssuer: cfg.OIDCCliIssuer, CLIClient: cfg.OIDCCliClientID,
+	}))
 	if err != nil {
 		return err
 	}
