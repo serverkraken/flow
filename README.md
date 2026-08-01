@@ -175,7 +175,7 @@ make install     # flow, flow-server, flow-mcp -> ~/.local/bin
 | `FLOW_MIGRATE_ONLY`          | nur migrieren, dann beenden                          |
 | `FLOW_DEV`                   | Dev-Modus — u.a. Session-Cookie ohne `Secure`        |
 | `FLOW_OIDC_MACHINE_ISSUER`   | Issuer des `flow-machine`-Providers                  |
-| `FLOW_OIDC_MACHINE_CLIENT_ID`| dessen Audience                                      |
+| `FLOW_OIDC_MACHINE_CLIENT_ID` | dessen Audience                                     |
 | `FLOW_MACHINE_ACCOUNTS`      | Maschinen-Delegation, siehe unten                    |
 
 `FLOW_DEV=1` ist auf localhost Pflicht: sonst bekommt das Session-Cookie
@@ -196,10 +196,12 @@ Drei Variablen, alle drei zusammen oder keine:
 | `FLOW_OIDC_MACHINE_CLIENT_ID` | dessen Audience |
 | `FLOW_MACHINE_ACCOUNTS` | `<maschinen-sub>=<besitzer-sub>:<label>`, kommasepariert |
 
-Der Besitzer wird über seinen **OIDC-Sub** adressiert, nicht über den
-Benutzernamen — nur `users.oidc_sub` ist eindeutig. Es ist derselbe Wert, der
-auch in `FLOW_ALLOWED_SUBS` steht. Das `<label>` erscheint im Aktivitätsfeed als
-Urheber und in Fehlermeldungen.
+Der Besitzer wird hier immer über seinen **OIDC-Sub** adressiert, nicht über
+den Benutzernamen — nur `users.oidc_sub` ist eindeutig. `FLOW_ALLOWED_SUBS`
+ist davon unabhängig und nimmt trotz des Namens sowohl den Sub als auch den
+Benutzernamen an (`usecase.AllowList` prüft beides); der besitzende Eintrag
+dort muss also nicht zwangsläufig derselbe String sein. Das `<label>`
+erscheint im Aktivitätsfeed als Urheber und in Fehlermeldungen.
 
 Token holen:
 
@@ -232,9 +234,12 @@ Einstellungen — antwortet 403.
 **Revocation hat zwei Schalter:** Einen Besitzer aus `FLOW_ALLOWED_SUBS` zu
 entfernen deaktiviert keine auf ihn delegierten Maschinen-Accounts — dafür
 muss der zugehörige Eintrag zusätzlich aus `FLOW_MACHINE_ACCOUNTS` entfernt
-werden. Ist beim Serverstart ein Allowlist ohne Gruppen konfiguriert und ein
-Maschinen-Account delegiert nachweislich auf einen nicht erlaubten Besitzer,
-bricht der Start mit einer entsprechenden Fehlermeldung ab.
+werden. Ist beim Serverstart eine Sub-Allowlist ohne Gruppen konfiguriert und
+fehlt der Besitzer-Sub eines Maschinen-Accounts darin, loggt der Server beim
+Start eine WARN-Zeile mit Label und Besitzer-Sub — der Start selbst wird
+dadurch **nicht** verhindert, denn der fehlende Sub ist zweideutig: Er kann
+einen entzogenen Besitzer bedeuten, oder schlicht, dass `FLOW_ALLOWED_SUBS`
+für diesen Besitzer per Benutzername statt Sub geführt wird (siehe oben).
 
 ---
 

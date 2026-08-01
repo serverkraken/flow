@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"syscall"
@@ -44,9 +45,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := checkMachineRevocation(cfg); err != nil {
-		return err
-	}
+	// Cannot fail startup here — see warnOnUnverifiableMachineOwners — so
+	// placement relative to FLOW_MIGRATE_ONLY below doesn't matter; left here
+	// because it belongs next to the config it inspects.
+	warnOnUnverifiableMachineOwners(cfg)
 	pool, err := pgstore.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -313,34 +315,61 @@ func getenvInt(key string, def int) int {
 	return def
 }
 
-// checkMachineRevocation closes a revocation gap: resolveMachine (see
-// internal/adapter/httpserver/machineauth.go) looks the delegated owner up
-// with Users.GetBySub, which bypasses the allowlist that EnsureUser.Allow
-// applies to human tokens. Removing an owner from FLOW_ALLOWED_SUBS alone
-// therefore does NOT disable machine accounts delegated to them — revocation
-// has two switches, and only one is obvious. This cannot be fixed in the
-// middleware: Allow also consults group claims, and the delegation path has
-// no owner token and therefore no groups to check.
+// warnOnUnverifiableMachineOwners logs a startup WARNING for each machine
+// account whose delegated owner does not appear in FLOW_ALLOWED_SUBS by
+// subject.
 //
-// The check only fires when the owner is PROVABLY not allowed: a sub
-// allowlist is configured, the owner's sub is absent from it, AND no group
-// allowlist is in play. Any other shape — no allowlist configured at all, or
-// groups in play — is deliberately left alone: a group-allowed owner cannot
-// be verified without their token, and failing startup in that shape would
-// lock out legitimate deployments that rely on group-based access.
-func checkMachineRevocation(cfg config.Config) error {
+// resolveMachine (see internal/adapter/httpserver/machineauth.go) looks the
+// delegated owner up with Users.GetBySub, which bypasses the allowlist that
+// EnsureUser.Allow applies to human tokens. Removing an owner from
+// FLOW_ALLOWED_SUBS alone therefore does NOT disable machine accounts
+// delegated to them — revocation has two switches, and only one is obvious.
+// This cannot be fixed in the middleware: Allow also consults group claims,
+// and the delegation path has no owner token and therefore no groups to
+// check.
+//
+// This can only WARN, never fail startup. usecase.AllowList allows on
+// EITHER Username or Subject (internal/usecase/allow.go), and username-keyed
+// allowlisting is a first-class, tested deployment shape — but
+// config.MachineAccount carries only the owner's OIDC SUBJECT, so a
+// username-keyed allowlist entry is structurally invisible here. An absent
+// sub is therefore ambiguous: it may mean a revoked owner, or it may simply
+// mean the allowlist is keyed by username for an owner who is fully
+// allowed. Aborting on an unverifiable condition would lock out that fully
+// supported deployment, so the condition below only ever decides whether to
+// log, never whether to boot.
+//
+// The warning only fires when a sub allowlist is configured and no group
+// allowlist is in play — the same shape a hard-fail check would have used —
+// because that's the only shape in which the mismatch is even plausibly
+// meaningful; with groups in play a group-allowed owner can't be checked
+// without their token at all, allowlist or not.
+func warnOnUnverifiableMachineOwners(cfg config.Config) {
 	if len(cfg.AllowedSubs) == 0 || len(cfg.AllowedGroups) > 0 {
-		return nil
+		return
 	}
-	for _, acct := range cfg.MachineAccounts {
-		if !cfg.AllowedSubs[acct.OwnerSub] {
-			return fmt.Errorf(
-				"config: machine account %q delegates to owner %q, which is not in FLOW_ALLOWED_SUBS — "+
-					"remove the entry from FLOW_MACHINE_ACCOUNTS or re-allow the owner",
-				acct.Label, acct.OwnerSub)
+	// Range over a map is non-deterministic; sort by machine subject (the
+	// map key, unique by construction — see parseMachineAccounts' duplicate
+	// check) so repeated runs against identical config log in the same
+	// order instead of naming a random offender each restart.
+	subs := make([]string, 0, len(cfg.MachineAccounts))
+	for sub := range cfg.MachineAccounts {
+		subs = append(subs, sub)
+	}
+	sort.Strings(subs)
+	for _, sub := range subs {
+		acct := cfg.MachineAccounts[sub]
+		if cfg.AllowedSubs[acct.OwnerSub] {
+			continue
 		}
+		slog.Warn(
+			"machine account owner not found in FLOW_ALLOWED_SUBS by subject — "+
+				"either the owner was revoked and FLOW_MACHINE_ACCOUNTS still delegates to "+
+				"them, or FLOW_ALLOWED_SUBS is keyed by username for this owner; revoking an "+
+				"owner does not disable machine accounts delegated to them — the entry must "+
+				"also be removed from FLOW_MACHINE_ACCOUNTS",
+			"label", acct.Label, "owner_sub", acct.OwnerSub)
 	}
-	return nil
 }
 
 func contextBudget(getenv func(string) string) int {
