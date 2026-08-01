@@ -10,9 +10,10 @@ import (
 //
 // The owner is addressed by OIDC subject, not by username: only users.oidc_sub
 // carries a UNIQUE constraint (migration 0001), while username is a plain
-// TEXT NOT NULL DEFAULT ''. Resolving an owner by a non-unique column would be
-// ambiguous, and an ambiguous owner in a multi-tenant app means a machine token
-// can end up writing into the wrong tenant.
+// TEXT NOT NULL column defaulting to the empty string. Resolving an owner by
+// a non-unique column would be ambiguous, and an ambiguous owner in a
+// multi-tenant app means a machine token can end up writing into the wrong
+// tenant.
 type MachineAccount struct {
 	Sub      string // the service account's OIDC subject
 	OwnerSub string // the OIDC subject of the flow user whose tenant it writes into
