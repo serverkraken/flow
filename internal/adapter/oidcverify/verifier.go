@@ -79,10 +79,27 @@ func (vr *Verifier) Verify(ctx context.Context, raw string) (ports.Identity, err
 			lastErr = err
 			continue
 		}
+		// `aud` is legitimately an ARRAY, and one issuer entry can carry several
+		// audiences (the dev topology, and what Authentik yields in global
+		// rather than per_provider issuer mode). Scanning until the first hit
+		// would make the verdict depend on the ORDER of aud: a token with
+		// aud=[flow-machine flow-dev] would be machine, the same token with the
+		// two swapped would be human. So scan ALL audiences and let ANY matched
+		// machine audience decide — machine-preferring, not order-dependent.
+		//
+		// Escalating toward "machine" is the safe direction: machine is the more
+		// RESTRICTED classification (delegated to an existing owner, six routes),
+		// while human means EnsureUser mints a fresh user row and tenant and
+		// every s.auth route opens up — including DELETE, nodes and settings.
 		ok, machine := false, false
 		for _, a := range tok.Audience {
-			if m, found := iv.auds[a]; found {
-				ok, machine = true, m
+			m, found := iv.auds[a]
+			if !found {
+				continue
+			}
+			ok = true
+			if m {
+				machine = true
 				break
 			}
 		}

@@ -65,12 +65,68 @@ func TestVerifierPairs(t *testing.T) {
 				}},
 			},
 		},
+		{
+			// Machine and CLI share an issuer that is NOT the web issuer. Before
+			// the general fold this emitted TWO entries for that issuer; Verify
+			// gives the first matching issuer ownership and then fails hard on an
+			// audience miss, so every machine token 401'd for no visible reason.
+			name: "machine issuer equals cli issuer but not web → folded into one entry",
+			in: oidcverify.PairConfig{
+				WebIssuer: "https://id/o/flow/", WebClient: "flow",
+				CLIIssuer: "https://id/o/shared/", CLIClient: "flow-cli",
+				MachineIssuer: "https://id/o/shared/", MachineClient: "flow-machine",
+			},
+			want: []IA{
+				{Issuer: "https://id/o/flow/", Audiences: []Aud{{ClientID: "flow"}}},
+				{Issuer: "https://id/o/shared/", Audiences: []Aud{
+					{ClientID: "flow-cli"}, {ClientID: "flow-machine", Machine: true},
+				}},
+			},
+		},
+		{
+			// Machine shares the web issuer while the CLI has its own.
+			name: "machine issuer equals web issuer, cli separate",
+			in: oidcverify.PairConfig{
+				WebIssuer: "https://id/o/flow/", WebClient: "flow",
+				CLIIssuer: "https://id/o/flow-cli/", CLIClient: "flow-cli",
+				MachineIssuer: "https://id/o/flow/", MachineClient: "flow-machine",
+			},
+			want: []IA{
+				{Issuer: "https://id/o/flow/", Audiences: []Aud{
+					{ClientID: "flow"}, {ClientID: "flow-machine", Machine: true},
+				}},
+				{Issuer: "https://id/o/flow-cli/", Audiences: []Aud{{ClientID: "flow-cli"}}},
+			},
+		},
+		{
+			// An empty machine issuer inherits the web issuer, like the CLI one.
+			name: "empty machine issuer inherits the web issuer",
+			in: oidcverify.PairConfig{
+				WebIssuer: "http://localhost:5556/dex", WebClient: "flow-dev",
+				CLIIssuer: "", CLIClient: "flow-cli",
+				MachineIssuer: "", MachineClient: "flow-machine",
+			},
+			want: []IA{
+				{Issuer: "http://localhost:5556/dex", Audiences: []Aud{
+					{ClientID: "flow-dev"}, {ClientID: "flow-cli"},
+					{ClientID: "flow-machine", Machine: true},
+				}},
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := oidcverify.VerifierPairs(tc.in)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("VerifierPairs = %+v, want %+v", got, tc.want)
+			}
+			// The invariant Verify depends on: never two entries for one issuer.
+			seen := map[string]bool{}
+			for _, ia := range got {
+				if seen[ia.Issuer] {
+					t.Fatalf("duplicate issuer %q in %+v", ia.Issuer, got)
+				}
+				seen[ia.Issuer] = true
 			}
 		})
 	}
