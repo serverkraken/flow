@@ -102,6 +102,10 @@ func (s *Server) authWith(next http.Handler, allowMachine bool) http.Handler {
 			}
 			u, label, err := s.resolveMachine(r.Context(), id)
 			if err != nil {
+				if errors.Is(err, errMachineStore) {
+					http.Error(w, "server error", http.StatusInternalServerError)
+					return
+				}
 				http.Error(w, err.Error(), http.StatusForbidden)
 				return
 			}

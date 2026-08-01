@@ -23,6 +23,15 @@ type MachineAccount struct {
 // from the server's configured accounts.
 var errMachineUnmapped = errors.New("machine token not mapped to an owner")
 
+// errMachineStore marks a resolveMachine failure that came from the user
+// store itself rather than from a genuinely absent owner or unmapped subject —
+// e.g. Postgres being unreachable. authWith checks this with errors.Is and
+// answers 500, the same as the human path (middleware.go's authWith already
+// does this for Ensure.Execute). Collapsing a transient store failure into
+// "unknown owner" would send the operator to edit FLOW_MACHINE_ACCOUNTS for a
+// mapping that was never wrong.
+var errMachineStore = errors.New("machine account owner lookup failed")
+
 // resolveMachine turns a verified machine identity into the delegated owner and
 // its audit label.
 //
@@ -36,6 +45,12 @@ func (s *Server) resolveMachine(ctx context.Context, id ports.Identity) (domain.
 	}
 	u, err := s.Users.GetBySub(ctx, acct.OwnerSub)
 	if err != nil {
+		if !errors.Is(err, ports.ErrUserNotFound) {
+			// Not a config problem — wrap for errors.Is at the call site. The
+			// underlying store error never reaches the HTTP response; authWith
+			// answers the same generic "server error" the human path uses.
+			return domain.User{}, "", fmt.Errorf("%w: %v", errMachineStore, err)
+		}
 		// The owner SUBJECT is deliberately not echoed: the label already
 		// identifies the entry to fix, and the subject is not the operator's to
 		// read off a phone at 06:00.

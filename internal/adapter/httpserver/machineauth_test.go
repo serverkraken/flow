@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -79,7 +80,13 @@ func TestMachineTokenNeverCreatesItsOwnUser(t *testing.T) {
 	var gotUser domain.User
 	var gotActor actor.Actor
 
-	doBearer(srv.authMachineOK(machineProbe(&gotUser, &gotActor)))
+	// Assert the request actually succeeded — otherwise this test would pass
+	// just as well if authMachineOK rejected the request before reaching the
+	// handler, which says nothing about user-creation behavior.
+	rec := doBearer(srv.authMachineOK(machineProbe(&gotUser, &gotActor)))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (body %q)", rec.Code, rec.Body.String())
+	}
 
 	// A user record for the MACHINE subject would be a second tenant — exactly
 	// what delegation exists to avoid.
@@ -151,7 +158,7 @@ func TestMachineAccountMappedToUnknownOwner(t *testing.T) {
 }
 
 func TestHumanTokenUnaffectedByMachineWrappers(t *testing.T) {
-	srv, _ := machineTestServer(t, ports.Identity{Subject: "owner-sub", Username: "soenne"})
+	srv, owner := machineTestServer(t, ports.Identity{Subject: "owner-sub", Username: "soenne"})
 	var gotUser domain.User
 	var gotActor actor.Actor
 
@@ -163,8 +170,59 @@ func TestHumanTokenUnaffectedByMachineWrappers(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("%s: status = %d, want 204 (body %q)", name, rec.Code, rec.Body.String())
 		}
+		// actor.FromContext's zero value is also {Kind: Human}, so Kind alone
+		// would pass even if ctxWithUser stopped setting an actor at all —
+		// pin the user and the ref too.
+		if gotUser.ID != owner.ID {
+			t.Fatalf("%s: user = %q, want the owner %q", name, gotUser.ID, owner.ID)
+		}
 		if gotActor.Kind != actor.Human {
 			t.Fatalf("%s: actor = %+v, want a human", name, gotActor)
 		}
+		if gotActor.Ref == "" {
+			t.Fatalf("%s: actor ref is empty, want the human's display name", name)
+		}
+	}
+}
+
+// TestMachineAuthDisabledByDefault pins the production default until the
+// wiring task lands: a Server built without an explicit Machines map (nil)
+// refuses machine tokens even on authMachineOK.
+func TestMachineAuthDisabledByDefault(t *testing.T) {
+	srv, _ := machineTestServer(t, ports.Identity{Subject: "machine-sub", Machine: true})
+	srv.Machines = nil
+	var gotUser domain.User
+	var gotActor actor.Actor
+
+	rec := doBearer(srv.authMachineOK(machineProbe(&gotUser, &gotActor)))
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "machine token not mapped to an owner") {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+// TestMachineAccountOwnerLookupStoreFailure pins that a transient user-store
+// failure (e.g. Postgres unreachable) is answered as a server error, not
+// misdiagnosed as a bad FLOW_MACHINE_ACCOUNTS mapping — see machineauth.go's
+// errMachineStore doc comment.
+func TestMachineAccountOwnerLookupStoreFailure(t *testing.T) {
+	srv, _ := machineTestServer(t, ports.Identity{Subject: "machine-sub", Machine: true})
+	srv.Users.(*testutil.FakeUserStore).SetGetBySubErr(errors.New("connection refused"))
+	var gotUser domain.User
+	var gotActor actor.Actor
+
+	rec := doBearer(srv.authMachineOK(machineProbe(&gotUser, &gotActor)))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (body %q)", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "connection refused") {
+		t.Fatalf("store error text leaked into response: %q", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "unknown owner") {
+		t.Fatalf("transient store failure was misreported as an unknown-owner config error: %q", rec.Body.String())
 	}
 }
