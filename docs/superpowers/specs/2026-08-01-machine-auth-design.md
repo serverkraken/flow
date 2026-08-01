@@ -228,7 +228,7 @@ Verify(token)                  → Fehler: 401 "invalid token"
   └─ id.Machine == true
        ├─ Route nicht opt-in   → 403 "machine tokens are not accepted on this route"
        ├─ Sub nicht gemappt    → 403 "machine token not mapped to an owner"
-       ├─ Owner unbekannt      → 403 "machine account maps to unknown owner: <username>"
+       ├─ Owner unbekannt      → 403 `machine account "<label>" maps to an unknown owner`
        └─ sonst                → ctxWithMachine(owner, label)
 ```
 
@@ -258,25 +258,48 @@ und sie brächte nichts, was die serverseitige Aufzählung nicht schon leistet.
 ```sh
 FLOW_OIDC_MACHINE_ISSUER=https://id.thebackend.org/application/o/flow-machine/
 FLOW_OIDC_MACHINE_CLIENT_ID=flow-machine
-FLOW_MACHINE_ACCOUNTS=<sa-sub>=soenne:wartung-agent
+FLOW_MACHINE_ACCOUNTS=<sa-sub>=<owner-sub>:wartung-agent
 ```
 
 `FLOW_MACHINE_ACCOUNTS` ist eine kommaseparierte Liste von
-`<oidc-sub>=<username>:<label>`, geparst wie `FLOW_ALLOWED_SUBS`
+`<maschinen-sub>=<besitzer-sub>:<label>`, geparst wie `FLOW_ALLOWED_SUBS`
 (`config.go:40-49`): Leerraum wird getrimmt, leere Einträge übersprungen.
 
-Regeln:
+### 6.1 Der Besitzer wird per OIDC-Sub adressiert, nicht per Username
+
+Der erste Entwurf schrieb hier `<username>`. Das ist falsch, und der Grund steht
+im Schema: in `0001_users.sql` ist **nur `oidc_sub` UNIQUE**; `username` ist ein
+gewöhnliches `TEXT NOT NULL DEFAULT ''`. Eine Auflösung per Username wäre damit
+mehrdeutig — und in einer Multi-Tenant-App ist eine mehrdeutige Besitzerauflösung
+kein Schönheitsfehler, sondern ein Cross-Tenant-Risiko: zwei User mit demselben
+`preferred_username` aus verschiedenen Quellen, und das Maschinen-Token schreibt
+in den falschen Tenant.
+
+Der Sub ist dagegen durch ein Datenbank-Constraint eindeutig, `GetBySub` existiert
+bereits am Port (`ports.go:20`), im `pgstore` und im Fake — es braucht **keine
+neue Store-Methode**. Und es ist ein Wert, den Soenne ohnehin schon pflegt: sein
+eigener Sub steht bereits in `FLOW_ALLOWED_SUBS`.
+
+Preis: zwei undurchsichtige Kennungen in einer Zeile. Dagegen steht das `<label>`
+am Ende, das den Eintrag für Menschen lesbar hält, und die Fehlermeldungen aus §8.
+
+### 6.2 Regeln
 
 - Alle drei Variablen zusammen oder keine. Teilkonfiguration ist ein
   Startfehler mit Nennung der fehlenden Variablen — nicht ein Server, der
   Maschinen-Token still ablehnt und niemandem sagt warum.
 - Ein Eintrag ohne `=` oder ohne `:` ist ein Startfehler, kein stiller
   Übersprung. Ein vertipptes Mapping darf nicht als „nicht gemappt" enden.
-- Doppelter Sub → Startfehler.
+- Leerer Maschinen-Sub, leerer Besitzer-Sub oder leeres Label → Startfehler.
+- Doppelter Maschinen-Sub → Startfehler.
+- **Maschinen-Sub == Besitzer-Sub → Startfehler.** Ein Eintrag, der einen
+  Menschen auf sich selbst delegiert, ist immer ein Konfigurationsfehler und
+  würde einen menschlichen Token stillschweigend auf Maschinen-Rechte
+  herabstufen, sobald er je über den Maschinen-Provider käme.
 - Der **Besitzer wird zur Request-Zeit aufgelöst**, nicht beim Start: `config`
-  hat keinen DB-Zugriff, und ein Startfehler wegen eines Usernamens, der erst
-  beim ersten Browser-Login entsteht, wäre eine Startreihenfolge-Falle. Ein
-  unbekannter Username ergibt den 403 aus §5.2.
+  hat keinen DB-Zugriff, und ein Startfehler wegen eines Subs, dessen User-Zeile
+  erst beim ersten Browser-Login entsteht, wäre eine Startreihenfolge-Falle. Ein
+  unbekannter Besitzer-Sub ergibt den 403 aus §5.2.
 
 ---
 
@@ -315,7 +338,7 @@ auf einem Telefon.
 |---|---|---|
 | Signatur/`iss`/`exp`/Audience falsch | 401 | `invalid token` |
 | Maschinen-Token, Sub nicht in `FLOW_MACHINE_ACCOUNTS` | 403 | `machine token not mapped to an owner` |
-| Mapping zeigt auf unbekannten User | 403 | `machine account maps to unknown owner: <username>` |
+| Mapping zeigt auf unbekannten Besitzer-Sub | 403 | `machine account "<label>" maps to an unknown owner` |
 | Maschinen-Token auf nicht freigegebener Route | 403 | `machine tokens are not accepted on this route` |
 
 Klartext über `http.Error`, wie im Rest des Servers. Kein JSON-Fehlerobjekt nur
@@ -440,11 +463,12 @@ Danach:
 - Maschinen-Token auf `DELETE /api/v1/documents/{id}` → 403 mit dem Routentext.
 - Maschinen-Token auf einer `authAny`-Route → 403, **nicht** 401.
 - Maschinen-Token mit unbekanntem Sub → 403 mit dem Mapping-Text.
-- Mapping auf unbekannten Username → 403 mit dem Owner-Text.
+- Mapping auf unbekannten Besitzer-Sub → 403 mit dem Owner-Text.
 - Menschen-Token auf denselben Routen → unverändert 200/201.
 
 **`config`** — vollständiges Mapping; Teilkonfiguration; Eintrag ohne `=`;
-Eintrag ohne `:`; doppelter Sub; Leerraum.
+Eintrag ohne `:`; leeres Feld; doppelter Maschinen-Sub; Maschinen-Sub gleich
+Besitzer-Sub; Leerraum.
 
 `make ci` (lint, verify-generate, verify-css, verify-no-popups, cover ≥ 75 %,
 build) muss grün sein.
@@ -474,7 +498,9 @@ schon notiert hat.
 ## 13. Akzeptanzkriterien
 
 - [ ] Der `curl` aus §9.1 liefert einen dekodierbaren JWT mit erwartetem `iss`
-      und `aud`; der Wert von `sub` steht in `FLOW_MACHINE_ACCOUNTS`.
+      und `aud`; der Wert von `sub` steht als **Maschinen-Sub** in
+      `FLOW_MACHINE_ACCOUNTS`, Soennes eigener Sub (aus `FLOW_ALLOWED_SUBS`)
+      als **Besitzer-Sub**.
 - [ ] `client_credentials`-Token → `POST /api/v1/documents` → **201**, Dokument
       unter `notes/runs/<id>` in Soennes Tenant sichtbar.
 - [ ] Das Dokument trägt `updated_by_kind = agent` / `updated_by_ref =
