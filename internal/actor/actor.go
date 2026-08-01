@@ -39,3 +39,12 @@ func FromContext(ctx context.Context) Actor {
 func AuthenticatedHuman(displayName string) Actor {
 	return Actor{Kind: Human, Ref: displayName}
 }
+
+// TrustedMachine builds audit provenance for a verified machine credential: a
+// token minted by the machine issuer/audience pair whose subject the server's
+// own configuration maps to an owner. The label comes from that configuration,
+// never from the request — which is the condition AuthenticatedHuman's comment
+// sets for anything being promoted to Agent.
+func TrustedMachine(label string) Actor {
+	return Actor{Kind: Agent, Ref: label}
+}

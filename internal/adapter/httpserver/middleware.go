@@ -35,35 +35,77 @@ func ctxWithUser(ctx context.Context, u domain.User) context.Context {
 	return actor.WithContext(ctx, actor.AuthenticatedHuman(ref))
 }
 
-// resolveBearer verifies a bearer token and ensures the user. Returns
-// ok=false on any failure (used by authAny, which then tries the cookie).
-func (s *Server) resolveBearer(r *http.Request) (domain.User, bool) {
-	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if raw == "" || raw == r.Header.Get("Authorization") {
-		return domain.User{}, false
+// resolveBearer verifies a bearer token and ensures the user. ok=false on any
+// failure (used by authAny, which then tries the cookie). machine=true reports
+// a VERIFIED machine token, which authAny must answer with 403 rather than let
+// fall through — see authAny.
+func (s *Server) resolveBearer(r *http.Request) (u domain.User, machine bool, ok bool) {
+	raw := bearerToken(r)
+	if raw == "" {
+		return domain.User{}, false, false
 	}
 	id, err := s.Verifier.Verify(r.Context(), raw)
 	if err != nil {
-		return domain.User{}, false
+		return domain.User{}, false, false
 	}
-	u, err := s.Ensure.Execute(r.Context(), id)
+	if id.Machine {
+		return domain.User{}, true, false
+	}
+	u, err = s.Ensure.Execute(r.Context(), id)
 	if err != nil {
-		return domain.User{}, false
+		return domain.User{}, false, false
 	}
-	return u, true
+	return u, false, true
+}
+
+// bearerToken extracts the raw token, or "" when the header is absent or not a
+// Bearer header.
+func bearerToken(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	raw := strings.TrimPrefix(h, "Bearer ")
+	if raw == h {
+		return ""
+	}
+	return raw
 }
 
 // auth verifies the bearer token, ensures the user, and stores it in context.
+// Machine tokens are refused: a route accepts them only by being wrapped in
+// authMachineOK, so a newly added route is machine-tight without anyone having
+// to remember it.
 func (s *Server) auth(next http.Handler) http.Handler {
+	return s.authWith(next, false)
+}
+
+// authMachineOK is auth plus machine credentials. Wrap only routes a headless
+// client legitimately needs.
+func (s *Server) authMachineOK(next http.Handler) http.Handler {
+	return s.authWith(next, true)
+}
+
+func (s *Server) authWith(next http.Handler, allowMachine bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if raw == "" || raw == r.Header.Get("Authorization") {
+		raw := bearerToken(r)
+		if raw == "" {
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
 		id, err := s.Verifier.Verify(r.Context(), raw)
 		if err != nil {
 			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
+		if id.Machine {
+			if !allowMachine {
+				http.Error(w, "machine tokens are not accepted on this route", http.StatusForbidden)
+				return
+			}
+			u, label, err := s.resolveMachine(r.Context(), id)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(ctxWithMachine(r.Context(), u, label)))
 			return
 		}
 		u, err := s.Ensure.Execute(r.Context(), id)

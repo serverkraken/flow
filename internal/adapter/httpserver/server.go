@@ -149,6 +149,10 @@ type Server struct {
 	OIDCAuth Authenticator
 	Session  SessionCodec
 	Users    ports.UserStore
+
+	// Machines maps a machine credential's OIDC subject to the owner it is
+	// delegated to. Empty (the default) disables machine auth entirely.
+	Machines map[string]MachineAccount
 }
 
 func (s *Server) Routes() http.Handler {
