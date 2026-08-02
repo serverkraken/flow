@@ -2,7 +2,9 @@
 
 - **Datum:** 2026-08-01
 - **Branch:** `machine-auth` (Worktree `../flow-machine-auth`, von `main` @ `532f842`)
-- **Status:** Draft — zur Review
+- **Status:** approved (Soenne, 2026-08-02). Die Abschnitte §4.2, §6.3, §8 und §11
+  wurden nach der Umsetzung mit dem Gebauten abgeglichen (Commit `348d1fc`); die
+  Freigabe gilt für diesen abgeglichenen Stand.
 - **Umfang:** End-to-End über zwei Repos — `serverkraken/flow` (Verifier,
   Middleware, Config, Actor) und `serverkraken/wartung` (Token-Austausch in der
   `report`-Rolle). Die Authentik-Seite steht als normativer Vertrag in §9;
