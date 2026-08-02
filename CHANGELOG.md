@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.3.0](https://github.com/serverkraken/flow/compare/v2.2.1...v2.3.0) (2026-08-02)
+
+
+### Features
+
+* Maschinen-Auth für headless Clients (wartung-Runner) ([#71](https://github.com/serverkraken/flow/issues/71)) ([cbcd590](https://github.com/serverkraken/flow/commit/cbcd590434069004710f4f795470ca6a733137da))
+
+
+### Documentation
+
+* Task-1-Befund — Authentik-Token-Form live verifiziert ([#73](https://github.com/serverkraken/flow/issues/73)) ([d1ab7be](https://github.com/serverkraken/flow/commit/d1ab7be148a794f6b9da7b06a432b009b685b437))
+
 ## [2.2.1](https://github.com/serverkraken/flow/compare/v2.2.0...v2.2.1) (2026-07-29)
 
 
