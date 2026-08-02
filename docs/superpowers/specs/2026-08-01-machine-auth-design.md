@@ -579,10 +579,14 @@ schon notiert hat.
 
 ## 13. Akzeptanzkriterien
 
-- [ ] Der `curl` aus §9.1 liefert einen dekodierbaren JWT mit erwartetem `iss`
+- [x] Der `curl` aus §9.1 liefert einen dekodierbaren JWT mit erwartetem `iss`
       und `aud`; der Wert von `sub` steht als **Maschinen-Sub** in
       `FLOW_MACHINE_ACCOUNTS`, Soennes eigener Sub (aus `FLOW_ALLOWED_SUBS`)
       als **Besitzer-Sub**.
+      → **Erfüllt am 2026-08-02**, siehe
+      [[plans/2026-08-01-machine-auth-task1-befund]]: RS256-JWT, `iss` und `aud`
+      wie erwartet, `aud` ist ein String (kein Array), `sub = wartung-agent`.
+      Die eingetragenen Env-Werte stimmen ohne Änderung.
 - [ ] `client_credentials`-Token → `POST /api/v1/documents` → **201**, Dokument
       unter `notes/runs/<id>` in Soennes Tenant sichtbar.
 - [ ] Das Dokument trägt `updated_by_kind = agent` / `updated_by_ref =
