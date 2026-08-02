@@ -10,14 +10,8 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// IssuerAudiences binds one trusted OIDC issuer to the audiences (client_ids)
-// accepted for tokens minted by that issuer.
-type IssuerAudiences struct {
-	Issuer    string
-	Audiences []string
-}
-
-// issuerVerifier is one issuer's token verifier plus its accepted-audience set.
+// issuerVerifier is one issuer's token verifier plus its accepted audiences,
+// mapped client_id → "this audience marks a machine token".
 type issuerVerifier struct {
 	v    *oidc.IDTokenVerifier
 	auds map[string]bool
@@ -53,8 +47,8 @@ func New(ctx context.Context, pairs []IssuerAudiences) (*Verifier, error) {
 		}
 		auds := make(map[string]bool, len(p.Audiences))
 		for _, a := range p.Audiences {
-			if a != "" {
-				auds[a] = true
+			if a.ClientID != "" {
+				auds[a.ClientID] = a.Machine
 			}
 		}
 		vs = append(vs, issuerVerifier{
@@ -85,10 +79,27 @@ func (vr *Verifier) Verify(ctx context.Context, raw string) (ports.Identity, err
 			lastErr = err
 			continue
 		}
-		ok := false
+		// `aud` is legitimately an ARRAY, and one issuer entry can carry several
+		// audiences (the dev topology, and what Authentik yields in global
+		// rather than per_provider issuer mode). Scanning until the first hit
+		// would make the verdict depend on the ORDER of aud: a token with
+		// aud=[flow-machine flow-dev] would be machine, the same token with the
+		// two swapped would be human. So scan ALL audiences and let ANY matched
+		// machine audience decide — machine-preferring, not order-dependent.
+		//
+		// Escalating toward "machine" is the safe direction: machine is the more
+		// RESTRICTED classification (delegated to an existing owner, six routes),
+		// while human means EnsureUser mints a fresh user row and tenant and
+		// every s.auth route opens up — including DELETE, nodes and settings.
+		ok, machine := false, false
 		for _, a := range tok.Audience {
-			if iv.auds[a] {
-				ok = true
+			m, found := iv.auds[a]
+			if !found {
+				continue
+			}
+			ok = true
+			if m {
+				machine = true
 				break
 			}
 		}
@@ -99,7 +110,14 @@ func (vr *Verifier) Verify(ctx context.Context, raw string) (ports.Identity, err
 		if err := tok.Claims(&c); err != nil {
 			return ports.Identity{}, fmt.Errorf("oidcverify: claims: %w", err)
 		}
-		return ports.Identity{Subject: c.Sub, Username: c.PreferredUsername, Email: c.Email, Name: c.Name, Groups: c.Groups}, nil
+		return ports.Identity{
+			Subject:  c.Sub,
+			Username: c.PreferredUsername,
+			Email:    c.Email,
+			Name:     c.Name,
+			Groups:   c.Groups,
+			Machine:  machine,
+		}, nil
 	}
 	return ports.Identity{}, fmt.Errorf("oidcverify: no trusted issuer accepted token: %w", lastErr)
 }

@@ -149,13 +149,17 @@ type Server struct {
 	OIDCAuth Authenticator
 	Session  SessionCodec
 	Users    ports.UserStore
+
+	// Machines maps a machine credential's OIDC subject to the owner it is
+	// delegated to. Empty (the default) disables machine auth entirely.
+	Machines map[string]MachineAccount
 }
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReady)
-	mux.Handle("GET /api/v1/me", s.auth(http.HandlerFunc(s.handleMe)))
+	mux.Handle("GET /api/v1/me", s.authMachineOK(http.HandlerFunc(s.handleMe)))
 	mux.Handle("GET /api/v1/events", s.authAny(http.HandlerFunc(s.handleEvents)))
 
 	mux.Handle("POST /api/v1/sessions", s.auth(http.HandlerFunc(s.handleStartSession)))
@@ -223,16 +227,16 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/artifacts", s.auth(http.HandlerFunc(s.handleListFreeArtifacts)))
 	mux.Handle("DELETE /api/v1/artifacts/{slug}", s.auth(http.HandlerFunc(s.handleDeleteFreeArtifact)))
 
-	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
+	mux.Handle("POST /api/v1/documents", s.authMachineOK(http.HandlerFunc(s.handleCreateDocument)))
 	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))
 	mux.Handle("PUT /api/v1/documents/by-path", s.authAny(http.HandlerFunc(s.handleUpsertByPath)))
-	mux.Handle("GET /api/v1/documents", s.auth(http.HandlerFunc(s.handleListDocuments)))
+	mux.Handle("GET /api/v1/documents", s.authMachineOK(http.HandlerFunc(s.handleListDocuments)))
 	mux.Handle("GET /api/v1/documents/tags", s.auth(http.HandlerFunc(s.handleListTags)))
 	// archived path registered before the {id} wildcard so the static path wins
 	mux.Handle("GET /api/v1/documents/archived", s.auth(http.HandlerFunc(s.handleListArchived)))
-	mux.Handle("GET /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleGetDocument)))
-	mux.Handle("PUT /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleUpdateDocument)))
-	mux.Handle("PATCH /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handlePatchDocument)))
+	mux.Handle("GET /api/v1/documents/{id}", s.authMachineOK(http.HandlerFunc(s.handleGetDocument)))
+	mux.Handle("PUT /api/v1/documents/{id}", s.authMachineOK(http.HandlerFunc(s.handleUpdateDocument)))
+	mux.Handle("PATCH /api/v1/documents/{id}", s.authMachineOK(http.HandlerFunc(s.handlePatchDocument)))
 	mux.Handle("POST /api/v1/documents/{id}/move", s.auth(http.HandlerFunc(s.handleMoveDocument)))
 	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))
 	mux.Handle("GET /api/v1/documents/{id}/backlinks", s.auth(http.HandlerFunc(s.handleDocumentBacklinks)))

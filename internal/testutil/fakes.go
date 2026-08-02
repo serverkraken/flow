@@ -44,8 +44,9 @@ func itoa(n int) string {
 }
 
 type FakeUserStore struct {
-	mu    sync.Mutex
-	bySub map[string]domain.User
+	mu        sync.Mutex
+	bySub     map[string]domain.User
+	getSubErr error
 }
 
 func NewFakeUserStore() *FakeUserStore { return &FakeUserStore{bySub: map[string]domain.User{}} }
@@ -57,9 +58,21 @@ func (s *FakeUserStore) UpsertBySub(_ context.Context, u domain.User) (domain.Us
 	return u, nil
 }
 
+// SetGetBySubErr makes GetBySub fail with err regardless of what's stored —
+// for simulating a transient store failure (e.g. a DB restart) as distinct
+// from a genuinely absent row.
+func (s *FakeUserStore) SetGetBySubErr(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.getSubErr = err
+}
+
 func (s *FakeUserStore) GetBySub(_ context.Context, sub string) (domain.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.getSubErr != nil {
+		return domain.User{}, s.getSubErr
+	}
 	u, ok := s.bySub[sub]
 	if !ok {
 		return domain.User{}, ports.ErrUserNotFound

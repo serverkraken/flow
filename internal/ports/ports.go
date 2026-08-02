@@ -28,6 +28,10 @@ type Identity struct {
 	Email    string
 	Name     string
 	Groups   []string
+	// Machine reports a token minted by the machine-credential provider. It is
+	// proven by the issuer/audience pair the token verified against, never by
+	// anything the caller sends.
+	Machine bool
 }
 
 // Token is a stored OAuth token set for the CLI/TUI client.

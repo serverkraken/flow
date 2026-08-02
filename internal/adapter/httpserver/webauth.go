@@ -135,8 +135,14 @@ func (s *Server) webAuth(next http.Handler) http.Handler {
 // Authorization header.
 func (s *Server) authAny(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if u, ok := s.resolveBearer(r); ok {
+		if u, machine, ok := s.resolveBearer(r); ok {
 			next.ServeHTTP(w, r.WithContext(ctxWithUser(r.Context(), u)))
+			return
+		} else if machine {
+			// The caller DID authenticate; falling through to the cookie would
+			// answer 401 and send the operator hunting for a credential problem
+			// that does not exist.
+			http.Error(w, "machine tokens are not accepted on this route", http.StatusForbidden)
 			return
 		}
 		if u, ok := s.resolveCookie(r); ok {

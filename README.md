@@ -174,9 +174,72 @@ make install     # flow, flow-server, flow-mcp -> ~/.local/bin
 | `FLOW_EMBED_TIMEOUT`         | Timeout pro Embedding-Aufruf                         |
 | `FLOW_MIGRATE_ONLY`          | nur migrieren, dann beenden                          |
 | `FLOW_DEV`                   | Dev-Modus — u.a. Session-Cookie ohne `Secure`        |
+| `FLOW_OIDC_MACHINE_ISSUER`   | Issuer des `flow-machine`-Providers                  |
+| `FLOW_OIDC_MACHINE_CLIENT_ID` | dessen Audience                                     |
+| `FLOW_MACHINE_ACCOUNTS`      | Maschinen-Delegation, siehe unten                    |
 
 `FLOW_DEV=1` ist auf localhost Pflicht: sonst bekommt das Session-Cookie
 `Secure`, wird über http nie gesendet, und der Login läuft in eine Schleife.
+
+### Headless-Clients authentifizieren
+
+Ein Dienst ohne Browser (CI-Job, CronJob, Runner) meldet sich mit einem
+`client_credentials`-Token eines Authentik-Service-Accounts an. flow legt für
+ihn **keinen eigenen Benutzer** an — das Token wird auf einen bestehenden
+Besitzer delegiert und schreibt in dessen Tenant.
+
+Drei Variablen, alle drei zusammen oder keine:
+
+| Variable | Bedeutung |
+|---|---|
+| `FLOW_OIDC_MACHINE_ISSUER` | Issuer des `flow-machine`-Providers |
+| `FLOW_OIDC_MACHINE_CLIENT_ID` | dessen Audience |
+| `FLOW_MACHINE_ACCOUNTS` | `<maschinen-sub>=<besitzer-sub>:<label>`, kommasepariert |
+
+Der Besitzer wird hier immer über seinen **OIDC-Sub** adressiert, nicht über
+den Benutzernamen — nur `users.oidc_sub` ist eindeutig. `FLOW_ALLOWED_SUBS`
+ist davon unabhängig und nimmt trotz des Namens sowohl den Sub als auch den
+Benutzernamen an (`usecase.AllowList` prüft beides); der besitzende Eintrag
+dort muss also nicht zwangsläufig derselbe String sein. Das `<label>`
+erscheint im Aktivitätsfeed als Urheber und in Fehlermeldungen.
+
+Token holen:
+
+```bash
+curl -fsS -X POST https://<authentik>/application/o/token/ \
+  -d grant_type=client_credentials \
+  -d client_id=flow-machine \
+  -d username=<service-account> \
+  -d password="$FLOW_SA_PASSWORD" \
+  -d scope=openid | jq -r .access_token
+```
+
+Das Token lebt rund eine Stunde. Ein lang laufender Job holt es deshalb
+**unmittelbar vor** dem Aufruf, nicht beim Start.
+
+**Was ein Maschinen-Token darf:** Dokumente anlegen, lesen und ändern
+(`POST`/`GET /api/v1/documents`, `GET`/`PUT`/`PATCH /api/v1/documents/{id}`)
+sowie `GET /api/v1/me`. Alles andere — Löschen, Nodes, Zeiterfassung,
+Einstellungen — antwortet 403.
+
+**Fehlerbilder:**
+
+| Antwort | Bedeutung |
+|---|---|
+| `401 invalid token` | Signatur, Issuer, Audience oder Gültigkeit stimmen nicht |
+| `403 machine token not mapped to an owner` | Der Sub fehlt in `FLOW_MACHINE_ACCOUNTS` |
+| `403 machine account "<label>" maps to an unknown owner` | Der Besitzer-Sub hat keine Benutzerzeile — der Besitzer muss sich einmal angemeldet haben |
+| `403 machine tokens are not accepted on this route` | Die Route ist für Maschinen nicht freigegeben |
+
+**Revocation hat zwei Schalter:** Einen Besitzer aus `FLOW_ALLOWED_SUBS` zu
+entfernen deaktiviert keine auf ihn delegierten Maschinen-Accounts — dafür
+muss der zugehörige Eintrag zusätzlich aus `FLOW_MACHINE_ACCOUNTS` entfernt
+werden. Ist beim Serverstart eine Sub-Allowlist ohne Gruppen konfiguriert und
+fehlt der Besitzer-Sub eines Maschinen-Accounts darin, loggt der Server beim
+Start eine WARN-Zeile mit Label und Besitzer-Sub — der Start selbst wird
+dadurch **nicht** verhindert, denn der fehlende Sub ist zweideutig: Er kann
+einen entzogenen Besitzer bedeuten, oder schlicht, dass `FLOW_ALLOWED_SUBS`
+für diesen Besitzer per Benutzername statt Sub geführt wird (siehe oben).
 
 ---
 
