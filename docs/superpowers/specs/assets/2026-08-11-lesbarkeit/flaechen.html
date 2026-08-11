@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flow — Flächen-Probe: Tisch und Blatt</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   flow · Flächen-Probe — Mockup, 2026-08-11
+   Frage: verträgt sich das Blatt mit dem Rest der Seite?
+   Antwort: das Blatt ist eine Bedeutung, keine Dekoration.
+
+       Papier ist Text, den jemand geschrieben hat.
+       Der Tisch trägt Instrumente und Listen.
+
+   Drei Flächen in einem Scroll, damit der Übergang beurteilbar ist:
+   Bibliothek (Tisch) → Projekt-Cockpit (Tisch mit einem Blatt) → Dokument (Blatt).
+
+   Sprache: A-Satz (Serife, Randnummern, Farbe als Ausnahme) in C-Architektur
+   (Fläche auf Tisch, Dunkel gleichwertig gebaut).
+
+   ZWEI SCHRIFTEN, KEINE DRITTE. Serife = Sprache. Mono = Datum.
+
+   Zahlen: beobachtete Werte aus flow.thebackend.org, wo vorhanden
+   (488/416/72 Dokumente, 100 Pläne, 90 Specs, 72 Projekt-Notizen, 168 Docs
+   am flow-Repo, Kontext 11.986/12.000 tk). Der Rest ist Füllung.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*,*::before,*::after{ box-sizing:border-box }
+html{ -webkit-text-size-adjust:100% }
+
+:root{
+  /* Tisch und Blatt */
+  /* Der Tisch muss dunkel genug sein, dass das Blatt darauf liegt statt darin
+     zu verschwinden — sonst ist die Zwei-Flächen-Regel im Hellen nicht lesbar. */
+  --desk:#DBDFE5; --deskdeep:#CBD1D8; --sheet:#FFFFFF;
+  --ink:#12161B; --body:#2A323A; --muted:#67717C; --faint:#98A1AB;
+  --hair:#D3D8DE; --hairsheet:#E6E9ED; --rule:#BCC4CC;
+
+  --accent:#1B4DB1; --live:#0A7048; --warn:#8A5804; --danger:#9C2318;
+  --code-ink:#26405E;
+  --chip-ink:#26405E; --chip-bg:#EDF1F6; --chip-line:#D6DEE8;
+
+  --serif:"Charter","Bitstream Charter","Iowan Old Style","Source Serif 4",Georgia,serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+
+  --lift:0 1px 0 rgba(18,22,27,.05), 0 26px 52px -34px rgba(18,22,27,.5);
+  --lamp:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,0));
+}
+[data-theme="dark"]{
+  --desk:#0E1117; --deskdeep:#0A0D12; --sheet:#1C2029;
+  --ink:#F1ECE3; --body:#C4CBD3; --muted:#8B94A0; --faint:#69727D;
+  --hair:#1D222B; --hairsheet:#282D37; --rule:#333A45;
+
+  --accent:#85B2FF; --live:#4FC591; --warn:#E3B341; --danger:#EF8073;
+  --code-ink:#9FBEE6;
+  --chip-ink:#9FBEE6; --chip-bg:#1B222C; --chip-line:#28313D;
+
+  --lift:0 1px 0 rgba(0,0,0,.4), 0 40px 80px -48px rgba(0,0,0,.95);
+  --lamp:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
+}
+
+body{
+  margin:0; background:var(--desk); color:var(--body);
+  font-family:var(--serif); font-size:16.5px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  transition:background-color .25s ease, color .25s ease;
+}
+.n, .mono{ font-family:var(--mono); font-variant-numeric:tabular-nums }
+*:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:2px }
+@media (prefers-reduced-motion:reduce){ *{ transition:none !important } }
+
+/* ═══ Topbar — liegt auf dem Tisch, nicht darüber ═════════════════════════ */
+.top{
+  position:sticky; top:0; z-index:40;
+  background:color-mix(in srgb, var(--desk) 92%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--hair);
+}
+.top-in{
+  max-width:1160px; margin:0 auto; padding:0 30px;
+  height:56px; display:flex; align-items:center; gap:26px;
+}
+.mark{ font-weight:700; font-size:19px; color:var(--ink); letter-spacing:-.02em }
+.mark i{ font-style:normal; color:var(--accent) }
+.top nav{ display:flex; gap:20px; font-size:15px }
+.top nav a{ color:var(--muted); text-decoration:none; padding:18px 0; border-bottom:2px solid transparent }
+.top nav a:hover{ color:var(--ink) }
+.top nav a.on{ color:var(--ink); border-bottom-color:var(--ink) }
+.top .right{ margin-left:auto; display:flex; align-items:center; gap:12px }
+.srch{
+  display:flex; align-items:center; gap:9px; min-width:210px;
+  border:1px solid var(--rule); border-radius:6px; padding:6px 10px;
+  font-family:var(--mono); font-size:12px; color:var(--faint); background:none; cursor:text;
+}
+.srch kbd{ margin-left:auto; border:1px solid var(--hair); border-radius:3px; padding:0 4px; font-size:10.5px }
+.tpill{
+  display:flex; align-items:center; gap:8px; border:1px solid var(--rule); border-radius:6px;
+  padding:6px 11px; font-family:var(--mono); font-size:12.5px; color:var(--ink);
+}
+.dot{ width:6px; height:6px; border-radius:50%; background:var(--live); box-shadow:0 0 0 3px color-mix(in srgb, var(--live) 20%, transparent) }
+.ava{
+  display:inline-grid; place-items:center; flex:none; color:#fff;
+  font-family:var(--mono); font-weight:700; letter-spacing:.01em; border-radius:5px;
+}
+.ava-24{ width:24px; height:24px; font-size:9.5px }
+.ava-28{ width:28px; height:28px; font-size:10.5px; border-radius:6px }
+.ava-44{ width:44px; height:44px; font-size:14px; border-radius:9px }
+.t-a{ background:#B4441F } .t-b{ background:#2F5FD0 } .t-c{ background:#1B6F5E }
+.t-d{ background:#7A46C6 } .t-e{ background:#1C7A46 } .t-f{ background:#9A5A08 }
+/* Agent statt Mensch: gestrichelt, keine Füllung — sichtbar ein anderer Akteur. */
+.ava-agent{ background:none; border:1.5px dashed var(--rule); color:var(--muted) }
+
+/* ═══ Tisch-Flächen ═══════════════════════════════════════════════════════ */
+.desk{ max-width:1160px; margin:0 auto; padding:52px 30px 90px }
+.eyebrow{
+  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--faint);
+}
+h1{ margin:12px 0 0; font-size:2.3em; line-height:1.12; letter-spacing:-.022em; color:var(--ink); font-weight:600 }
+h2.blk{ margin:0; font-size:1.5em; letter-spacing:-.018em; color:var(--ink); font-weight:600 }
+
+/* Aussage statt Metadatum: eine Zeile, die etwas behauptet. */
+.claim{ margin:12px 0 0; max-width:62ch; color:var(--muted); font-size:1.02em }
+.claim b{ color:var(--ink); font-weight:600 }
+.claim .n{ color:var(--ink); font-size:.92em }
+
+.sect{ margin-top:46px }
+.sect-h{ display:flex; align-items:baseline; gap:14px; padding-bottom:11px; border-bottom:1px solid var(--rule) }
+.sect-h .more{ margin-left:auto; font-size:13.5px; color:var(--accent); text-decoration:none }
+.sect-h .more:hover{ text-decoration:underline }
+.sect-h .note{ margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--faint) }
+
+/* Dichte Zeile — das Arbeitspferd des Tisches. */
+.lrow{
+  display:flex; align-items:center; gap:15px; padding:11px 4px;
+  border-bottom:1px solid var(--hair); text-decoration:none; color:inherit;
+}
+.lrow:last-child{ border-bottom:none }
+a.lrow:hover{ background:color-mix(in srgb, var(--ink) 3.5%, transparent) }
+.lrow .grow{ flex:1; min-width:0; display:block }
+.lrow .t{ display:block; color:var(--ink); font-size:15.5px; line-height:1.35 }
+.lrow .s{ display:block; margin-top:2px; font-family:var(--mono); font-size:11.5px; color:var(--faint) }
+.lrow .s b{ color:var(--muted); font-weight:400 }
+.lrow .r{ flex:none; text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums }
+.lrow .r .v{ display:block; font-size:13px; color:var(--ink) }
+.lrow .r .k{ display:block; font-size:10.5px; color:var(--faint); margin-top:2px }
+
+.chip{
+  flex:none; font-family:var(--mono); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--chip-ink); background:var(--chip-bg); border:1px solid var(--chip-line);
+  border-radius:3px; padding:2.5px 7px 1.5px;
+}
+.chip-q{ color:var(--faint); background:none; border-color:var(--hair) }
+
+/* Zwei Dichten: der Tisch darf zwei Spalten. */
+.two{ display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:56px; margin-top:0 }
+
+/* Das Kontext-Instrument — die aussagekräftigste Zahl der App, also groß. */
+.instr{ margin-top:14px }
+.meter{ height:5px; border-radius:3px; background:var(--hair); overflow:hidden }
+.meter i{ display:block; height:100%; background:var(--accent) }
+.meter.full i{ background:var(--warn) }
+.mlab{
+  display:flex; align-items:baseline; gap:10px; margin-top:9px;
+  font-family:var(--mono); font-size:12px; color:var(--muted);
+}
+.mlab .warn{ color:var(--warn); font-weight:600 }
+.mlab .more{ margin-left:auto; color:var(--accent); text-decoration:none; font-size:11.5px }
+
+/* Leerzustand: eine Einladung, kein Bindestrich. */
+.empty{
+  display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+  padding:15px 0; color:var(--muted); font-size:15px;
+}
+.btn{
+  font-family:var(--mono); font-size:11.5px; color:var(--ink); background:none;
+  border:1px solid var(--rule); border-radius:5px; padding:6px 12px; cursor:pointer;
+  text-decoration:none; display:inline-block;
+}
+.btn:hover{ border-color:var(--ink) }
+.btn-go{ background:var(--ink); color:var(--desk); border-color:var(--ink) }
+
+/* ═══ Das Blatt ═══════════════════════════════════════════════════════════ */
+.blatt{
+  background:var(--sheet); border-radius:6px; box-shadow:var(--lift); position:relative;
+  padding:56px 72px 64px 148px;
+}
+.blatt::before{
+  content:""; position:absolute; inset:0 0 auto 0; height:260px; border-radius:6px 6px 0 0;
+  background:var(--lamp); pointer-events:none;
+}
+/* Ein Dokument allein: das Blatt hat die Breite seines Satzes, nicht die des
+   Fensters — sonst liegt Papier um den Text herum, das nichts trägt. */
+.desk-paper{ max-width:912px }
+.blatt-solo{ padding:76px 66px 96px 150px }
+.prose{ max-width:65ch; font-size:18.5px; line-height:1.63; position:relative }
+.prose > *{ margin:0 }
+.prose > * + *{ margin-top:1.18em }
+.prose h2{
+  position:relative; margin-top:2.6em; font-size:1.42em; line-height:1.22;
+  letter-spacing:-.014em; color:var(--ink); font-weight:600;
+}
+.prose h2 + *{ margin-top:1em }
+/* Die Randnummer ist der Anker, den ein Agent zitiert. */
+.prose h2::before{
+  content:attr(data-num); position:absolute; left:-5.4rem; top:.44em;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.05em; color:var(--faint);
+}
+.prose strong{ color:var(--ink); font-weight:650 }
+.prose code{ font-family:var(--mono); font-size:.855em; color:var(--code-ink); overflow-wrap:break-word }
+.prose ol, .prose ul{ padding-left:1.7em }
+.prose li + li{ margin-top:.55em }
+.prose li::marker{ color:var(--faint) }
+.prose ol > li::marker{ font-family:var(--mono); font-size:.82em; color:var(--muted) }
+.prose pre{
+  margin:0; font-family:var(--mono); font-size:.755em; line-height:1.7;
+  background:color-mix(in srgb, var(--ink) 4%, var(--sheet));
+  border-left:2px solid var(--rule); padding:16px 20px; overflow-x:auto;
+  width:calc(100% + 3.5rem);
+}
+[data-theme="dark"] .prose pre{ background:color-mix(in srgb, #000 35%, var(--sheet)) }
+.matcap{ font-family:var(--mono); font-size:11px; letter-spacing:.05em; color:var(--faint); margin-bottom:8px }
+.k{ color:#7A3FB0 } .t{ color:#0F6E63 } .s{ color:#9A5B10 } .a{ color:#1B4DB1 }
+[data-theme="dark"] .k{ color:#C792EA } [data-theme="dark"] .t{ color:#7FD1C0 }
+[data-theme="dark"] .s{ color:#E5A05C } [data-theme="dark"] .a{ color:#82AAFF }
+
+/* Kopf eines Blattes */
+.bhead h1{ margin-top:16px; max-width:22ch }
+.bhead .lede{ margin:18px 0 0; max-width:56ch; color:var(--muted); font-size:1.06em; line-height:1.55 }
+.prov{
+  display:flex; flex-wrap:wrap; align-items:center; gap:11px;
+  margin-top:28px; padding-top:16px; border-top:1px solid var(--hairsheet);
+  font-family:var(--mono); font-size:12px; color:var(--muted);
+}
+.prov .who{ display:inline-flex; align-items:center; gap:8px; color:var(--ink); font-weight:600 }
+.prov .sep{ color:var(--rule) }
+.prov .path{ color:var(--faint) }
+.prov .act{ margin-left:auto; display:flex; gap:7px }
+
+/* ═══ Mockup-Rahmen (nicht Teil des Entwurfs) ═════════════════════════════ */
+.bar{
+  position:fixed; top:0; left:0; right:0; z-index:80;
+  display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+  padding:8px 18px; font-family:var(--mono); font-size:11.5px; color:var(--muted);
+  background:color-mix(in srgb, var(--deskdeep) 90%, transparent);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--hair);
+}
+.bar .grp{ display:flex; gap:2px; border:1px solid var(--rule); border-radius:5px; padding:2px }
+.bar button{ font:inherit; color:var(--muted); background:none; border:0; border-radius:3px; padding:4px 10px; cursor:pointer }
+.bar button[aria-pressed="true"]{ background:var(--ink); color:var(--desk) }
+.bar .say{ flex:1; min-width:16rem; color:var(--faint) }
+.bar .say b{ color:var(--ink) }
+.top{ top:39px }
+.flaeche{ padding-top:39px }
+.cut{
+  max-width:1160px; margin:0 auto; padding:64px 30px 0;
+  display:flex; align-items:center; gap:14px;
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+}
+.cut::after{ content:""; flex:1; height:1px; background:var(--rule) }
+
+@media (max-width:1000px){
+  .two{ grid-template-columns:minmax(0,1fr); gap:34px }
+  .blatt, .blatt-solo{ padding:44px 26px 56px }
+  .prose h2::before{ position:static; display:block; margin-bottom:.4em }
+  .prose pre{ width:100% }
+  .top nav{ display:none }
+}
+@media (max-width:640px){
+  .desk{ padding:34px 18px 60px }
+  h1{ font-size:1.85em }
+  .srch{ min-width:0 }
+  .srch kbd{ display:none }
+}
+</style>
+</head>
+
+<body data-theme="light">
+
+<div class="bar">
+  <div class="grp" id="themes">
+    <button data-t="light" aria-pressed="true">Hell</button>
+    <button data-t="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <span class="say"><b>Flächen-Probe</b> — Papier ist Text, den jemand geschrieben hat. Der Tisch trägt Instrumente und Listen. Drei Flächen in einem Scroll: Bibliothek (Tisch) → Projekt-Cockpit (Tisch mit einem Blatt) → Dokument (Blatt).</span>
+</div>
+
+<header class="top">
+  <div class="top-in">
+    <span class="mark">flow<i>.</i></span>
+    <nav>
+      <a href="#cockpit">Projekte</a>
+      <a href="#bib" class="on">Wissen</a>
+      <a href="#">Zeit</a>
+    </nav>
+    <div class="right">
+      <span class="srch">Suchen <kbd>⌘K</kbd></span>
+      <span class="tpill"><span class="dot"></span>05:11:44</span>
+      <span class="ava ava-28 t-a">MS</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ FLÄCHE 1 — Bibliothek. Tisch, kein Blatt. ═══════════════════════ -->
+<div class="cut" id="bib">Fläche 1 · Bibliothek · Tisch</div>
+<main class="desk flaeche">
+
+  <span class="eyebrow">Wissen</span>
+  <h1>Bibliothek</h1>
+  <p class="claim">
+    <span class="n">488</span> Dokumente. <b>Diese Woche kamen <span class="n">12</span> dazu</b>, neun davon von
+    Agenten. <span class="n">47</span> hat seit über einem halben Jahr niemand angefasst — <span class="n">6</span>
+    davon stehen noch im Agenten-Kontext.
+  </p>
+
+  <div class="sect" style="margin-top:30px">
+    <span class="srch" style="width:100%; padding:11px 14px; font-size:13.5px">
+      Suchen — Volltext, Wortteile und Bedeutung. „kompend" findet Kompendium. <kbd>⌘K</kbd>
+    </span>
+  </div>
+
+  <div class="two" style="margin-top:44px">
+
+    <!-- Was ist neu — die eigentliche Antwort der Seite -->
+    <section>
+      <div class="sect-h">
+        <span class="eyebrow">Zuletzt geschrieben</span>
+        <a class="more" href="#">Alle 488 ›</a>
+      </div>
+
+      <a class="lrow" href="#">
+        <span class="ava ava-24 ava-agent">CC</span>
+        <span class="chip">Kontext</span>
+        <span class="grow">
+          <span class="t">Active Context — Straßenfuchs</span>
+          <span class="s">vor 3 Std · <b>claude-code</b> · strassenfuchs</span>
+        </span>
+        <span class="r"><span class="v">1 min</span><span class="k">Lesezeit</span></span>
+      </a>
+
+      <a class="lrow" href="#">
+        <span class="ava ava-24 t-a">MS</span>
+        <span class="chip">Projekt</span>
+        <span class="grow">
+          <span class="t">Konsolidiertes Findings-Backlog — Straßenfuchs</span>
+          <span class="s">vor 16 Std · notes/consolidated-findings-backlog</span>
+        </span>
+        <span class="r"><span class="v">27 min</span><span class="k">Lesezeit</span></span>
+      </a>
+
+      <a class="lrow" href="#">
+        <span class="ava ava-24 ava-agent">WA</span>
+        <span class="chip">Projekt</span>
+        <span class="grow">
+          <span class="t">TODO: Ban-Durchsetzung — die bewusst offen gelassenen Schreibpfade</span>
+          <span class="s">gestern · <b>wartung-agent</b> · strassenfuchs</span>
+        </span>
+        <span class="r"><span class="v">2 min</span><span class="k">Lesezeit</span></span>
+      </a>
+
+      <a class="lrow" href="#dok">
+        <span class="ava ava-24 t-a">MS</span>
+        <span class="chip">Plan</span>
+        <span class="grow">
+          <span class="t">Plan: PackageInfo synchron injizieren</span>
+          <span class="s">vor 6 Tagen · plans/2026-08-05-package-info-sync-injection</span>
+        </span>
+        <span class="r"><span class="v">3 min</span><span class="k">Lesezeit</span></span>
+      </a>
+
+      <a class="lrow" href="#">
+        <span class="ava ava-24 t-c">MS</span>
+        <span class="chip">Befund</span>
+        <span class="grow">
+          <span class="t">Task-1-Befund — Authentik-Token-Form live verifiziert</span>
+          <span class="s">vor 9 Tagen · flow · plans/2026-08-01-machine-auth-task1-befund</span>
+        </span>
+        <span class="r"><span class="v">6 min</span><span class="k">Lesezeit</span></span>
+      </a>
+
+      <div class="sect">
+        <div class="sect-h">
+          <span class="eyebrow">Liegt lange still</span>
+          <span class="note">unberührt seit über 6 Monaten</span>
+        </div>
+        <a class="lrow" href="#">
+          <span class="chip chip-q">Spec</span>
+          <span class="grow">
+            <span class="t">Kristall-Redesign — Programmspec K1–K5</span>
+            <span class="s">seit <b>11 Monaten</b> unberührt · steht im Kontext von flow</span>
+          </span>
+          <span class="r"><span class="v">immer</span><span class="k">Kontext</span></span>
+        </a>
+        <a class="lrow" href="#">
+          <span class="chip chip-q">Plan</span>
+          <span class="grow">
+            <span class="t">Migration TSV → sqliteclient (Plan B)</span>
+            <span class="s">seit <b>14 Monaten</b> unberührt · umgesetzt, nie archiviert</span>
+          </span>
+          <span class="r"><span class="v">archivieren</span><span class="k">Vorschlag</span></span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Regale: das Register, aber klein und nachgeordnet -->
+    <aside>
+      <div class="sect-h">
+        <span class="eyebrow">Regale</span>
+        <span class="note">416 aktiv · 72 archiviert</span>
+      </div>
+      <a class="lrow" href="#"><span class="grow"><span class="t">Pläne</span><span class="s">zuletzt vor 6 Tagen</span></span><span class="r"><span class="v">100</span></span></a>
+      <a class="lrow" href="#"><span class="grow"><span class="t">Specs</span><span class="s">zuletzt vor 3 Wochen</span></span><span class="r"><span class="v">90</span></span></a>
+      <a class="lrow" href="#"><span class="grow"><span class="t">Projekt-Notizen</span><span class="s">zuletzt vor 16 Std</span></span><span class="r"><span class="v">72</span></span></a>
+      <a class="lrow" href="#"><span class="grow"><span class="t">Erinnerungen</span><span class="s">zuletzt vor 5 Tagen</span></span><span class="r"><span class="v">58</span></span></a>
+      <a class="lrow" href="#"><span class="grow"><span class="t">Anleitungen</span><span class="s">zuletzt vor 2 Monaten</span></span><span class="r"><span class="v">24</span></span></a>
+      <a class="lrow" href="#"><span class="grow"><span class="t">Konventionen</span><span class="s">zuletzt vor 9 Tagen</span></span><span class="r"><span class="v">19</span></span></a>
+
+      <div class="sect">
+        <div class="sect-h"><span class="eyebrow">Nach Projekt</span></div>
+        <a class="lrow" href="#cockpit"><span class="ava ava-24 t-f">FL</span><span class="grow"><span class="t">flow</span></span><span class="r"><span class="v">168</span></span></a>
+        <a class="lrow" href="#"><span class="ava ava-24 t-a">ST</span><span class="grow"><span class="t">strassenfuchs</span></span><span class="r"><span class="v">42</span></span></a>
+        <a class="lrow" href="#"><span class="ava ava-24 t-d">HS</span><span class="grow"><span class="t">homelab-study</span></span><span class="r"><span class="v">27</span></span></a>
+        <a class="lrow" href="#"><span class="ava ava-24 t-c">RW</span><span class="grow"><span class="t">reusable-workflows</span></span><span class="r"><span class="v">12</span></span></a>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- ═══ FLÄCHE 2 — Projekt-Cockpit. Tisch mit einem Blatt. ══════════════ -->
+<div class="cut" id="cockpit">Fläche 2 · Projekt · Tisch mit einem Blatt</div>
+<main class="desk">
+
+  <div style="display:flex; align-items:flex-start; gap:18px">
+    <span class="ava ava-44 t-f">FL</span>
+    <div style="flex:1; min-width:0">
+      <span class="eyebrow">Privat › flow</span>
+      <h1 style="margin-top:6px; font-size:2.05em">flow</h1>
+      <p class="claim" style="margin-top:8px">My Personal Time Tracking and Knowledge / Kontext Base Project</p>
+    </div>
+    <a class="btn" href="#">Bearbeiten</a>
+  </div>
+
+  <p class="claim" style="margin-top:22px">
+    Repo, aktiv. <span class="n">168</span> Dokumente, zuletzt bewegt <b>vor 3 Stunden</b>.
+    Gebunden an <span class="mono" style="font-size:.86em; color:var(--muted)">github.com/serverkraken/flow</span>.
+  </p>
+
+  <!-- Das Kontext-Instrument: die aussagekräftigste Zahl der App, also nicht in eine Kachel am Rand. -->
+  <section class="sect" style="margin-top:34px">
+    <div class="sect-h">
+      <span class="eyebrow">Agenten-Kontext</span>
+      <span class="note">was ein Agent beim Start dieses Repos liest</span>
+    </div>
+    <div class="instr">
+      <div class="meter full"><i style="width:99.9%"></i></div>
+      <div class="mlab">
+        <span class="n">11.986</span> von <span class="n">12.000</span> Token
+        <span class="warn">fast voll</span>
+        <span>· 6 immer enthalten · 21 gerankt · <b style="color:var(--warn)">2 fallen raus</b></span>
+        <a class="more" href="#">Kuratieren ›</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Zeit: eine Einladung, kein Bindestrich. -->
+  <section class="sect">
+    <div class="sect-h"><span class="eyebrow">Zeit</span></div>
+    <div class="empty">
+      Auf diesem Knoten wurde noch nie Zeit gebucht.
+      <a class="btn btn-go" href="#">▶ Timer starten</a>
+      <a class="btn" href="#">Nachbuchen</a>
+    </div>
+  </section>
+
+  <!-- Das eine Blatt: die README IST ein Dokument, also liegt sie als Papier da. -->
+  <section class="sect">
+    <div class="sect-h">
+      <span class="eyebrow">README</span>
+      <a class="more" href="#">Bearbeiten ›</a>
+    </div>
+    <div class="blatt" style="margin-top:20px">
+      <div class="prose">
+        <h2 data-num="§1" style="margin-top:0">flow</h2>
+        <p><strong>Server-autoritatives Zuhause für Worktime, Wissen und Agenten-Kontext — für Menschen
+        <em>und</em> KI-Agenten.</strong></p>
+        <p>flow ersetzt eine Handvoll getrennter Werkzeuge — Zeiterfassung, Notiz- und Wissens-Kompendium,
+        Projekt-Metadaten, Agenten-Gedächtnis — durch <strong>einen</strong> autoritativen Server, den man von
+        überall erreicht: per CLI, TUI, Browser und über MCP direkt aus einem KI-Agenten heraus.</p>
+        <h2 data-num="§2">Die drei Binaries</h2>
+        <ul>
+          <li><code>flow-server</code> — der API- und SSE-Server und die <em>Komposition</em>. Postgres-gestützt,
+          OIDC-geschützt, live über Server-Sent-Events. Alle Autorität lebt hier.</li>
+          <li><code>flow</code> — der Client: eine Cobra-CLI (<code>worktime</code>, <code>node</code>,
+          <code>docs</code>, <code>context</code>, <code>login</code>, …) und, ohne Subkommando, eine
+          Bubble-Tea-TUI.</li>
+          <li><code>flow-mcp</code> — ein <strong>MCP-Server</strong>, der flow als geräteübergreifenden
+          Wissens- und Kontextspeicher für KI-Agenten öffnet.</li>
+        </ul>
+      </div>
+      <p style="max-width:65ch; margin:26px 0 0"><a href="#" style="font-family:var(--mono); font-size:12px; color:var(--accent); text-decoration:none">Ganzes Dokument öffnen ›</a></p>
+    </div>
+  </section>
+
+  <div class="two" style="margin-top:46px">
+    <section>
+      <div class="sect-h">
+        <span class="eyebrow">Wissen zu diesem Repo</span>
+        <a class="more" href="#">Alle 168 ›</a>
+      </div>
+      <a class="lrow" href="#"><span class="chip">Spec</span><span class="grow"><span class="t">Lesesaal — Programmspec L1–L7</span><span class="s">vor 3 Std · specs/2026-07-03-lesesaal-design</span></span><span class="r"><span class="v">34 min</span></span></a>
+      <a class="lrow" href="#"><span class="chip">Plan</span><span class="grow"><span class="t">Maschinen-Auth für headless Clients</span><span class="s">vor 9 Tagen · plans/2026-08-01-machine-auth</span></span><span class="r"><span class="v">18 min</span></span></a>
+      <a class="lrow" href="#"><span class="chip">Konvention</span><span class="grow"><span class="t">AGENTS.md — Konventionen für Coding-Agenten</span><span class="s">vor 5 Wochen · immer im Kontext</span></span><span class="r"><span class="v">7 min</span></span></a>
+      <a class="lrow" href="#"><span class="chip">Erinnerung</span><span class="grow"><span class="t">flow ist eine Multi-Tenant-App — nie „Single-User" als Begründung</span><span class="s">vor 5 Wochen · immer im Kontext</span></span><span class="r"><span class="v">2 min</span></span></a>
+    </section>
+
+    <aside>
+      <div class="sect-h">
+        <span class="eyebrow">Puls</span>
+        <span class="note">dieses Repo und darunter</span>
+      </div>
+      <div class="lrow">
+        <span class="ava ava-24 ava-agent">CC</span>
+        <span class="grow"><span class="t"><b style="font-weight:600; color:var(--ink)">claude-code</b> schrieb Active Context</span><span class="s">vor 3 Std</span></span>
+      </div>
+      <div class="lrow">
+        <span class="ava ava-24 t-a">MS</span>
+        <span class="grow"><span class="t">Martin hängte <b style="font-weight:600; color:var(--ink)">wartung</b> unter Privat</span><span class="s">gestern</span></span>
+      </div>
+      <div class="lrow">
+        <span class="ava ava-24 ava-agent">WA</span>
+        <span class="grow"><span class="t"><b style="font-weight:600; color:var(--ink)">wartung-agent</b> legte einen Bericht an</span><span class="s">vor 2 Tagen</span></span>
+      </div>
+
+      <div class="sect">
+        <div class="sect-h">
+          <span class="eyebrow">Artefakte</span>
+          <span class="note">4</span>
+        </div>
+        <a class="lrow" href="#"><span class="chip chip-q">PNG</span><span class="grow"><span class="t">flow-architecture.png</span><span class="s">106 KB · eingebettet in README</span></span></a>
+        <a class="lrow" href="#"><span class="chip chip-q">PNG</span><span class="grow"><span class="t">flow-logo.png</span><span class="s">21 KB · Knotenzeichen</span></span></a>
+        <a class="lrow" href="#"><span class="chip chip-q">SVG</span><span class="grow"><span class="t">context-budget.svg</span><span class="s">8 KB</span></span></a>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- ═══ FLÄCHE 3 — Dokument. Ganz Blatt. ═══════════════════════════════ -->
+<div class="cut" id="dok">Fläche 3 · Dokument · Blatt</div>
+<div class="desk desk-paper" style="padding-top:34px">
+  <article class="blatt blatt-solo">
+
+    <header class="bhead">
+      <span class="chip">Plan</span>
+      <h1>PackageInfo synchron injizieren</h1>
+      <p class="lede">Fix für die Produktionsstörung „Deine App-Version ist zu alt" beim Spiel-Erstellen und
+      -Beitreten mit App 0.46.3. Von Soenne freigegeben (Option A, 05.08.2026). Root Cause ist
+      <strong style="color:var(--ink)">bestätigt</strong> — nicht erneut diagnostizieren.</p>
+      <div class="prov">
+        <span class="who"><span class="ava ava-24 t-a">MS</span>Martin Söntgenrath</span>
+        <span>schrieb vor 6 Tagen</span>
+        <span class="sep">·</span>
+        <span class="path">strassenfuchs / plans / 2026-08-05-package-info-sync-injection</span>
+        <span class="sep">·</span>
+        <span>3 min</span>
+        <span class="act"><a class="btn" href="#">Bearbeiten</a><a class="btn" href="#">Anpinnen</a></span>
+      </div>
+    </header>
+
+    <div class="prose" style="margin-top:44px">
+      <h2 data-num="§1" style="margin-top:0">Root Cause <span style="color:var(--muted); font-weight:400">— bestätigt 05.08.2026</span></h2>
+      <p><strong>Der Bug ist ein Riverpod-Lifecycle-Problem, KEIN Android-Problem.</strong> Die frühere Diagnose
+      „<code>packageInfoProvider</code> erreicht auf Android nie den <code>data</code>-Zustand" war ein Fehlschluss —
+      die Versionszeile auf dem Handy wurde vermutlich übersehen, 10 px bei 30 % Alpha.</p>
+      <p>Ablauf:</p>
+      <ol>
+        <li>Tap auf „NEW GAME (Host)" → <code>lobby_screen.dart</code> <code>_createSessionAndJoin()</code> setzt
+        <code>_isLoading = true</code> → der Body ersetzt <code>JoinCreateView</code> durch den Spinner.</li>
+        <li>Die Versionszeile ist der <strong>einzige</strong> <code>ref.watch</code>-Listener des
+        <code>packageInfoProvider</code> — der ist <code>autoDispose</code>. Unmount → Provider disposed.</li>
+        <li><code>_clientVersion()</code> = <code>ref.read(packageInfoProvider).value?.version</code> → erzeugt einen
+        <strong>frischen Provider im AsyncLoading-Zustand</strong> → <code>.value == null</code>.</li>
+      </ol>
+
+      <h2 data-num="§2">Fix <span style="color:var(--muted); font-weight:400">— Option A, freigegeben</span></h2>
+      <p><code>PackageInfo</code> beim App-Start auflösen und synchron injizieren, exakt nach dem existierenden
+      <code>localStorageProvider</code>-Muster.</p>
+      <div>
+        <div class="matcap">lib/src/shared/providers.dart · dart</div>
+<pre><span class="a">@Riverpod</span>(keepAlive: <span class="k">true</span>)
+<span class="t">PackageInfo</span> packageInfo(<span class="t">Ref</span> ref) {
+  <span class="k">throw</span> <span class="t">UnimplementedError</span>(<span class="s">'packageInfo must be overridden in main()'</span>);
+}</pre>
+      </div>
+      <p style="font-family:var(--mono); font-size:12px; color:var(--faint)">
+        Ganzes Dokument in drei Richtungen: <a href="leseseite.html" style="color:var(--accent); text-decoration:none">leseseite.html ›</a>
+      </p>
+    </div>
+  </article>
+</div>
+
+<div style="height:90px"></div>
+
+<script>
+(function(){
+  var body = document.body, grp = document.getElementById('themes');
+  grp.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    body.dataset.theme = b.dataset.t;
+    grp.querySelectorAll('button').forEach(function(x){
+      x.setAttribute('aria-pressed', String(x.dataset.t === b.dataset.t));
+    });
+  });
+})();
+</script>
+</body>
+</html>

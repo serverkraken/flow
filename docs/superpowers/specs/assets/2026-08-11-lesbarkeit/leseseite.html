@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flow — Leseseite, drei Richtungen</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   flow · Leseseite — Mockup, 2026-08-11
+   Eine Fläche, drei Richtungen, je hell und dunkel. Gleiches Dokument,
+   gleiches DOM — was sich unterscheidet, sind Tokens, Satz und Seitenarchitektur.
+
+   Inhalt: das echte Dokument plans/2026-08-05-package-info-sync-injection
+   (Projekt strassenfuchs). Nur der letzte Abschnitt „Musterflächen" ist
+   hinzugefügt, um Tabelle, Hinweis, Zitat und kaputten Wikilink zu zeigen —
+   er ist als Mockup-Zutat gekennzeichnet.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*,*::before,*::after{ box-sizing:border-box }
+html{ -webkit-text-size-adjust:100% }
+body{ margin:0 }
+
+/* ── Richtung A — „Randnummer" ────────────────────────────────────────────
+   Das Dokument als zitierfähiger Datensatz. Struktur wandert in die
+   Marginalspalte, Farbe ist Ausnahme und nie Dekoration. Weißes Blatt auf
+   kühlem Tisch. Serifen-Buchsatz. */
+[data-dir="a"]{
+  --page:#D7DBE0; --sheet:#FFFFFF;
+  --ink:#12161B; --body:#2A323A; --muted:#67717C; --faint:#9BA4AE;
+  --hair:#E6E9ED; --rule:#C6CDD5;
+  --accent:#1B4DB1; --live:#0A7048; --warn:#7E5104; --danger:#9C2318;
+  --code-ink:#26405E; --code-panel:#FAFBFC; --code-fg:#1C2733;
+  --chip-ink:#26405E; --chip-bg:#EDF1F6; --chip-line:#D6DEE8;
+  --font-read:"Charter","Bitstream Charter","Iowan Old Style","Source Serif 4",Georgia,serif;
+  --font-mono:"SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --size:18.5px; --lh:1.63; --measure:66ch; --flow:1.18em;
+  --sheet-r:2px; --sheet-shadow:0 1px 0 rgba(18,22,27,.05), 0 24px 48px -34px rgba(18,22,27,.45);
+  --pad-l:9.5rem; --pad-r:5rem; --bleed:0rem;
+}
+[data-dir="a"][data-theme="dark"]{
+  --page:#0B0E12; --sheet:#161A20;
+  --ink:#EDF0F3; --body:#C2C9D1; --muted:#88929C; --faint:#69727D;
+  --hair:#232830; --rule:#333A44;
+  --accent:#7FA8F5; --live:#43BF8A; --warn:#D6A445; --danger:#E4736A;
+  --code-ink:#9FBEE6; --code-panel:#12161B; --code-fg:#D2DAE3;
+  --chip-ink:#9FBEE6; --chip-bg:#1B222C; --chip-line:#28313D;
+  --sheet-shadow:0 1px 0 rgba(0,0,0,.35), 0 26px 52px -34px rgba(0,0,0,.75);
+}
+
+/* ── Richtung B — „Werkbank" ──────────────────────────────────────────────
+   Das Dokument als Arbeitsfläche neben dem Editor. Prosa schmal auf Papier,
+   Material (Code, Tabellen, Abbildungen) bricht nach rechts aus und liegt auf
+   Bildschirm-Grund. Zwei Stimmen, zwei Untergründe. Serifenlos, dicht. */
+[data-dir="b"]{
+  --page:#FFFFFF; --sheet:transparent;
+  --ink:#0C1725; --body:#2B3846; --muted:#637385; --faint:#8FA0B1;
+  --hair:#E1E7EE; --rule:#C8D3DE;
+  --accent:#0A55CC; --live:#0C7350; --warn:#845000; --danger:#A82217;
+  --code-ink:#0A55CC; --code-panel:#0E1622; --code-fg:#D6DFEB;
+  --chip-ink:#0A55CC; --chip-bg:#EAF1FC; --chip-line:#CFE0F8;
+  --font-read:-apple-system,"SF Pro Text","Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+  --font-mono:"SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --size:16.6px; --lh:1.62; --measure:62ch; --flow:1.12em;
+  --sheet-r:0; --sheet-shadow:none;
+  --pad-l:0rem; --pad-r:0rem; --bleed:20rem;
+}
+[data-dir="b"][data-theme="dark"]{
+  --page:#0A0F16; --sheet:transparent;
+  --ink:#E6EDF5; --body:#B4C0CD; --muted:#7C8A99; --faint:#5E6C7A;
+  --hair:#1B242F; --rule:#2A3542;
+  --accent:#63A0FF; --live:#41BE87; --warn:#D8A63F; --danger:#E5766B;
+  --code-ink:#63A0FF; --code-panel:#050A10; --code-fg:#CBD6E3;
+  --chip-ink:#63A0FF; --chip-bg:#131C27; --chip-line:#1F2A36;
+}
+
+/* ── Richtung C — „Leselampe" ─────────────────────────────────────────────
+   Zuhause ist hier dunkel. Die Lesespalte ist eine beleuchtete Fläche auf
+   dunklem Tisch; Struktur trägt eine Mono-Kolumne aus Paragraphenzeichen.
+   Größerer Grad, weiter geführt — für lange Abende. */
+[data-dir="c"]{
+  --page:#C6CAD1; --sheet:#FCFBF9;
+  --ink:#191C22; --body:#333941; --muted:#6B7480; --faint:#98A0AB;
+  --hair:#E8E6E2; --rule:#CFCCC6;
+  --accent:#1D4ED0; --live:#0B7048; --warn:#8A5A08; --danger:#A32B1E;
+  --code-ink:#2A5A52; --code-panel:#F2F1ED; --code-fg:#22282F;
+  --chip-ink:#2A5A52; --chip-bg:#EAF1EF; --chip-line:#D3E2DE;
+  --font-read:"Iowan Old Style","Palatino Linotype",Palatino,"Charter",Georgia,serif;
+  --font-mono:"SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --size:19px; --lh:1.7; --measure:63ch; --flow:1.22em;
+  --sheet-r:8px; --sheet-shadow:0 30px 60px -40px rgba(0,0,0,.5);
+  --pad-l:5.5rem; --pad-r:5.5rem; --bleed:0rem;
+}
+[data-dir="c"][data-theme="dark"]{
+  --page:#0E1117; --sheet:#1C2029;
+  --ink:#F1ECE3; --body:#C6CBD3; --muted:#8B94A0; --faint:#6A7380;
+  --hair:#282D37; --rule:#353C48;
+  --accent:#85B2FF; --live:#4FC591; --warn:#E3B341; --danger:#EF8073;
+  --code-ink:#8FD1C2; --code-panel:#161A22; --code-fg:#D8DFE7;
+  --chip-ink:#8FD1C2; --chip-bg:#182222; --chip-line:#24312F;
+  --sheet-shadow:0 40px 80px -50px rgba(0,0,0,.9);
+}
+
+/* ═══ Seitenarchitektur ═══════════════════════════════════════════════════ */
+body{
+  background:var(--page); color:var(--body);
+  font-family:var(--font-read); font-size:var(--size); line-height:var(--lh);
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  transition:background-color .25s ease, color .25s ease;
+}
+.page{ margin:0 auto; padding:76px 28px 140px }
+[data-dir="a"] .page{ max-width:912px }
+[data-dir="c"] .page{ max-width:872px }
+[data-dir="b"] .page{ max-width:1400px; padding:64px 40px 140px }
+/* Werkbank: die Inhaltsspalte rückt hinter den stehenden Inhalt. */
+[data-dir="b"] .sheet{ padding-left:19rem }
+
+.sheet{
+  background:var(--sheet); border-radius:var(--sheet-r); box-shadow:var(--sheet-shadow);
+  padding:72px var(--pad-r) 104px var(--pad-l); position:relative;
+}
+/* Leselampe: das Licht fällt von oben auf die Fläche */
+[data-dir="c"] .sheet::before{
+  content:""; position:absolute; inset:0 0 auto 0; height:340px; border-radius:8px 8px 0 0;
+  background:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0));
+  pointer-events:none;
+}
+[data-dir="c"][data-theme="light"] .sheet::before{
+  background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,0));
+}
+
+/* Ein Rhythmus, eine Regel. Der Grund, warum Absätze heute in flow zusammenkleben,
+   ist genau hier: eine spätere, spezifischere Regel (.prose p { my-3 }) schlägt die
+   Abstandsregel. Deshalb setzt die Basis alle Blockabstände auf null und der
+   Geschwister-Selektor gibt sie kontrolliert zurück. */
+.doc{ max-width:var(--measure) }
+.doc > *{ margin:0 }
+.doc > * + *{ margin-top:var(--flow) }
+
+/* ═══ Kopf ════════════════════════════════════════════════════════════════ */
+.kicker{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:22px }
+.typechip{
+  font-family:var(--font-mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--chip-ink); background:var(--chip-bg); border:1px solid var(--chip-line);
+  border-radius:3px; padding:3px 8px 2px;
+}
+.tag{ font-family:var(--font-mono); font-size:11.5px; color:var(--faint) }
+.tag::before{ content:"#" ; opacity:.55 }
+
+h1{
+  margin:0; color:var(--ink); font-weight:600;
+  font-size:2.35em; line-height:1.12; letter-spacing:-.022em; max-width:22ch;
+}
+[data-dir="b"] h1{ font-size:2.15em; letter-spacing:-.028em; font-weight:640 }
+[data-dir="c"] h1{ font-size:2.25em; letter-spacing:-.018em }
+
+.lede{
+  margin:20px 0 0; max-width:56ch; color:var(--muted);
+  font-size:1.075em; line-height:1.55;
+}
+[data-dir="b"] .lede{ font-size:1.05em }
+
+/* Herkunftszeile — eine Aussage, keine Feldliste */
+.prov{
+  display:flex; flex-wrap:wrap; align-items:center; gap:11px;
+  margin-top:30px; padding-top:18px; border-top:1px solid var(--hair);
+  font-size:.79em; color:var(--muted);
+}
+[data-dir="a"] .prov, [data-dir="c"] .prov{ font-family:var(--font-mono); font-size:12px }
+[data-dir="b"] .prov{ font-family:var(--font-mono); font-size:12px }
+.who{ display:inline-flex; align-items:center; gap:8px; color:var(--ink); font-weight:600 }
+.ava{
+  width:22px; height:22px; border-radius:4px; display:inline-grid; place-items:center;
+  font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.02em;
+  color:#fff; background:#C2410C;
+}
+.fresh{ display:inline-flex; align-items:center; gap:6px }
+.fresh::before{
+  content:""; width:6px; height:6px; border-radius:50%; background:var(--live);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--live) 18%, transparent);
+}
+.prov .sep{ color:var(--rule) }
+.prov .path{ color:var(--faint) }
+.prov .act{ margin-left:auto; display:flex; gap:8px }
+.btn{
+  font-family:var(--font-mono); font-size:11.5px; letter-spacing:.02em;
+  color:var(--ink); background:none; border:1px solid var(--rule); border-radius:4px;
+  padding:5px 11px; cursor:pointer; transition:border-color .15s ease, background .15s ease;
+}
+.btn:hover{ border-color:var(--ink); background:color-mix(in srgb, var(--ink) 4%, transparent) }
+.btn-danger{ color:var(--muted); border-color:var(--hair) }
+.btn-danger:hover{ color:var(--danger); border-color:color-mix(in srgb, var(--danger) 45%, transparent); background:none }
+
+/* ═══ Fließtext ═══════════════════════════════════════════════════════════ */
+.doc strong{ font-weight:650; color:var(--ink) }
+[data-dir="b"] .doc strong{ font-weight:600 }
+.doc em{ font-style:italic }
+
+.doc h2{
+  margin-top:2.7em; margin-bottom:0; color:var(--ink); font-weight:600;
+  font-size:1.44em; line-height:1.22; letter-spacing:-.014em; position:relative;
+}
+.doc h2 + *{ margin-top:1em }
+.doc h3{
+  margin-top:2em; margin-bottom:0; color:var(--ink); font-weight:600;
+  font-size:1.1em; line-height:1.3; letter-spacing:-.006em;
+}
+
+/* Richtung A: die Randnummer ist der Anker. Struktur steht neben dem Satz,
+   nicht als Linie quer durch ihn. */
+[data-dir="a"] .doc h2::before{
+  content:attr(data-num); position:absolute; left:calc(-1 * var(--pad-l) + 3.6rem); top:.42em;
+  font-family:var(--font-mono); font-size:11.5px; font-weight:500; letter-spacing:.04em;
+  color:var(--faint);
+}
+/* Richtung B: Überschriften sprechen Markdown — ehrliche Herkunft, technische Stimme. */
+[data-dir="b"] .doc h2{
+  font-family:var(--font-mono); font-size:.95em; font-weight:650;
+  text-transform:uppercase; letter-spacing:.1em; color:var(--ink);
+  margin-top:3.1em; padding-bottom:.7em; border-bottom:1px solid var(--hair);
+}
+[data-dir="b"] .doc h2::before{
+  content:"## "; color:var(--faint); font-weight:400;
+}
+[data-dir="b"] .doc h3{ font-family:var(--font-mono); font-size:.86em; text-transform:uppercase; letter-spacing:.08em }
+/* Richtung C: eine Mono-Kolumne trägt die Gliederung, kein Strich. */
+[data-dir="c"] .doc h2::before{
+  content:attr(data-num); display:block; margin-bottom:.5em;
+  font-family:var(--font-mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent); font-weight:500;
+}
+
+/* Listen */
+.doc ul, .doc ol{ margin:0; padding-left:1.5em }
+.doc li + li{ margin-top:.55em }
+.doc li > ul, .doc li > ol{ margin-top:.55em }
+.doc li::marker{ color:var(--faint) }
+[data-dir="a"] .doc ol{ padding-left:1.9em }
+[data-dir="a"] .doc ol > li::marker{ font-family:var(--font-mono); font-size:.82em; color:var(--muted) }
+[data-dir="b"] .doc ol > li::marker{ font-family:var(--font-mono); font-size:.85em; color:var(--accent) }
+
+/* Bezeichner sind eine eigene Stimme — Mono und Farbe reichen. Kein Kästchen.
+   Das ist der eine Hebel, der code-dichte Absätze wieder zu Text macht. */
+.doc code{
+  font-family:var(--font-mono); font-size:.855em; color:var(--code-ink);
+  background:none; border:none; padding:0; overflow-wrap:break-word;
+}
+[data-dir="c"] .doc code{ font-size:.82em }
+
+/* Material: Code, Tabellen, Abbildungen */
+.mat{ margin-top:1.5em; width:100% }
+.mat + *{ margin-top:1.5em }
+.matcap{
+  display:flex; align-items:center; gap:9px; margin-bottom:8px;
+  font-family:var(--font-mono); font-size:11px; letter-spacing:.05em; color:var(--faint);
+}
+.matcap b{ color:var(--muted); font-weight:500 }
+.doc pre{
+  margin:0; font-family:var(--font-mono); font-size:.755em; line-height:1.7;
+  background:var(--code-panel); color:var(--code-fg);
+  padding:18px 22px; border-radius:5px; overflow-x:auto;
+}
+[data-dir="a"] .doc pre{
+  border-radius:0; border-left:2px solid var(--rule); padding-left:20px;
+}
+/* Quelltext darf in den rechten Rand des Blattes hineinragen — eine Zeile Code
+   soll nicht am Satzspiegel zerbrechen, nur weil sie in einer Aufzählung steht. */
+[data-dir="a"] .mat, [data-dir="c"] .mat{ width:calc(100% + 3.5rem) }
+/* Werkbank: Material bricht nach rechts aus und liegt auf Bildschirm-Grund. */
+[data-dir="b"] .mat{
+  width:min(calc(100% + var(--bleed)), calc(100vw - 26rem));
+  margin-top:1.7em;
+}
+[data-dir="b"] .doc pre{ border-radius:6px; font-size:.8em }
+
+/* Syntaxfarben — bewusst wenige. Struktur, Zeichenkette, Kommentar. */
+.k{ color:#C792EA } .t{ color:#7FD1C0 } .s{ color:#E5A05C } .c{ color:#6C7A8A; font-style:italic } .a{ color:#82AAFF }
+[data-dir="a"] .k{ color:#7A3FB0 } [data-dir="a"] .t{ color:#0F6E63 } [data-dir="a"] .s{ color:#9A5B10 } [data-dir="a"] .c{ color:#7C8794 } [data-dir="a"] .a{ color:#1B4DB1 }
+[data-dir="c"][data-theme="light"] .k{ color:#7A3FB0 } [data-dir="c"][data-theme="light"] .t{ color:#0F6E63 }
+[data-dir="c"][data-theme="light"] .s{ color:#9A5B10 } [data-dir="c"][data-theme="light"] .c{ color:#7C8794 } [data-dir="c"][data-theme="light"] .a{ color:#1D4ED0 }
+
+/* Tabelle: Spalten trennt Ausrichtung, nicht ein Gitter aus Rahmen. */
+.doc table{ width:100%; border-collapse:collapse; font-size:.86em; line-height:1.5 }
+.doc th{
+  text-align:left; font-family:var(--font-mono); font-size:.88em; font-weight:600;
+  letter-spacing:.07em; text-transform:uppercase; color:var(--muted);
+  padding:0 1.2em .6em 0; border-bottom:1px solid var(--rule);
+}
+.doc td{ padding:.62em 1.2em .62em 0; border-bottom:1px solid var(--hair); vertical-align:top }
+.doc tr:last-child td{ border-bottom:none }
+.doc td:last-child, .doc th:last-child{ padding-right:0 }
+.num{ font-family:var(--font-mono); font-variant-numeric:tabular-nums }
+
+/* Hinweis: eine Marke am Rand, keine bunte Karte. */
+.callout{
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:start;
+  padding:15px 18px; border-radius:5px; font-size:.94em;
+  background:color-mix(in srgb, var(--warn) 8%, var(--sheet));
+  border-left:2px solid var(--warn);
+}
+[data-dir="b"] .callout{ background:color-mix(in srgb, var(--warn) 8%, var(--page)) }
+.callout .g{ font-family:var(--font-mono); font-weight:700; color:var(--warn); line-height:1.7 }
+.callout b{ color:var(--ink) }
+
+blockquote{
+  margin:0; padding-left:20px; border-left:2px solid var(--rule);
+  color:var(--muted); font-style:italic;
+}
+
+/* Verweise: Beziehung mit Richtung, nicht als tote Kachel im Seitenpanel. */
+.doc a{ color:var(--accent); text-decoration:none; border-bottom:1px solid color-mix(in srgb, var(--accent) 32%, transparent) }
+.doc a:hover{ border-bottom-color:var(--accent) }
+.wl{ border-bottom:1px dotted color-mix(in srgb, var(--accent) 55%, transparent) }
+/* Kaputter Wikilink: sagt was los ist, statt rot durchzustreichen. */
+.doc a.wl-broken{
+  color:var(--muted); border-bottom:1px dashed var(--rule); cursor:help;
+}
+.wl-broken::after{
+  content:"nicht gefunden"; margin-left:7px; font-family:var(--font-mono);
+  font-size:.72em; letter-spacing:.04em; color:var(--faint); border:1px solid var(--hair);
+  border-radius:3px; padding:1px 5px; white-space:nowrap;
+}
+
+/* ═══ Fuß: Beziehungen ════════════════════════════════════════════════════ */
+.rel{ margin-top:5em; padding-top:22px; border-top:1px solid var(--rule); max-width:var(--measure) }
+[data-dir="b"] .rel{ max-width:min(calc(var(--measure) + var(--bleed)), calc(100vw - 26rem)) }
+.rel h4{
+  margin:0 0 14px; font-family:var(--font-mono); font-size:11px; font-weight:600;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+}
+.relrow{
+  display:flex; align-items:baseline; gap:12px; padding:9px 0;
+  border-bottom:1px solid var(--hair); font-size:.86em;
+}
+.relrow:last-child{ border-bottom:none }
+.relrow .dir{ font-family:var(--font-mono); font-size:.85em; color:var(--faint); flex:0 0 5.5em }
+.relrow .t{ color:var(--ink); flex:1; min-width:0 }
+.relrow .m{ font-family:var(--font-mono); font-size:.82em; color:var(--faint); white-space:nowrap }
+
+/* ═══ Gliederungs-Instrumente, je Richtung eines ══════════════════════════ */
+
+/* A — Zeilenlineal: die Balkenhöhe zeigt, wie lang ein Abschnitt ist.
+   Man sieht die Form des Dokuments, bevor man es liest. */
+.ruler{ display:none }
+[data-dir="a"] .ruler{
+  display:flex; flex-direction:column; gap:5px;
+  position:fixed; left:30px; top:50%; transform:translateY(-50%); z-index:20;
+}
+.ruler a{
+  display:flex; align-items:center; gap:10px; text-decoration:none;
+  color:var(--faint); font-family:var(--font-mono); font-size:10.5px; letter-spacing:.05em;
+}
+.ruler i{
+  display:block; width:3px; border-radius:2px; background:var(--rule);
+  height:calc(var(--len) * 1px); transition:background .18s ease, width .18s ease;
+}
+.ruler span{ opacity:0; transform:translateX(-3px); transition:opacity .18s ease, transform .18s ease; white-space:nowrap }
+.ruler:hover span{ opacity:1; transform:none }
+.ruler a.on i{ background:var(--accent); width:4px }
+.ruler a.on{ color:var(--ink) }
+
+/* B — der Inhalt bleibt stehen, weil man beim Arbeiten springt. */
+.toc{ display:none }
+[data-dir="b"] .toc{
+  display:block; position:sticky; top:64px; float:left; width:15rem;
+  margin-left:-19rem; padding-right:2rem;
+}
+[data-dir="b"] .toc h4{
+  margin:0 0 12px; font-family:var(--font-mono); font-size:10.5px; font-weight:600;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--faint);
+}
+[data-dir="b"] .toc a{
+  display:block; padding:6px 0 6px 12px; border-left:2px solid var(--hair);
+  font-family:var(--font-mono); font-size:11.5px; line-height:1.45;
+  color:var(--muted); text-decoration:none; transition:color .15s, border-color .15s;
+}
+[data-dir="b"] .toc a:hover{ color:var(--ink) }
+[data-dir="b"] .toc a.on{ color:var(--ink); border-left-color:var(--accent) }
+
+/* C — eine Zeile Inhalt, mitgesetzt, statt einer Rail die neben nichts steht. */
+.strip{ display:none }
+[data-dir="c"] .strip{
+  display:flex; flex-wrap:wrap; gap:0 18px; margin-top:26px;
+  font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em;
+}
+[data-dir="c"] .strip a{ color:var(--muted); text-decoration:none; padding:4px 0 }
+[data-dir="c"] .strip a:hover{ color:var(--ink) }
+[data-dir="c"] .strip a.on{ color:var(--accent) }
+
+/* ═══ Bedienleiste des Mockups (nicht Teil des Entwurfs) ══════════════════ */
+.bar{
+  position:fixed; top:0; left:0; right:0; z-index:60;
+  display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+  padding:9px 18px; font-family:var(--font-mono); font-size:11.5px;
+  background:color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--hair); color:var(--muted);
+}
+.bar .grp{ display:flex; gap:2px; border:1px solid var(--rule); border-radius:5px; padding:2px }
+.bar button{
+  font:inherit; color:var(--muted); background:none; border:0; border-radius:3px;
+  padding:4px 10px; cursor:pointer;
+}
+.bar button[aria-pressed="true"]{ background:var(--ink); color:var(--page) }
+.bar .thesis{ flex:1; min-width:14rem; color:var(--faint) }
+.bar .thesis b{ color:var(--ink); font-weight:600 }
+.page{ padding-top:104px }
+
+*:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:2px }
+
+@media (max-width:1240px){
+  [data-dir="a"] .ruler{ display:none }
+  [data-dir="b"] .toc{ position:static; float:none; width:auto; margin:0 0 2.4em; padding:0 }
+  [data-dir="b"] .toc a{ display:inline-block; border-left:0; border-bottom:2px solid var(--hair); margin-right:14px }
+  [data-dir="b"] .mat{ width:100% }
+  [data-dir="b"] .page{ max-width:100% }
+}
+@media (max-width:820px){
+  .page{ padding:96px 18px 100px }
+  .sheet{ padding:40px 22px 64px }
+  [data-dir="a"] .doc h2::before{ position:static; display:block; margin-bottom:.45em }
+  :root{ --measure:100% }
+  .doc{ max-width:100% }
+  h1{ font-size:1.9em }
+}
+@media (prefers-reduced-motion:reduce){ *{ transition:none !important; animation:none !important } }
+</style>
+</head>
+
+<body data-dir="a" data-theme="light">
+
+<div class="bar">
+  <span>Richtung</span>
+  <div class="grp" id="dirs">
+    <button data-d="a" aria-pressed="true">A · Randnummer</button>
+    <button data-d="b" aria-pressed="false">B · Werkbank</button>
+    <button data-d="c" aria-pressed="false">C · Leselampe</button>
+  </div>
+  <div class="grp" id="themes">
+    <button data-t="light" aria-pressed="true">Hell</button>
+    <button data-t="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <span class="thesis" id="thesis"></span>
+</div>
+
+<nav class="ruler" aria-label="Abschnitte">
+  <a href="#s1" data-s="s1" style="--len:96"><i></i><span>§1 Root Cause</span></a>
+  <a href="#s2" data-s="s2" style="--len:132"><i></i><span>§2 Fix</span></a>
+  <a href="#s3" data-s="s3" style="--len:70"><i></i><span>§3 Arbeitsumgebung</span></a>
+  <a href="#s4" data-s="s4" style="--len:26"><i></i><span>§4 Backlog</span></a>
+  <a href="#s5" data-s="s5" style="--len:58"><i></i><span>§5 Musterflächen</span></a>
+</nav>
+
+<div class="page">
+<div class="sheet">
+
+  <nav class="toc" aria-label="Inhalt">
+    <h4>Inhalt</h4>
+    <a href="#s1" data-s="s1">Root Cause</a>
+    <a href="#s2" data-s="s2">Fix (Option A)</a>
+    <a href="#s3" data-s="s3">Arbeitsumgebung &amp; Fallstricke</a>
+    <a href="#s4" data-s="s4">Nicht Teil dieses Fixes</a>
+    <a href="#s5" data-s="s5">Musterflächen</a>
+  </nav>
+
+  <header>
+    <div class="kicker">
+      <span class="typechip">Plan</span>
+      <span class="tag">incident</span>
+      <span class="tag">lobby</span>
+      <span class="tag">riverpod</span>
+      <span class="tag">client-version</span>
+    </div>
+
+    <h1>PackageInfo synchron injizieren</h1>
+
+    <p class="lede">
+      Fix für die Produktionsstörung „Deine App-Version ist zu alt" beim Spiel-Erstellen und
+      -Beitreten mit App 0.46.3. Von Soenne freigegeben (Option A, 05.08.2026).
+      Root Cause ist <strong>bestätigt</strong> — nicht erneut diagnostizieren.
+    </p>
+
+    <div class="prov">
+      <span class="who"><span class="ava">MS</span>Martin Söntgenrath</span>
+      <span class="fresh">schrieb vor 6 Tagen</span>
+      <span class="sep">·</span>
+      <span class="path">strassenfuchs / plans / 2026-08-05-package-info-sync-injection</span>
+      <span class="sep">·</span>
+      <span>3 min</span>
+      <span class="act">
+        <button class="btn">Bearbeiten</button>
+        <button class="btn">Anpinnen</button>
+        <button class="btn btn-danger">Archivieren</button>
+      </span>
+    </div>
+
+    <nav class="strip" aria-label="Inhalt">
+      <a href="#s1" data-s="s1">§1 Root Cause</a>
+      <a href="#s2" data-s="s2">§2 Fix</a>
+      <a href="#s3" data-s="s3">§3 Arbeitsumgebung</a>
+      <a href="#s4" data-s="s4">§4 Backlog</a>
+      <a href="#s5" data-s="s5">§5 Musterflächen</a>
+    </nav>
+  </header>
+
+  <article class="doc">
+
+    <h2 id="s1" data-num="§1">Root Cause <span style="color:var(--muted);font-weight:400">— bestätigt 05.08.2026, Fable-Session</span></h2>
+
+    <p><strong>Der Bug ist ein Riverpod-Lifecycle-Problem, KEIN Android-Problem.</strong> Die frühere
+    Diagnose „<code>packageInfoProvider</code> erreicht auf Android nie den <code>data</code>-Zustand" war ein
+    Fehlschluss — die Versionszeile auf dem Handy wurde vermutlich übersehen, 10 px bei 30 % Alpha.</p>
+
+    <p>Ablauf:</p>
+
+    <ol>
+      <li>Tap auf „NEW GAME (Host)" → <code>lobby_screen.dart</code> <code>_createSessionAndJoin()</code> setzt
+      <code>_isLoading = true</code> → der Body ersetzt <code>JoinCreateView</code> durch den Spinner.</li>
+      <li>Die Versionszeile (Consumer unten in <code>join_create_view.dart</code>) ist der <strong>einzige</strong>
+      <code>ref.watch</code>-Listener des <code>packageInfoProvider</code> — der ist <code>autoDispose</code>.
+      Unmount → Provider disposed.</li>
+      <li><code>LobbyService.createSession()</code> läuft weiter: Session-Insert → GPS-Fix →
+      <code>createHostPlayer(clientVersion: _clientVersion())</code>.</li>
+      <li><code>_clientVersion()</code> = <code>ref.read(packageInfoProvider).value?.version</code> → erzeugt einen
+      <strong>frischen Provider im AsyncLoading-Zustand</strong> → <code>.value == null</code>.</li>
+      <li>Server-Trigger <code>check_session_lobby_status</code>: <code>is_client_version_at_least(NULL, '0.46.2')</code>
+      → Fail-safe <code>false</code> → <code>RAISE 'err_client_version_too_old'</code>.</li>
+    </ol>
+
+    <p>Gleicher Mechanismus im <strong>Join-Pfad</strong>. Betrifft <strong>alle Plattformen</strong>. Der Bug
+    existiert seit jeher, wurde aber erst scharf, als S12 (0.46.2, <code>breaking-client: yes</code>)
+    <code>min_client_version</code> von <code>0.0.0</code> auf <code>0.46.2</code> hob. Erklärt auch die
+    <strong>Geister-Lobbys</strong>: Session-Insert gelingt, Spieler-Insert scheitert danach.</p>
+
+    <p>Beweise:</p>
+
+    <ul>
+      <li>Exakte Prod-APK 0.46.3 (GitHub Release Asset) im Emulator <code>Medium_Phone_API_36.1</code>:
+      zeigt „Version 0.46.3+78" <strong>und</strong> bekommt beim Erstellen trotzdem den Fehler.</li>
+      <li>Lokale podman-DB (<code>supabase_db_strassenfuchs</code>):
+      <code>is_client_version_at_least('0.46.3','0.46.2')</code> = true, <code>(NULL,'0.46.2')</code> = false,
+      <code>('0.46.3','v0.46.2')</code> = false — die v-Prefix-Falle, hier aber nicht die Ursache;
+      <code>bin/schema-target.sh</code> strippt das v korrekt.</li>
+      <li><code>min_client_version</code> in Prod = <code>0.46.2</code>, früher verifiziert via app_config und Deploy-Log.</li>
+    </ul>
+
+    <h2 id="s2" data-num="§2">Fix <span style="color:var(--muted);font-weight:400">— Option A, freigegeben</span></h2>
+
+    <p><code>PackageInfo</code> beim App-Start auflösen und synchron injizieren, exakt nach dem existierenden
+    <code>localStorageProvider</code>-Muster.</p>
+
+    <ol>
+      <li>
+        <strong><code>lib/src/shared/providers.dart</code></strong>: <code>packageInfo</code> von
+        <code>@riverpod Future&lt;PackageInfo&gt;</code> umstellen auf sync + keepAlive, Muster aus
+        <code>local_storage_provider.dart</code>:
+        <div class="mat">
+          <div class="matcap"><b>lib/src/shared/providers.dart</b> · dart</div>
+<pre><span class="a">@Riverpod</span>(keepAlive: <span class="k">true</span>)
+<span class="t">PackageInfo</span> packageInfo(<span class="t">Ref</span> ref) {
+  <span class="k">throw</span> <span class="t">UnimplementedError</span>(<span class="s">'packageInfo must be overridden in main()'</span>);
+}</pre>
+        </div>
+      </li>
+      <li><strong><code>lib/main.dart</code></strong>: nach <code>SharedPreferences.getInstance()</code> auch
+      <code>PackageInfo.fromPlatform()</code> awaiten und in die <code>ProviderScope</code>-<code>overrides</code>
+      aufnehmen. Defensiv: try/catch mit Fallback-<code>PackageInfo</code> (leere Strings) plus
+      <code>developer.log</code> — ein Plattform-Fehler darf den Start nicht killen; eine leere Version wird
+      serverseitig sauber abgelehnt statt still <code>null</code> zu sein.</li>
+      <li>
+        <strong>Call-Sites anpassen</strong> — alle drei, mehr gibt es nicht:
+        <ul>
+          <li><code>lobby_service.dart</code>, Provider-Wiring am Dateiende, ~Z. 300:
+          <code>clientVersion: () =&gt; ref.read(packageInfoProvider).version</code></li>
+          <li><code>lobby_screen.dart</code> ~Z. 426: <code>ref.read(packageInfoProvider)</code> ohne
+          <code>.value</code>, Null-Check entfällt.</li>
+          <li><code>join_create_view.dart</code> ~Z. 122–137: Consumer vereinfachen, <code>.when</code> entfällt
+          komplett — damit verschwinden die <strong>stummen <code>loading:</code>/<code>error:</code> →
+          <code>SizedBox()</code>-Zweige ersatzlos</strong>, die den Bug zwei Sessions lang unsichtbar gemacht haben.</li>
+        </ul>
+      </li>
+      <li><strong>build_runner</strong> für <code>providers.g.dart</code> laufen lassen.</li>
+      <li><strong>Tests (TDD)</strong>: Zuerst der Regressionstest, der auf dem alten Stand ROT ist — Container mit
+      echtem Wiring, <code>packageInfoProvider</code>-Watcher subscriben, Future auflösen lassen, Subscription
+      schließen, Mikrotask-Queue drehen, dann via <code>lobbyServiceProvider</code> prüfen, dass
+      <code>clientVersion()</code> <strong>nicht</strong> null ist. Alt: rot. Neu: grün.</li>
+    </ol>
+
+    <h2 id="s3" data-num="§3">Arbeitsumgebung &amp; Fallstricke</h2>
+
+    <ul>
+      <li><strong>Worktree</strong> <code>.claude/worktrees/fix+client-version-gate</code>, Branch
+      <code>fix/client-version-gate</code> @ <code>1d146a6</code> — <strong>zuerst auf <code>origin/main</code>
+      (<code>fac5b3b</code>, Release 0.46.3) rebasen oder ff</strong>, der Branch ist älter als PR #93.
+      Das Haupt-Verzeichnis steht auf <code>main</code>, dort nicht arbeiten.</li>
+      <li>Lokales Flutter ist 3.41.2, CI nutzt 3.44.7 — <code>flutter analyze</code> und <code>flutter test</code>
+      sind lokal ok, bei Format-Diffs an die Versionslücke denken.</li>
+      <li>PR-CI baut <strong>kein</strong> Android (bekannte Lücke) — für diesen rein dart-seitigen Fix irrelevant.</li>
+      <li>End-to-End: Emulator <code>Medium_Phone_API_36.1</code> läuft, Prod-APK via
+      <code>gh release download v0.46.3 --pattern '*.apk'</code>. Für einen Test-Build gegen Prod fehlen lokal die
+      dart-defines (<code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>, kein <code>.env</code> im Repo).</li>
+    </ul>
+
+    <div class="callout">
+      <span class="g">!</span>
+      <span><b>Sofort-Entsperrung, falls nötig:</b> <code>bin/set-min-client-version 0.0.0</code>. Braucht KUBECONFIG
+      auf den oracle-Cluster — von Soennes Maschine aktuell nicht erreichbar, der kubectl-Kontext hat keinen
+      supabase-Namespace.</span>
+    </div>
+
+    <h2 id="s4" data-num="§4">Nicht Teil dieses Fixes</h2>
+
+    <ul>
+      <li>Geister-Lobbys aufräumen und <code>createSession</code> transaktional machen — 8 Stück in Prod.</li>
+      <li>Review-Findings C-1 bis C-9 und S12-5 bis S12-8, siehe
+      <a class="wl" href="#">reviews/2026-08-05-main-branch-tri-model-review</a>.</li>
+    </ul>
+
+    <h2 id="s5" data-num="§5">Musterflächen <span style="color:var(--muted);font-weight:400">— nicht Teil des Dokuments</span></h2>
+
+    <p>Ab hier steht Mockup-Material, damit Tabelle, Zitat und ein kaputter Verweis in allen drei Richtungen
+    beurteilt werden können.</p>
+
+    <div class="mat">
+      <table>
+        <thead>
+          <tr><th>Absicht</th><th>Werkzeug</th><th style="text-align:right">Aufrufe</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Node anlegen</td><td><code>flow_create_node</code></td><td class="num" style="text-align:right">41</td></tr>
+          <tr><td>Verzeichnis binden</td><td><code>flow_bind_project</code></td><td class="num" style="text-align:right">18</td></tr>
+          <tr><td>Umhängen oder zur Wurzel machen</td><td><code>flow_move_node</code></td><td class="num" style="text-align:right">6</td></tr>
+          <tr><td>Löschen</td><td><code>flow_delete_node</code></td><td class="num" style="text-align:right">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <blockquote>Binden ist ein Upsert. Ein Ziel erneut zu binden verschiebt es ohne Fehler und ohne Warnung
+    auf den neuen Node.</blockquote>
+
+    <p>Ein Verweis, dessen Ziel es nicht mehr gibt, sagt das —
+    <a class="wl wl-broken" href="#" title="Kein Dokument mit diesem Pfad">notes/alter-pfad-der-weg-ist</a> —
+    statt sich rot durchzustreichen.</p>
+
+  </article>
+
+  <section class="rel">
+    <h4>Beziehungen</h4>
+    <div class="relrow"><span class="dir">verweist</span><span class="t">Konsolidiertes Findings-Backlog — Straßenfuchs</span><span class="m">27 min · vor 16 Std</span></div>
+    <div class="relrow"><span class="dir">verweist</span><span class="t">Review 2026-08-05 — main branch, tri-model</span><span class="m">14 min · vor 6 Tagen</span></div>
+    <div class="relrow"><span class="dir">hierher</span><span class="t">Todo: Nacharbeiten aus dem Client-Version-Gate</span><span class="m">2 min · vor 5 Tagen</span></div>
+    <div class="relrow"><span class="dir">hierher</span><span class="t">Audit: stille Null-/Discard-Zweige im Lobby-Flow</span><span class="m">9 min · vor 4 Tagen</span></div>
+  </section>
+
+</div>
+</div>
+
+<script>
+(function(){
+  var THESES = {
+    a: "<b>A · Randnummer</b> — Serifen-Buchsatz auf weißem Blatt. Struktur steht in der Marginalspalte, nicht als Linie quer durch den Satz. Farbe ist Ausnahme: vier Dinge auf der Seite sind farbig, alles andere ist Tinte. Das Lineal links zeigt die Länge jedes Abschnitts.",
+    b: "<b>B · Werkbank</b> — Serifenlos, dicht, für die Arbeit neben dem Editor. Prosa bleibt schmal, Material bricht nach rechts aus und liegt auf Bildschirm-Grund: Text ist Papier, Code ist Schirm. Überschriften sprechen Markdown. Der Inhalt bleibt stehen.",
+    c: "<b>C · Leselampe</b> — Zuhause ist hier dunkel. Die Lesespalte ist eine beleuchtete Fläche auf dunklem Tisch, größerer Grad, weiter geführt. Die Gliederung trägt eine Mono-Kolumne, keine Trennlinie. Hell existiert als Zwilling."
+  };
+  var body = document.body, thesis = document.getElementById('thesis');
+  function press(container, attr, val){
+    container.querySelectorAll('button').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset[attr] === val));
+    });
+  }
+  function setDir(d){
+    body.dataset.dir = d; press(document.getElementById('dirs'), 'd', d);
+    thesis.innerHTML = THESES[d];
+    if (d === 'c') setTheme('dark');
+  }
+  function setTheme(t){
+    body.dataset.theme = t; press(document.getElementById('themes'), 't', t);
+  }
+  document.getElementById('dirs').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (b) setDir(b.dataset.d);
+  });
+  document.getElementById('themes').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (b) setTheme(b.dataset.t);
+  });
+  setDir('a');
+
+  // Gliederung folgt dem Lesen — Lineal, Inhalt und Streifen teilen sich einen Beobachter.
+  var marks = [].slice.call(document.querySelectorAll('[data-s]'));
+  var heads = [].slice.call(document.querySelectorAll('.doc h2'));
+  function activate(id){
+    marks.forEach(function(m){ m.classList.toggle('on', m.dataset.s === id); });
+  }
+  if ('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if (en.isIntersecting) activate(en.target.id); });
+    }, { rootMargin: '-15% 0px -70% 0px' });
+    heads.forEach(function(h){ io.observe(h); });
+  }
+})();
+</script>
+</body>
+</html>
