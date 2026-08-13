@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/serverkraken/flow/compare/v2.3.0...v2.3.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **auth:** stop revoked token retry loops ([#76](https://github.com/serverkraken/flow/issues/76)) ([e6b476d](https://github.com/serverkraken/flow/commit/e6b476d52595a4714790cc67e0ced14df8467e5b))
+
 ## [2.3.0](https://github.com/serverkraken/flow/compare/v2.2.1...v2.3.0) (2026-08-02)
 
 
