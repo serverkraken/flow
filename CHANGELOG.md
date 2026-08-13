@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.2](https://github.com/serverkraken/flow/compare/v2.3.1...v2.3.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* **clientauth:** coordinate cross-process token refresh ([#78](https://github.com/serverkraken/flow/issues/78)) ([ea0dbad](https://github.com/serverkraken/flow/commit/ea0dbad84d2d073d2d73f12c383d23827152e0e4))
+
 ## [2.3.1](https://github.com/serverkraken/flow/compare/v2.3.0...v2.3.1) (2026-08-13)
 
 
