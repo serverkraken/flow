@@ -5,8 +5,6 @@ import (
 	"errors"
 	"sync"
 
-	"golang.org/x/oauth2"
-
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/clientauth"
 )
@@ -20,13 +18,8 @@ var errLoginRequired = errors.New("login required")
 // auth error drops and rebuilds the client so a fresh `flow login` is picked up
 // without an MCP reconnect.
 type authManager struct {
-	// base is the process-lifetime context the client is BUILT against. The
-	// built apiclient's oauth2 token source bakes its context in at
-	// construction and reuses it for every refresh (clientauth.lazyDeviceSource),
-	// so building against a per-request context would leave the cached refresher
-	// holding a canceled context the moment that request ends → every later
-	// refresh fails "oidcdevice: context canceled", which is not an auth error,
-	// so the wedged client is never rebuilt (no reconnect recovers it in-process).
+	// base is the process-lifetime context the client is built against. Actual
+	// refreshes additionally use each HTTP request's shorter deadline.
 	base   context.Context
 	build  func(ctx context.Context) (*apiclient.Client, error)
 	onAuth func(ctx context.Context, c *apiclient.Client)
@@ -41,8 +34,9 @@ func newAuthManager(build func(context.Context) (*apiclient.Client, error), onAu
 
 // client returns the current authenticated client, building it (which re-reads
 // the stored token) when absent. After every successful build it fires onAuth
-// outside the lock (onAuth must not call back into client). A
-// build failure is normalized to errLoginRequired.
+// outside the lock (onAuth must not call back into client). Only a missing
+// credential is normalized to errLoginRequired; transient build failures pass
+// through unchanged.
 func (m *authManager) client(ctx context.Context) (*apiclient.Client, error) {
 	// Fail fast if the triggering request is already canceled — but build the
 	// client itself against m.base, never ctx (see the base field doc): the
@@ -59,7 +53,10 @@ func (m *authManager) client(ctx context.Context) (*apiclient.Client, error) {
 	c, err := m.build(m.base)
 	if err != nil {
 		m.mu.Unlock()
-		return nil, errLoginRequired
+		if errors.Is(err, clientauth.ErrNotLoggedIn) {
+			return nil, errLoginRequired
+		}
+		return nil, err
 	}
 	m.cur = c
 	m.mu.Unlock()
@@ -85,7 +82,7 @@ func (m *authManager) reset() {
 func (m *authManager) Do(ctx context.Context, fn func(c *apiclient.Client) error) error {
 	c, err := m.client(ctx)
 	if err != nil {
-		return err // already errLoginRequired
+		return err
 	}
 	if err := fn(c); err == nil {
 		return nil
@@ -96,7 +93,7 @@ func (m *authManager) Do(ctx context.Context, fn func(c *apiclient.Client) error
 	m.reset()
 	c, err = m.client(ctx)
 	if err != nil {
-		return err // errLoginRequired
+		return err
 	}
 	if err := fn(c); err != nil {
 		if isAuthError(err) {
@@ -108,8 +105,8 @@ func (m *authManager) Do(ctx context.Context, fn func(c *apiclient.Client) error
 }
 
 // isAuthError reports whether err means "the credential is bad" (so a rebuild
-// from the store might help) rather than a transport/server failure. It matches
-// an HTTP 401, the not-logged-in sentinel, and an OAuth refresh failure.
+// from the store might help) rather than a transient transport, provider, lock,
+// or store failure.
 func isAuthError(err error) bool {
 	if err == nil {
 		return false
@@ -120,6 +117,5 @@ func isAuthError(err error) bool {
 	if errors.Is(err, clientauth.ErrNotLoggedIn) {
 		return true
 	}
-	var re *oauth2.RetrieveError
-	return errors.As(err, &re)
+	return false
 }

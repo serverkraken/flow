@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"golang.org/x/oauth2"
-
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/clientauth"
 )
@@ -49,6 +47,18 @@ func TestAuthManager_NoTokenReturnsLoginRequired_NoOnAuth(t *testing.T) {
 	}
 	if auths != 0 {
 		t.Fatal("onAuth must not fire when auth never succeeded")
+	}
+}
+
+func TestAuthManager_TransientBuildErrorIsNotLogout(t *testing.T) {
+	sentinel := errors.New("token lock timed out")
+	m := newAuthManager(
+		func(context.Context) (*apiclient.Client, error) { return nil, sentinel },
+		nil,
+	)
+	_, err := m.client(context.Background())
+	if !errors.Is(err, sentinel) || errors.Is(err, errLoginRequired) {
+		t.Fatalf("err = %v, want transient build error", err)
 	}
 }
 
@@ -151,15 +161,10 @@ func TestAuthManager_Do_RecoversAfterReLogin(t *testing.T) {
 	}
 }
 
-// TestAuthManager_BuildUsesProcessContextNotRequest is the regression guard for
-// the "oidcdevice: context canceled" wedge. The built apiclient's oauth2 token
-// source bakes in whatever context it is constructed with and reuses it for
-// every later refresh (clientauth.lazyDeviceSource). If the manager builds it
-// against a per-request context, that context is canceled when the request
-// ends, so the cached refresher then fails every refresh with "context
-// canceled" — which is not an auth error, so the wedged client is never rebuilt
-// and no `flow login`/reconnect recovers within the process. The manager must
-// build against a process-lifetime context.
+// TestAuthManager_BuildUsesProcessContextNotRequest guards the original
+// "oidcdevice: context canceled" wedge. Client construction and initial store
+// loading use a process-lifetime context; the coordinated auth transport later
+// overlays each HTTP request's shorter deadline for refresh work.
 func TestAuthManager_BuildUsesProcessContextNotRequest(t *testing.T) {
 	var gotBuildCtx context.Context
 	m := newAuthManager(
@@ -200,11 +205,8 @@ func TestIsAuthError(t *testing.T) {
 	}
 }
 
-func TestIsAuthError_OAuthRetrieveError(t *testing.T) {
-	if !isAuthError(&oauth2.RetrieveError{Response: &http.Response{StatusCode: 400}}) {
-		t.Error("oauth2.RetrieveError is an auth error")
-	}
-	if !isAuthError(fmt.Errorf("refresh: %w", &oauth2.RetrieveError{})) {
-		t.Error("wrapped oauth2.RetrieveError is an auth error")
+func TestIsAuthError_TransientProviderErrorIsNotLogout(t *testing.T) {
+	if isAuthError(fmt.Errorf("refresh: temporarily unavailable")) {
+		t.Error("transient provider error is not an auth error")
 	}
 }

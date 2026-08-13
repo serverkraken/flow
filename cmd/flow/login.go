@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -43,7 +44,7 @@ func loginCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("login failed (the code may have expired or been denied): %w", err)
 			}
-			if err := tokenstore.Open().Save(ports.Token{
+			if err := saveStoredToken(ctx, tokenstore.Open(), ports.Token{
 				AccessToken:  tok.AccessToken,
 				RefreshToken: tok.RefreshToken,
 				Expiry:       tok.Expiry,
@@ -68,4 +69,10 @@ func loginCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func saveStoredToken(ctx context.Context, store ports.TokenStore, token ports.Token) error {
+	return store.WithLock(ctx, func(session ports.TokenStoreSession) error {
+		return session.Save(token)
+	})
 }

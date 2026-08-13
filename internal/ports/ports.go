@@ -41,11 +41,18 @@ type Token struct {
 	Expiry       time.Time
 }
 
-// TokenStore persists the CLI/TUI token between invocations.
-type TokenStore interface {
+// TokenStoreSession exposes credential operations only while the caller holds
+// the TokenStore's cross-process lock.
+type TokenStoreSession interface {
 	Save(t Token) error
 	Load() (t Token, ok bool, err error)
 	Clear() error
+}
+
+// TokenStore serializes every credential transaction across local processes.
+// Callers cannot access credentials without explicitly entering WithLock.
+type TokenStore interface {
+	WithLock(ctx context.Context, fn func(TokenStoreSession) error) error
 }
 
 type TokenVerifier interface {
