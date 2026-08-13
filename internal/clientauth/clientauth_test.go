@@ -3,6 +3,7 @@ package clientauth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,15 +21,77 @@ type fakeSource struct{ tok *oauth2.Token }
 
 func (f fakeSource) Token() (*oauth2.Token, error) { return f.tok, nil }
 
+type errorSource struct {
+	err   error
+	calls int
+}
+
+func (s *errorSource) Token() (*oauth2.Token, error) {
+	s.calls++
+	return nil, s.err
+}
+
 // memStore is an in-memory TokenStore.
 type memStore struct {
-	saved ports.Token
-	calls int
+	saved      ports.Token
+	calls      int
+	clearCalls int
 }
 
 func (m *memStore) Save(t ports.Token) error         { m.saved = t; m.calls++; return nil }
 func (m *memStore) Load() (ports.Token, bool, error) { return m.saved, m.calls > 0, nil }
-func (m *memStore) Clear() error                     { m.saved = ports.Token{}; return nil }
+func (m *memStore) Clear() error {
+	m.saved = ports.Token{}
+	m.clearCalls++
+	return nil
+}
+
+func TestPersistingSourceInvalidGrantClearsAndStopsRetrying(t *testing.T) {
+	base := &errorSource{err: &oauth2.RetrieveError{
+		Response:  &http.Response{StatusCode: http.StatusBadRequest},
+		ErrorCode: "invalid_grant",
+	}}
+	store := &memStore{saved: ports.Token{AccessToken: "stale", RefreshToken: "revoked"}}
+	src := &persistingSource{base: base, store: store, last: store.saved}
+
+	for i := 0; i < 2; i++ {
+		_, err := src.Token()
+		if !errors.Is(err, ErrNotLoggedIn) {
+			t.Fatalf("Token call %d error = %v, want ErrNotLoggedIn", i+1, err)
+		}
+	}
+	if base.calls != 1 {
+		t.Fatalf("base Token called %d times, want exactly once after terminal invalid_grant", base.calls)
+	}
+	if store.clearCalls != 1 {
+		t.Fatalf("store Clear called %d times, want exactly once", store.clearCalls)
+	}
+	if store.saved != (ports.Token{}) {
+		t.Fatalf("stored token not cleared: %+v", store.saved)
+	}
+}
+
+func TestPersistingSourceTransientRetrieveErrorIsNotClearedOrLatched(t *testing.T) {
+	base := &errorSource{err: &oauth2.RetrieveError{
+		Response:  &http.Response{StatusCode: http.StatusServiceUnavailable},
+		ErrorCode: "temporarily_unavailable",
+	}}
+	store := &memStore{saved: ports.Token{AccessToken: "old", RefreshToken: "still-valid"}}
+	src := &persistingSource{base: base, store: store, last: store.saved}
+
+	for i := 0; i < 2; i++ {
+		_, err := src.Token()
+		if err == nil || errors.Is(err, ErrNotLoggedIn) {
+			t.Fatalf("Token call %d error = %v, want retryable provider error", i+1, err)
+		}
+	}
+	if base.calls != 2 {
+		t.Fatalf("base Token called %d times, want transient failure retried by later callers", base.calls)
+	}
+	if store.clearCalls != 0 {
+		t.Fatalf("store Clear called %d times for transient failure", store.clearCalls)
+	}
+}
 
 func TestPersistingSourceSavesOnChange(t *testing.T) {
 	store := &memStore{}
