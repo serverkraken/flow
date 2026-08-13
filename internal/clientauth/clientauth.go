@@ -73,17 +73,39 @@ type persistingSource struct {
 	base  oauth2.TokenSource
 	store ports.TokenStore
 
-	mu   sync.Mutex
-	last ports.Token
+	mu       sync.Mutex
+	last     ports.Token
+	terminal error
 }
 
 func (p *persistingSource) Token() (*oauth2.Token, error) {
-	tok, err := p.base.Token()
-	if err != nil {
-		return nil, err
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.terminal != nil {
+		return nil, p.terminal
+	}
+	tok, err := p.base.Token()
+	if err != nil {
+		var retrieveErr *oauth2.RetrieveError
+		if !errors.As(err, &retrieveErr) || retrieveErr.ErrorCode != "invalid_grant" {
+			return nil, err
+		}
+		if clearErr := p.store.Clear(); clearErr != nil {
+			p.terminal = fmt.Errorf(
+				"clientauth: refresh token rejected (%v), clear stored token: %v: %w",
+				err,
+				clearErr,
+				ErrNotLoggedIn,
+			)
+			return nil, p.terminal
+		}
+		p.last = ports.Token{}
+		p.terminal = fmt.Errorf("clientauth: refresh token rejected (%v): %w", err, ErrNotLoggedIn)
+		return nil, p.terminal
+	}
+	if tok == nil {
+		return nil, errors.New("clientauth: token source returned a nil token")
+	}
 	refresh := tok.RefreshToken
 	if refresh == "" {
 		refresh = p.last.RefreshToken
