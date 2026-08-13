@@ -21,6 +21,9 @@ func TestFileStoreRoundTrip(t *testing.T) {
 	if err := s.Save(want); err != nil {
 		t.Fatal(err)
 	}
+	if matches, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".token-*.tmp")); err != nil || len(matches) != 0 {
+		t.Fatalf("temporary token files after atomic save = %v, err=%v", matches, err)
+	}
 
 	info, err := os.Stat(path)
 	if err != nil {

@@ -24,14 +24,44 @@ type fileToken struct {
 }
 
 func (s *fileStore) Save(t ports.Token) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
+	dir := filepath.Dir(s.path)
+	if err := ensurePrivateDir(dir); err != nil {
 		return err
 	}
 	b, err := json.Marshal(fileToken{t.AccessToken, t.RefreshToken, t.Expiry})
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, b, 0o600)
+	f, err := os.CreateTemp(dir, ".token-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer func() { _ = os.Remove(tmp) }()
+	if err := f.Chmod(0o600); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, s.path); err != nil {
+		return err
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = d.Close() }()
+	return d.Sync()
 }
 
 func (s *fileStore) Load() (ports.Token, bool, error) {

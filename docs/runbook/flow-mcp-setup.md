@@ -83,9 +83,23 @@ This performs an OIDC device-flow: the CLI prints a URL and a code, you open the
 
 After the first `flow login`, run `/mcp` inside Claude Code to confirm the server has loaded its tools. If the server was already connected before you authenticated, use the reconnect option in the `/mcp` panel to reload it with the new credentials.
 
-**Durable re-authentication (Säule A)**
+**Durable authentication and token refresh**
 
-When the OIDC access token expires, the tools will return an error. To restore them, run `flow login` again in a terminal. The server lazily rebuilds its authenticated client on the next tool call — no `/mcp` reconnect in Claude Code is required. This property holds for all subsequent re-authentications after the initial setup.
+Normal OIDC access-token expiry is handled transparently. `flow`, the TUI,
+tmux status commands, and `flow-mcp` share one per-user token store and
+coordinate refresh-token rotation through the same cross-process lock. A
+process that was waiting for another process to refresh re-reads and adopts the
+stored successor instead of starting a second refresh.
+
+Run `flow login` again only when the provider has actually revoked the current
+credentials and the tools report `Login required`. The server lazily rebuilds
+its authenticated client on the next tool call, so no `/mcp` reconnect in
+Claude Code is required after re-authentication.
+
+If lock acquisition reaches the calling operation's deadline, the error is
+temporary: retry the operation. The tmux status command keeps its two-second
+budget and falls back to its stale cached segment instead of treating lock
+contention as a logout.
 
 ---
 
