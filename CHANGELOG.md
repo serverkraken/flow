@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.3](https://github.com/serverkraken/flow/compare/v2.3.2...v2.3.3) (2026-08-14)
+
+
+### Bug Fixes
+
+* **auth:** make refresh cancellation-safe ([#80](https://github.com/serverkraken/flow/issues/80)) ([5809e93](https://github.com/serverkraken/flow/commit/5809e93f7d27d7a66d56262676673ef05dbe8fa2))
+
 ## [2.3.2](https://github.com/serverkraken/flow/compare/v2.3.1...v2.3.2) (2026-08-13)
 
 
