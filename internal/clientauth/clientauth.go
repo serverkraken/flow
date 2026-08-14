@@ -69,6 +69,10 @@ func (s *coordinatedSource) tokenContext(callCtx context.Context) (*oauth2.Token
 	}
 	s.mu.Unlock()
 
+	// The caller bounds lock waiting and every pre-flight check. Once the OAuth
+	// request starts, however, Authentik may already have irreversibly rotated
+	// the refresh token. That mutation must run through persistence even if the
+	// originating HTTP request times out meanwhile.
 	ctx, cancel := context.WithTimeout(mergeContext(callCtx, s.baseCtx), refreshTimeout)
 	defer cancel()
 	var result *oauth2.Token
@@ -90,7 +94,12 @@ func (s *coordinatedSource) tokenContext(callCtx context.Context) (*oauth2.Token
 			return fmt.Errorf("access token expired and FLOW_OIDC_ISSUER is not set: %w", ErrNotLoggedIn)
 		}
 
-		result, err = s.refreshLocked(ctx, session, current)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		refreshCtx, refreshCancel := context.WithTimeout(context.WithoutCancel(ctx), refreshTimeout)
+		defer refreshCancel()
+		result, err = s.refreshLocked(refreshCtx, session, current)
 		return err
 	})
 	if err != nil {

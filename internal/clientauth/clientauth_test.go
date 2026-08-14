@@ -403,23 +403,73 @@ func TestTwoSourcesShareOneRotatingRefresh(t *testing.T) {
 	}
 }
 
-func TestRequestDeadlineWinsDuringRefresh(t *testing.T) {
+func TestRefreshCompletesAndPersistsAfterRequestDeadline(t *testing.T) {
 	old := expired("old", "refresh")
 	store := newMemoryStore(old)
 	source := newCoordinatedSource(context.Background(), clientconfig.Config{}, store, old)
+	refreshStarted := make(chan struct{})
+	releaseRefresh := make(chan struct{})
 	source.refresh = func(ctx context.Context, _ ports.Token) (*oauth2.Token, error) {
-		<-ctx.Done()
-		return nil, ctx.Err()
+		close(refreshStarted)
+		<-releaseRefresh
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return &oauth2.Token{
+			AccessToken:  "fresh",
+			RefreshToken: "successor",
+			Expiry:       time.Now().Add(time.Hour),
+		}, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
-	started := time.Now()
-	_, err := source.tokenContext(ctx)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("error = %v", err)
+	type result struct {
+		token *oauth2.Token
+		err   error
 	}
-	if elapsed := time.Since(started); elapsed > time.Second {
-		t.Fatalf("request deadline did not bound refresh: %v", elapsed)
+	done := make(chan result, 1)
+	go func() {
+		token, err := source.tokenContext(ctx)
+		done <- result{token: token, err: err}
+	}()
+	<-refreshStarted
+	<-ctx.Done()
+	select {
+	case got := <-done:
+		close(releaseRefresh)
+		t.Fatalf("refresh returned at the request deadline: token=%+v err=%v", got.token, got.err)
+	default:
+	}
+	close(releaseRefresh)
+	got := <-done
+	if got.err != nil || got.token.AccessToken != "fresh" || got.token.RefreshToken != "successor" {
+		t.Fatalf("result = %+v, %v", got.token, got.err)
+	}
+	stored, ok, _, _, saves, clears := store.snapshot()
+	if !ok || stored.AccessToken != "fresh" || stored.RefreshToken != "successor" || saves != 1 || clears != 0 {
+		t.Fatalf("stored=%+v ok=%v saves=%d clears=%d", stored, ok, saves, clears)
+	}
+}
+
+func TestCanceledRequestBeforeRefreshDoesNotMutate(t *testing.T) {
+	old := expired("old", "refresh")
+	store := newMemoryStore(old)
+	source := newCoordinatedSource(context.Background(), clientconfig.Config{}, store, old)
+	refreshCalls := 0
+	source.refresh = func(context.Context, ports.Token) (*oauth2.Token, error) {
+		refreshCalls++
+		return nil, errors.New("must not refresh")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := source.tokenContext(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	stored, ok, _, _, saves, clears := store.snapshot()
+	if refreshCalls != 0 || !ok || !sameToken(stored, old) || saves != 0 || clears != 0 {
+		t.Fatalf("refreshCalls=%d stored=%+v ok=%v saves=%d clears=%d", refreshCalls, stored, ok, saves, clears)
 	}
 }
 
