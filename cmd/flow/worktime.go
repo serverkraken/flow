@@ -37,6 +37,6 @@ func worktimeCmd() *cobra.Command {
 			return err
 		},
 	}
-	cmd.AddCommand(worktimeImportCmd(), worktimeStatusCmd(), worktimeStopCmd())
+	cmd.AddCommand(worktimeImportCmd(), worktimeStatusCmd(), worktimeStatusRefreshCmd(), worktimeStopCmd())
 	return cmd
 }

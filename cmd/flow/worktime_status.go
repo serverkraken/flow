@@ -1,9 +1,10 @@
 package main
 
 import (
-	"context"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -22,14 +23,9 @@ func worktimeStatusCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			opts := tmuxopts.Read()
 			ro := statusRenderOpts{Palette: tmuxopts.Palette(opts), MaxStreakMin: tmuxopts.MaxStreak(opts)}
-			fetch := func(ctx context.Context) (apiclient.WorktimeStatus, error) {
-				c, err := clientFromStore(ctx) // NEVER triggers device flow on a plain read
-				if err != nil {
-					return apiclient.WorktimeStatus{}, err
-				}
-				return c.GetWorktimeStatus(ctx)
-			}
-			seg := renderStatus(cmd.Context(), time.Now(), statusCachePath(), fetch, ro)
+			seg := renderStatus(time.Now(), statusCachePath(), func() {
+				_ = spawnWorktimeStatusRefresh()
+			}, ro)
 			if seg != "" {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), seg)
 			}
@@ -38,24 +34,41 @@ func worktimeStatusCmd() *cobra.Command {
 	}
 }
 
+var spawnWorktimeStatusRefresh = startWorktimeStatusRefresh
+
+// startWorktimeStatusRefresh starts a detached cache worker. It deliberately
+// does not inherit the render command's context: the renderer exits as soon as
+// the child is started, while the worker owns its bounded refresh lifecycle.
+func startWorktimeStatusRefresh() error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(executable, "worktime", "status-refresh")
+	cmd.Stdin = nil
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
+}
+
 type statusRenderOpts struct {
 	Palette      statusline.StatusPalette
 	MaxStreakMin int
 }
 
-// renderStatus is the pure tick: fresh cache → render; else fetch (2s, derived
-// from the command's context so a signal still cancels) → renew + render; on
-// fetch error → stale (dim) render, or empty when >30min old / no cache.
-func renderStatus(parent context.Context, now time.Time, cachePath string, fetch func(context.Context) (apiclient.WorktimeStatus, error), ro statusRenderOpts) string {
+// renderStatus is the cache-only tick. Stale or absent data schedules a
+// detached refresh and returns immediately; it never performs I/O beyond the
+// local cache read and process spawn.
+func renderStatus(now time.Time, cachePath string, triggerRefresh func(), ro statusRenderOpts) string {
 	entry, ok := statuscache.Read(cachePath)
 	if ok && entry.Fresh(now) {
 		return render(entry.Status, now, ro, false)
 	}
-	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
-	defer cancel()
-	if st, err := fetch(ctx); err == nil {
-		_ = statuscache.Write(cachePath, statuscache.Entry{FetchedAt: now, Status: st})
-		return render(st, now, ro, false)
+	if triggerRefresh != nil {
+		triggerRefresh()
 	}
 	if !ok || entry.Expired(now) {
 		return "" // no usable cache → suppress the segment entirely
