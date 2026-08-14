@@ -5,11 +5,14 @@ package statuscache
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -64,4 +67,39 @@ func Write(path string, e Entry) error {
 		return err
 	}
 	return os.Rename(tmpName, path)
+}
+
+// TryWithRefreshLock runs fn only when this process can immediately acquire
+// the cache's cross-process refresh lock. A busy lock is a normal no-op: tmux
+// may start several render processes while one detached worker is fetching.
+func TryWithRefreshLock(cachePath string, fn func() error) (bool, error) {
+	dir := filepath.Dir(cachePath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return false, fmt.Errorf("statuscache: create lock directory: %w", err)
+	}
+	lockPath := cachePath + ".refresh.lock"
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return false, fmt.Errorf("statuscache: open refresh lock: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := f.Chmod(0o600); err != nil {
+		return false, fmt.Errorf("statuscache: secure refresh lock: %w", err)
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+			return false, nil
+		}
+		return false, fmt.Errorf("statuscache: acquire refresh lock: %w", err)
+	}
+
+	callbackErr := fn()
+	unlockErr := unix.Flock(int(f.Fd()), unix.LOCK_UN)
+	if callbackErr != nil {
+		return true, callbackErr
+	}
+	if unlockErr != nil {
+		return true, fmt.Errorf("statuscache: release refresh lock: %w", unlockErr)
+	}
+	return true, nil
 }

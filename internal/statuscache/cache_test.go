@@ -3,6 +3,7 @@ package statuscache_test
 import (
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -67,5 +68,37 @@ func TestWrite_AtomicNoLeftoverTmp(t *testing.T) {
 	}
 	if got, ok := statuscache.Read(p); !ok || got.Status.LoggedMin != 2 {
 		t.Errorf("last write must win, got ok=%v %+v", ok, got)
+	}
+}
+
+func TestTryWithRefreshLock_DeduplicatesWorkers(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "worktime-status.json")
+	held := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		_, err := statuscache.TryWithRefreshLock(p, func() error {
+			close(held)
+			<-release
+			return nil
+		})
+		done <- err
+	}()
+	<-held
+
+	var entered atomic.Bool
+	acquired, err := statuscache.TryWithRefreshLock(p, func() error {
+		entered.Store(true)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acquired || entered.Load() {
+		t.Fatal("contending worker must return immediately without entering")
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
