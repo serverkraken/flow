@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="font-family:'Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;color:#26241E;max-width:{{ maxW }}">
+  <div style="display:flex;align-items:baseline;gap:10px">
+    <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:{{ tone }}">{{ typeLabel }}</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A8578">{{ path }}</span>
+    <span style="flex:1"></span>
+    <a href="#" style="font-size:12.5px;font-weight:600;color:#B8720F">Bearbeiten</a>
+    <a href="#" style="font-size:12.5px;font-weight:600;color:#8A8578">Anpinnen</a>
+    <a href="#" style="font-size:12.5px;font-weight:600;color:#8A8578">Archiv</a>
+  </div>
+  <h1 style="font-size:30px;font-weight:750;letter-spacing:-.02em;line-height:1.15;margin:14px 0 0;text-wrap:pretty">{{ title }}</h1>
+  <p style="font-size:12.5px;color:#8A8578;margin:8px 0 0">{{ meta }}</p>
+
+  <div style="font-size:16.5px;line-height:1.82;color:#33312A;margin-top:24px">
+
+    <div style="display:flex;gap:12px;background:#F6E8E4;padding:14px 18px;margin:0 0 22px">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#B4452F;flex-shrink:0;padding-top:4px">Achtung</span>
+      <span style="font-size:14px;line-height:1.65;color:#5C5748">Status: <b style="font-weight:650">Entwurf, nicht abgenommen.</b> Stand 2026-08-11. Die Mockups liegen als PR <a href="#" style="color:#B8720F;text-decoration:underline dotted 1px;text-underline-offset:3px">serverkraken/flow#74</a> auf Branch <span style="font-family:'JetBrains Mono',monospace;font-size:12px">docs/webui-neukonzeption-mockups</span>. Der tragende Entwurf ist <span style="font-family:'JetBrains Mono',monospace;font-size:12px">konzept.html</span> — eigenständig, Schriften als data-URI eingebettet.</span>
+    </div>
+
+    <p style="margin:0">Soenne, 2026-08-11: Markdown-Seiten schwer lesbar — Layout, Farbschema, Schrift — und „die Art, wie die Informationen eines Projekts / Vorhabens dargestellt werden“ unbefriedigend. Im Verlauf verschärft zu <b style="font-weight:650">„das zieht sich durch die komplette Seite“</b> und <b style="font-weight:650">„vielleicht können wir komplett neu konzeptionieren“</b>. Freigegebener Rahmen: freie Neuinterpretation der Lesesaal-Identität — Farbe, Schrift, Raster und IA sind verhandelbar.</p>
+
+    <h2 style="font-size:20px;font-weight:750;letter-spacing:-.015em;color:#26241E;margin:2em 0 0;padding-top:1em;border-top:1px solid #E6E1D4">1 · Der Entwurf in drei Bildern</h2>
+    <p style="margin:.9em 0 0">Die Wurzel „Alles“ ersetzt Startseite, Bibliothek und Knotenliste; der Knoten zeigt die README als Deckeltext samt Abbildung; das Dokument bleibt im Rahmen, und der Baum markiert seine Herkunft. Die Abbildungen liegen auf eigenem Blatt — im Dunkelentwurf ist das die einzige Stelle, an der Weiß vorkommt, und genau daran liest man „hier liegt ein Bild“.</p>
+
+    <figure style="margin:1.8em 0 0">
+      <span style="display:block;background:#1A1815;border:1px solid #E0DACB;padding:10px"><img src="images/webui-konzept-wurzel.png" alt="Wurzelansicht „Alles“ mit Rückgrat, Lage, Wissen" style="display:block;width:100%;height:auto"></span>
+      <figcaption style="font-size:12.5px;color:#8A8578;margin-top:9px"><b style="color:#8A8578;font-weight:600">Abb. 1</b> — Die Wurzel „Alles“. Drei Engagements, sieben Vorhaben, 31 Repos. <span style="font-family:'JetBrains Mono',monospace;font-size:12px">LAGE</span> nach Dringlichkeit statt nach Datentyp; die Kontext-Warnung „11.986 von 12.000 Token, 2 Dokumente fallen raus“ steht oben statt in einer Rail-Kachel.</figcaption>
+    </figure>
+
+    <figure style="margin:1.8em 0 0">
+      <span style="display:block;background:#1A1815;border:1px solid #E0DACB;padding:10px"><img src="images/webui-konzept-knoten.png" alt="Knotenansicht mit README als Deckeltext" style="display:block;width:100%;height:auto"></span>
+      <figcaption style="font-size:12.5px;color:#8A8578;margin-top:9px"><b style="color:#8A8578;font-weight:600">Abb. 2</b> — Der Knoten. Engagement, Vorhaben und Repo teilen sich denselben Seitentyp und dieselbe Reihenfolge; nur die Tiefe unterscheidet sich. Die README steht als Deckeltext, nicht als Abschnitt zwischen anderen.</figcaption>
+    </figure>
+
+    <figure style="margin:1.8em 0 0">
+      <span style="display:block;background:#1A1815;border:1px solid #E0DACB;padding:10px"><img src="images/webui-konzept-dokument.png" alt="Dokumentansicht im Rahmen, Baum markiert die Herkunft" style="display:block;width:100%;height:auto"></span>
+      <figcaption style="font-size:12.5px;color:#8A8578;margin-top:9px"><b style="color:#8A8578;font-weight:600">Abb. 3</b> — Die Lesefläche bleibt im Rahmen. Eine frühere Fassung ließ ihn verschwinden; das wurde verworfen — die Begründung war ästhetisch, funktional kostet der Baum nichts.</figcaption>
+    </figure>
+
+    <h2 style="font-size:20px;font-weight:750;letter-spacing:-.015em;color:#26241E;margin:2em 0 0;padding-top:1em;border-top:1px solid #E6E1D4">2 · Diagnose</h2>
+    <p style="margin:.9em 0 0"><b style="font-weight:650">Die App ist nach Datentypen organisiert, nicht nach Fragen.</b> Drei Reiter, benannt nach den drei Tabellen: <code style="font-family:'JetBrains Mono',monospace;font-size:.87em;background:#FFFFFF;border:1px solid #E6E1D4;padding:.1em .4em">Projekte</code> (nodes), <code style="font-family:'JetBrains Mono',monospace;font-size:.87em;background:#FFFFFF;border:1px solid #E6E1D4;padding:.1em .4em">Wissen</code> (documents), <code style="font-family:'JetBrains Mono',monospace;font-size:.87em;background:#FFFFFF;border:1px solid #E6E1D4;padding:.1em .4em">Zeit</code> (sessions). Jede Seite listet die Datensätze ihres Typs — daraus folgt die Aussagelosigkeit zwingend: eine Tabellenansicht hat keinen Grund, etwas zu behaupten. Deshalb steht im Cockpit ein Kette-Panel mit vier Bindestrichen, und alle 31 Repos tragen denselben Status „ruhig“.</p>
+    <ul style="margin:.8em 0 0;padding-left:26px;display:flex;flex-direction:column;gap:.5em">
+      <li><b style="font-weight:650">Die Lesesaal-Metapher verbietet Betonung.</b> „Ruhig, flach, Haarlinien, alles gleich“ trägt ein Dokument. Für 31 Repos ist es fatal: wenn nichts hervortreten darf, kann die Seite nicht sagen, was wichtig ist.</li>
+      <li><b style="font-weight:650">Die Zwei-Flächen-Regel ist verkehrt herum umgesetzt.</b> Der Kommentar sagt „Inhalt auf Papier, Instrumente auf Fläche“ — real haben die <em>Instrumente</em> die getönten Flächen, der <em>Inhalt</em> liegt nackt auf der Seite.</li>
+      <li><b style="font-weight:650">Das Eigentliche ist unsichtbar.</b> Agenten schreiben den Großteil der 488 Dokumente. Nirgends beantwortet die Oberfläche „was haben die Agenten seit gestern geschrieben“ oder „welches Wissen verrottet“.</li>
+    </ul>
+    <p style="margin:1.2em 0 0"><b style="font-weight:650">Die Regel „Nullen ohne Bühne“ ist invertiert implementiert.</b> Aus einer guten Regel wurde ein Platzhalter-Generator:</p>
+    <div style="margin:1.2em 0 0;overflow:hidden;background:#FFFFFF;border:1px solid #E0DACB">
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid #E0DACB">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A8578">go · internal/adapter/webui/format.go</span>
+        <span style="flex:1"></span>
+        <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:#B8720F">Kopieren</a>
+      </div>
+      <pre style="margin:0;padding:14px 18px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;color:#33312A;overflow-x:auto"><code><span style="color:#8A8578">// druckt einen Bindestrich, statt die Zeile wegzulassen</span>
+<span style="color:#D9480F">func</span> dashIfZeroDur(d time.Duration) <span style="color:#1864AB">string</span> {
+    <span style="color:#D9480F">if</span> d == <span style="color:#1864AB">0</span> {
+        <span style="color:#D9480F">return</span> <span style="color:#0B8A7B">"—"</span>
+    }
+    <span style="color:#D9480F">return</span> formatDur(d)
+}</code></pre>
+    </div>
+
+    <h2 style="font-size:20px;font-weight:750;letter-spacing:-.015em;color:#26241E;margin:2em 0 0;padding-top:1em;border-top:1px solid #E6E1D4">3 · Konzept</h2>
+    <p style="margin:.9em 0 0">Ausgangspunkt ist ein Satz aus dem eigenen <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">AGENTS.md</span>:</p>
+    <p style="border-left:2px solid #C9C3B2;padding:3px 0 3px 20px;color:#6E6961;font-size:17.5px;line-height:1.75;margin:1.4em 0 0">TUI-first für den Alltag, WebUI für den Überblick.</p>
+    <p style="margin:1.2em 0 0">Die WebUI ist nicht der Ort, an dem gearbeitet wird — gearbeitet wird im Terminal und von den Agenten. Sie ist der Ort, an dem man <b style="font-weight:650">nachsieht und steuert</b>.</p>
+
+    <h3 style="font-size:19px;font-weight:750;color:#26241E;margin:1.8em 0 0">3.1 Ein Seitentyp: der Knoten</h3>
+    <p style="margin:.9em 0 0">Engagement, Vorhaben, Repo — dieselbe Seite, dieselbe Reihenfolge, andere Tiefe. Die drei Reiter verschwinden. Eine synthetische Wurzel „Alles“ über allen Engagements ersetzt Startseite, Bibliothek und Knotenliste. Navigation ist der Baum, links, bis 900 px — plus ⌘K.</p>
+
+    <h3 style="font-size:19px;font-weight:750;color:#26241E;margin:1.8em 0 0">3.2 Die drei Fragen</h3>
+    <p style="margin:.9em 0 0">Jeder Knoten beantwortet in dieser Reihenfolge <b style="font-weight:650">LAGE · WISSEN · KOSTEN</b>. Bindende Regel: eine Zeile existiert nur, wenn sie wahr ist. Ist keine wahr, sagt die Sektion einen Satz und ist fertig. Es gibt keinen Platzhalter.</p>
+    <ol style="margin:.8em 0 0;padding-left:26px;display:flex;flex-direction:column;gap:.5em">
+      <li>Läuft gerade etwas — Timer hier oder woanders, mit Ziel und Wechseln.</li>
+      <li>Etwas braucht eine Entscheidung: <code style="font-family:'JetBrains Mono',monospace;font-size:.87em;background:#FFFFFF;border:1px solid #E6E1D4;padding:.1em .4em">Full</code> oder <code style="font-family:'JetBrains Mono',monospace;font-size:.87em;background:#FFFFFF;border:1px solid #E6E1D4;padding:.1em .4em">DroppedN &gt; 0</code> → Kontext-Warnung mit Kuratieren.</li>
+      <li>Was sich bewegt hat, <em>verdichtet</em>: nicht vier Zeilen <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">document.updated</span>, sondern „claude-code schrieb 3 Dokumente · vor 3 Std“.</li>
+      <li>Stillstand ist auch eine Lage: nichts im Teilbaum seit über vier Wochen → „Seit 5 Wochen ist hier nichts passiert.“</li>
+    </ol>
+    <div style="margin:1.4em 0 0;border:1px solid #E6E1D4;overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 2.4fr;background:#FDFCF7;font-size:12px;font-weight:700;padding:9px 16px;gap:16px"><span>Ebene</span><span>zusätzlich</span></div>
+      <div style="display:grid;grid-template-columns:1fr 2.4fr;font-size:13px;padding:9px 16px;gap:16px;border-top:1px solid #EDE9DC"><span>Repo</span><span style="color:#8A8578">nichts weiter</span></div>
+      <div style="display:grid;grid-template-columns:1fr 2.4fr;font-size:13px;padding:9px 16px;gap:16px;border-top:1px solid #EDE9DC"><span>Vorhaben</span><span style="color:#8A8578">Bewegung aus den Kind-Repos, mit Nennung <em>welches</em></span></div>
+      <div style="display:grid;grid-template-columns:1fr 2.4fr;font-size:13px;padding:9px 16px;gap:16px;border-top:1px solid #EDE9DC"><span>Engagement</span><span style="color:#8A8578">dito, plus welche Vorhaben stillstehen</span></div>
+      <div style="display:grid;grid-template-columns:1fr 2.4fr;font-size:13px;padding:9px 16px;gap:16px;border-top:1px solid #EDE9DC"><span>Wurzel</span><span style="color:#8A8578">Lage aller Engagements: was heute lief, welche Knoten übervoll sind, was seit Monaten steht</span></div>
+    </div>
+    <p style="margin:1.2em 0 0">Der eigentliche Bruch steckt in <b style="font-weight:650">WISSEN</b>: geordnet nach Rolle im Agenten-Kontext, nicht nach Dokumenttyp. Typ-Regale sind ein Verwaltungsschema, die Rolle ist die Aussage. „Wird immer gelesen“ steht ganz oben und klein — das sind die wirkungsvollsten Dokumente, und sie stehen heute nirgends.</p>
+    <div style="display:flex;gap:12px;background:#F8F1E2;padding:14px 18px;margin:1.4em 0 0">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#B8720F;flex-shrink:0;padding-top:4px">Hinweis</span>
+      <span style="font-size:14px;line-height:1.65;color:#5C5748">Damit ist die projekt-gescopte Bibliothek keine zusätzliche Fläche: sie ist diese Sektion an jedem Knoten, und die zentrale Bibliothek ist dieselbe Sektion an der Wurzel. Artefakte sind eine Untergruppe hiervon, kein eigenes Band.</span>
+    </div>
+
+    <h2 style="font-size:20px;font-weight:750;letter-spacing:-.015em;color:#26241E;margin:2em 0 0;padding-top:1em;border-top:1px solid #E6E1D4">4 · Gestaltungsgesetze</h2>
+    <p style="margin:.9em 0 0"><b style="font-weight:650">Schrift.</b> Schibsted Grotesk bleibt — aus sechs Kandidaten gewählt. Das Problem war nie die Grundschrift, sondern <em>Mono auf allem Kleinen</em>: Abschnittsnamen, Navigation, Krümelpfad, Etiketten, Knöpfe, Zeitangaben. Ein Drittel der Wörter stand in Schreibmaschine. Mono gilt künftig nur auf ausgerichteten Daten — Spaltenwerte, Pfade, Code.</p>
+    <p style="margin:.9em 0 0"><b style="font-weight:650">Tabellenziffern nur in Spalten.</b> Eine Zahl im Fließtext bekommt gar nichts. <code style="font-family:'JetBrains Mono',monospace;font-size:.87em;background:#FFFFFF;border:1px solid #E6E1D4;padding:.1em .4em">tabular-nums</code> sperrt Punkt und Doppelpunkt auf Ziffernbreite — „11 . 986“, „5 : 11“ — und der Satz fällt auseinander.</p>
+    <p style="margin:.9em 0 0"><b style="font-weight:650">Farbe.</b> Eine neutrale Leiter, eine Temperatur. Vorher war die Tinte warm und alles darunter kühl — zwei Familien, die sich gegenseitig grau machen. Vier Bedeutungen bleiben streng getrennt:</p>
+    <div style="margin:1.2em 0 0;overflow:hidden;background:#FFFFFF;border:1px solid #E0DACB">
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid #E0DACB">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A8578">css · tokens.css</span>
+        <span style="flex:1"></span>
+        <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:#B8720F">Kopieren</a>
+      </div>
+      <pre style="margin:0;padding:14px 18px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;color:#33312A;overflow-x:auto"><code><span style="color:#D9480F">--akzent</span>:   <span style="color:#1864AB">61 118 219</span>;  <span style="color:#8A8578">/* was du tun oder aufrufen kannst */
+</span><span style="color:#D9480F">--laeuft</span>:   <span style="color:#1864AB">15 138  70</span>;  <span style="color:#8A8578">/* läuft gerade                     */
+</span><span style="color:#D9480F">--wartet</span>:   <span style="color:#1864AB">184 114 15</span>;  <span style="color:#8A8578">/* braucht eine Entscheidung        */
+</span><span style="color:#D9480F">--fehler</span>:   <span style="color:#1864AB">180  69 47</span>;  <span style="color:#8A8578">/* Reserve                          */</span></code></pre>
+    </div>
+    <p style="margin:1.2em 0 0">Die aktive Navigationszeile trägt <em>keinen</em> Akzent — sonst leuchtet Blau an sechs Stellen gleichzeitig und bedeutet nichts mehr.</p>
+    <p style="margin:.9em 0 0"><b style="font-weight:650">Abstand.</b> Rangordnung, nicht Menge. Der Fehler war nicht zu wenig Zeilenabstand, sondern dass der Abstand <em>zwischen</em> Gruppen (26 px) so groß war wie der <em>innerhalb</em> (18 px) — drei Gruppen verschmolzen zu einer Wand. Jetzt 44 gegen 24.</p>
+    <p style="margin:.9em 0 0"><b style="font-weight:650">Bilder.</b> Eine Form für beide Schreibweisen. Heute rendert <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">![alt](…)</span> ein nacktes <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">&lt;img&gt;</span> im Textfluss und <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">![[slug]]</span> eine <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">&lt;figure&gt;</span> mit Rahmen und Unterschrift — dasselbe Bild sieht verschieden aus, je nachdem was der Agent getippt hat. Die Unterscheidung läuft künftig über die Stellung im Text: allein im Absatz → Abbildung, im Satz → inline.</p>
+
+    <h2 style="font-size:20px;font-weight:750;letter-spacing:-.015em;color:#26241E;margin:2em 0 0;padding-top:1em;border-top:1px solid #E6E1D4">5 · Offene Punkte</h2>
+    <div style="display:flex;flex-direction:column;gap:.35em;margin:.9em 0 0">
+      <span style="display:flex;align-items:baseline;gap:11px;font-size:15.5px"><span style="display:inline-grid;place-items:center;width:15px;height:15px;background:#0F8A46;color:#FFFFFF;font-size:10px;font-weight:700;flex-shrink:0;transform:translateY(2px)">✓</span><span style="color:#8A8578;text-decoration:line-through">Zwei Achsen entschieden — Baum trägt die Dinge, Zeit trägt den Tag</span></span>
+      <span style="display:flex;align-items:baseline;gap:11px;font-size:15.5px"><span style="display:inline-block;width:15px;height:15px;border:1px solid #C9C3B2;background:#FFFFFF;flex-shrink:0;transform:translateY(2px)"></span><span>Heller Modus — bewusst nicht gebaut; „Blatt“ ist eine Dunkel-Idee</span></span>
+      <span style="display:flex;align-items:baseline;gap:11px;font-size:15.5px"><span style="display:inline-block;width:15px;height:15px;border:1px solid #C9C3B2;background:#FFFFFF;flex-shrink:0;transform:translateY(2px)"></span><span>Restliche Flächen: Zeit, Editor, Einstellungen</span></span>
+      <span style="display:flex;align-items:baseline;gap:11px;font-size:15.5px"><span style="display:inline-block;width:15px;height:15px;border:1px solid #C9C3B2;background:#FFFFFF;flex-shrink:0;transform:translateY(2px)"></span><span>Skalierung des Rückgrats jenseits ~45 Knoten — heute passt der Baum knapp auf einen Schirm; das ist Glück, keine Lösung</span></span>
+      <span style="display:flex;align-items:baseline;gap:11px;font-size:15.5px"><span style="display:inline-block;width:15px;height:15px;border:1px solid #C9C3B2;background:#FFFFFF;flex-shrink:0;transform:translateY(2px)"></span><span>Renderer-Arbeit: <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">safeImageHTMLRenderer</span> müsste <span style="font-family:'JetBrains Mono',monospace;font-size:.87em">&lt;figure&gt;</span> erzeugen, Abbildungsnummern dokumentweit durchzählen</span></span>
+    </div>
+
+    <h2 style="font-size:20px;font-weight:750;letter-spacing:-.015em;color:#26241E;margin:2em 0 0;padding-top:1em;border-top:1px solid #E6E1D4">6 · Verworfene Alternativen</h2>
+    <ul style="margin:.9em 0 0;padding-left:26px;display:flex;flex-direction:column;gap:.5em">
+      <li><b style="font-weight:650">Die Chronik</b> — Zeit als Rückgrat, ein filterbarer Strom aus allem. Verführerisch, weil flow im Kern ein Ereignisspeicher ist; aber ein Strom ist schlecht darin, etwas Bestimmtes wiederzufinden, und 488 Dokumente sind ein Nachschlagewerk.</li>
+      <li><b style="font-weight:650">Das Gedächtnis</b> — Agenten-Kontext als Hauptfigur. Das Unverwechselbarste, verbannt aber die Worktime in eine Ecke.</li>
+      <li><b style="font-weight:650">Papier auf Tisch</b> — Blatt = Text, Tisch = Instrumente. Trägt im Dunkeln, im Hellen nicht.</li>
+      <li><b style="font-weight:650">Serifensatz</b> — Richtungen A/B/C, von Soenne abgelehnt.</li>
+    </ul>
+    <span style="display:block;height:1px;background:#E6E1D4;margin:1.4em 0"></span>
+    <p style="margin:0">Das ist ein Routing- und IA-Umbau, keine Token-Änderung. Beschlossen ist nichts; PR #74 hält den Stand fest.</p>
+  </div>
+
+  <div style="display:flex;gap:44px;margin-top:40px;padding-top:18px;border-top:1px solid #E6E1D4;font-size:12.5px;color:#8A8578">
+    <span><span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#B5AFA0;margin-bottom:7px">Verweise</span><a href="#" style="display:block;padding:3px 0;color:#5C5748">Kristall-Redesign — Design Spec <span style="color:#B5AFA0">— von hier</span></a><a href="#" style="display:block;padding:3px 0;color:#5C5748">Lesesaal — WebUI-Neuentwurf <span style="color:#B5AFA0">— von hier</span></a><a href="#" style="display:block;padding:3px 0;color:#5C5748">WebUI — Ist-Befunde 2026-08 <span style="color:#B5AFA0">— von hier</span></a><a href="#" style="display:block;padding:3px 0;color:#5C5748">feedback_full_visibility_wins <span style="color:#B5AFA0">— hierher</span></a></span>
+    <span><span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#B5AFA0;margin-bottom:7px">Kontext</span><span style="display:block;padding:3px 0">{{ contextLine }}</span><span style="display:block;padding:3px 0">{{ budgetLine }}</span></span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:860,&quot;height&quot;:5200},&quot;type&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Plan&quot;,&quot;Spec&quot;,&quot;Notiz&quot;,&quot;Erinnerung&quot;,&quot;Kontext&quot;,&quot;Instruktion&quot;,&quot;README&quot;],&quot;default&quot;:&quot;Spec&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;flow — WebUI-Neukonzeption „Ein Rückgrat, drei Fragen“&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;path&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;flow/specs/2026-08-11-webui-neukonzeption-design.md&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;meta&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Martin Söntgenrath · 2026-08-11 · Entwurf · 14 min Lesezeit&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:760,&quot;min&quot;:560,&quot;max&quot;:900,&quot;step&quot;:20,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;contextLine&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;enthalten · Rang 3 · Modus auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Fußzeile&quot;},&quot;budgetLine&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;11.986 / 12.000 tk · fast voll&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Fußzeile&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const T = {
+      Plan: "#7A4FD0", Spec: "#0B8A7B", Notiz: "#3D5EDB", Erinnerung: "#B4452F",
+      Kontext: "#B8720F", Instruktion: "#3D5EDB", README: "#8A5A18"
+    };
+    const type = this.props.type ?? "Spec";
+    return {
+      typeLabel: type,
+      tone: T[type] ?? "#5C5748",
+      path: this.props.path ?? "flow/specs/2026-08-11-webui-neukonzeption-design.md",
+      title: this.props.title ?? "flow — WebUI-Neukonzeption „Ein Rückgrat, drei Fragen“",
+      meta: this.props.meta ?? "Martin Söntgenrath · 2026-08-11 · Entwurf · 14 min Lesezeit",
+      maxW: (this.props.width ?? 760) + "px",
+      contextLine: this.props.contextLine ?? "enthalten · Rang 3 · Modus auto",
+      budgetLine: this.props.budgetLine ?? "11.986 / 12.000 tk · fast voll"
+    };
+  }
+}
+</script>
+</body>
+</html>

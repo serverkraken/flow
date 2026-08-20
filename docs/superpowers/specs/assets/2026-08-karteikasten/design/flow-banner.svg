@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 200" width="1200" height="200" role="img" aria-label="flow — Wissen und Zeit für Menschen und Agenten">
+  <rect width="1200" height="200" fill="#26241E"></rect>
+  <g transform="translate(64 74)">
+    <rect x="0" y="0" width="34" height="34" transform="rotate(45 17 17)" fill="#B8720F" opacity=".3"></rect>
+    <rect x="24" y="0" width="34" height="34" transform="rotate(45 41 17)" fill="#B8720F" opacity=".55"></rect>
+    <rect x="48" y="0" width="34" height="34" transform="rotate(45 65 17)" fill="#B8720F"></rect>
+  </g>
+  <text x="196" y="106" font-family="Schibsted Grotesk, Helvetica Neue, Arial, sans-serif" font-size="62" font-weight="750" letter-spacing="-1.6" fill="#F8F6F0">flow<tspan fill="#B8720F">.</tspan></text>
+  <text x="196" y="136" font-family="Schibsted Grotesk, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="500" fill="#8A8578">Wissen und Zeit — für Menschen und Agenten</text>
+  <text x="1136" y="106" text-anchor="end" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="15" fill="#5C5748">serverkraken · seit 2024</text>
+  <rect x="0" y="197" width="400" height="3" fill="#8A5A18"></rect>
+  <rect x="400" y="197" width="400" height="3" fill="#8A4F7A"></rect>
+  <rect x="800" y="197" width="400" height="3" fill="#4A6B8A"></rect>
+</svg>

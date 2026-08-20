@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="height:100%;border-right:1px solid #E0DACB;padding:24px 0;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;font-family:'Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;color:#26241E">
+  <div style="display:flex;align-items:center;gap:10px;padding:0 24px">
+    <svg viewBox="0 0 46 32" aria-hidden="true" style="width:32px;height:22px;flex-shrink:0"><rect x="6" y="9" width="14" height="14" rx="3.5" transform="rotate(45 13 16)" fill="#B8720F" opacity=".3"></rect><rect x="16" y="9" width="14" height="14" rx="3.5" transform="rotate(45 23 16)" fill="#B8720F" opacity=".55"></rect><rect x="26" y="9" width="14" height="14" rx="3.5" transform="rotate(45 33 16)" fill="#B8720F"></rect></svg>
+    <span style="font-size:19px;font-weight:750;letter-spacing:-.02em;flex:1">flow<span style="color:#B8720F">.</span></span>
+    <span style="display:inline-grid;place-items:center;width:26px;height:26px;background:#EDE9DC;font-size:9px;font-weight:700;color:#5C5748">MS</span>
+  </div>
+  <div style="border:1px solid #D8E8DC;background:#F2F8F3;padding:13px 15px;margin:18px 20px 0">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="width:7px;height:7px;border-radius:999px;background:#0F8A46"></span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;font-variant-numeric:tabular-nums">2:41:07</span>
+      <span style="margin-left:auto;font-size:11px;font-weight:700;color:#5C5748;border:1px solid #D8E8DC;padding:3px 9px;background:#FFFFFF">Stopp</span>
+    </div>
+    <div style="font-size:11px;color:#5C5748;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ runningLabel }}</div>
+    <div style="height:4px;background:#D8E8DC;overflow:hidden;margin-top:8px"><span style="display:block;height:100%;width:77%;background:#0F8A46"></span></div>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin:18px 24px 0;border-bottom:1px solid #26241E;padding-bottom:8px">
+    <span style="font-size:13px;color:#8A8578;flex:1">Suchen …</span>
+    <kbd style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8A8578">⌘K</kbd>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;color:#8A8578;margin:26px 24px 6px">01 — REGISTER</div>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;gap:9px;padding:8px 24px 8px 21px;font-size:14px;font-weight:{{ skWeight }};color:{{ skInk }};border-left:3px solid {{ skBar }};background:{{ skBg }}"><span onClick="{{ tSk }}" style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#B5AFA0;width:12px;margin-left:-4px;flex-shrink:0;align-self:center;cursor:pointer;text-align:center" style-hover="color:#B8720F">{{ skCaret }}</span>serverkraken<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">39</span></a>
+  <sc-if value="{{ skOpen }}" hint-placeholder-val="{{ true }}">
+  <a href="#" data-tint="vorhaben" style="display:flex;align-items:baseline;gap:9px;padding:7px 24px 7px 38px;font-size:13.5px;font-weight:{{ lsWeight }};color:{{ lsInk }};border-left:3px solid {{ lsBar }};background:{{ lsBg }}">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#B5AFA0;width:8px;flex-shrink:0;align-self:center">▾</span>
+    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Lesesaal-Rebuild</span>
+    <span style="display:inline-flex;align-items:baseline;gap:6px;flex-shrink:0"><span style="width:6px;height:6px;border-radius:999px;background:#0F8A46;align-self:center"></span><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:#0F8A46">2:41</span></span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578;flex-shrink:0;width:20px;text-align:right">30</span>
+  </a>
+  <a href="#" data-tint="repo" style="display:block;padding:4px 24px 4px 55px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:{{ repoWeight }};color:{{ repoInk }};border-left:3px solid {{ repoBar }};background:{{ repoBg }}">flow / main</a>
+  <a href="#" data-tint="repo" style="display:block;padding:3px 24px 5px 55px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8A8578;border-left:3px solid transparent">flow / feat-l7</a>
+  <a href="#" data-tint="vorhaben" style="display:flex;align-items:baseline;gap:9px;padding:7px 24px 7px 38px;font-size:13.5px;color:#5C5748;border-left:3px solid transparent"><span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#D9D4C6;width:8px;flex-shrink:0;align-self:center">–</span>MCP-Ausbau<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">9</span></a>
+  </sc-if>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;gap:9px;padding:8px 24px 8px 21px;font-size:14px;font-weight:{{ kdWeight }};color:{{ kdInk }};border-left:3px solid {{ kdBar }};background:{{ kdBg }}"><span onClick="{{ tKd }}" style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#B5AFA0;width:12px;margin-left:-4px;flex-shrink:0;align-self:center;cursor:pointer;text-align:center" style-hover="color:#B8720F">{{ kdCaret }}</span>Kundenprojekte<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">31</span></a>
+  <sc-if value="{{ kdOpen }}">
+    <a href="#" data-tint="vorhaben" style="display:flex;align-items:baseline;gap:9px;padding:7px 24px 7px 38px;font-size:13.5px;color:#5C5748;border-left:3px solid transparent"><span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#B5AFA0;width:8px;flex-shrink:0;align-self:center">▸</span>blupod — Pairing-Flow<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">18</span></a>
+    <a href="#" data-tint="vorhaben" style="display:flex;align-items:baseline;gap:9px;padding:7px 24px 7px 38px;font-size:13.5px;color:#5C5748;border-left:3px solid transparent"><span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#D9D4C6;width:8px;flex-shrink:0;align-self:center">–</span>Kanzlei Reuter<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">13</span></a>
+  </sc-if>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;gap:9px;padding:8px 24px 8px 21px;font-size:14px;font-weight:{{ prWeight }};color:{{ prInk }};border-left:3px solid {{ prBar }};background:{{ prBg }}"><span onClick="{{ tPr }}" style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#B5AFA0;width:12px;margin-left:-4px;flex-shrink:0;align-self:center;cursor:pointer;text-align:center" style-hover="color:#B8720F">{{ prCaret }}</span>Privat<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">30</span></a>
+  <sc-if value="{{ prOpen }}">
+    <a href="#" style="display:flex;align-items:baseline;gap:9px;padding:7px 24px 7px 38px;font-size:13.5px;font-weight:700;color:#26241E;border-left:3px solid #8A4F7A;background:linear-gradient(90deg,rgba(138,79,122,.09),transparent 70%)">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#B5AFA0;width:8px;flex-shrink:0;align-self:center">▾</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Straßenfuchs</span>
+      <span style="display:inline-flex;align-items:baseline;gap:6px;flex-shrink:0"><span style="width:6px;height:6px;border-radius:999px;background:#0F8A46;align-self:center"></span><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:#0F8A46">2:41</span></span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578;flex-shrink:0;width:20px;text-align:right">21</span>
+    </a>
+    <a href="#" data-tint="repo" style="display:block;padding:4px 24px 4px 55px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8A8578;border-left:3px solid transparent">strassenfuchs / main</a>
+    <a href="#" data-tint="repo" style="display:block;padding:3px 24px 5px 55px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8A8578;border-left:3px solid transparent">strassenfuchs-api / main</a>
+    <a href="#" data-tint="vorhaben" style="display:flex;align-items:baseline;gap:9px;padding:7px 24px 7px 38px;font-size:13.5px;color:#5C5748;border-left:3px solid transparent"><span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#D9D4C6;width:8px;flex-shrink:0;align-self:center">–</span>ci-plattform<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">9</span></a>
+  </sc-if>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;color:#8A8578;margin:28px 24px 6px">02 — ALLGEMEIN</div>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:7px 24px 7px 21px;font-size:14px;font-weight:{{ startWeight }};color:{{ startInk }};border-left:3px solid {{ startBar }};background:{{ startBg }}">Start</a>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:7px 24px 7px 21px;font-size:14px;font-weight:{{ pulsWeight }};color:{{ pulsInk }};border-left:3px solid {{ pulsBar }};background:{{ pulsBg }}">Puls</a>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:7px 24px 7px 21px;font-size:14px;font-weight:{{ tagWeight }};color:{{ tagInk }};border-left:3px solid {{ tagBar }};background:{{ tagBg }}">Tagebuch<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">19</span></a>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:7px 24px 7px 21px;font-size:14px;font-weight:{{ bibWeight }};color:{{ bibInk }};border-left:3px solid {{ bibBar }};background:{{ bibBg }}">Bibliothek<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">128</span></a>
+  <a href="#" data-tint="zeit" style="display:flex;align-items:baseline;padding:7px 24px 7px 21px;font-size:14px;font-weight:{{ zeitWeight }};color:{{ zeitInk }};border-left:3px solid {{ zeitBar }};background:{{ zeitBg }}">Zeit<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#0F8A46">6:12</span></a>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;gap:9px;padding:7px 24px 7px 21px;font-size:14px;font-weight:{{ ausstWeight }};color:{{ ausstInk }};border-left:3px solid {{ ausstBar }};background:{{ ausstBg }}"><span onClick="{{ tAusst }}" style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#B5AFA0;width:12px;margin-left:-4px;flex-shrink:0;align-self:center;cursor:pointer;text-align:center" style-hover="color:#B8720F">{{ ausstCaret }}</span>Ausstattung</a>
+  <sc-if value="{{ ausstOpen }}">
+    <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:6px 24px 6px 38px;font-size:13px;color:#5C5748;border-left:3px solid transparent">Skills<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">7</span></a>
+    <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:6px 24px 6px 38px;font-size:13px;color:#5C5748;border-left:3px solid transparent">Weisungen<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">3</span></a>
+    <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:6px 24px 8px 38px;font-size:13px;color:#5C5748;border-left:3px solid transparent">Agenten<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">3</span></a>
+  </sc-if>
+  <div style="flex:1"></div>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:10px 24px 6px 21px;font-size:13px;font-weight:{{ setWeight }};color:{{ setInk }};border-left:3px solid {{ setBar }};background:{{ setBg }};border-top:1px solid #E6E1D4;margin-top:10px">Einstellungen<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">MS</span></a>
+  <a href="#" data-tint="kontext" style="display:flex;align-items:baseline;padding:4px 24px 0 21px;font-size:13px;color:#8A8578;border-left:3px solid transparent">Abmelden<span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A8578">msoent</span></a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:264,&quot;height&quot;:920},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;lesesaal&quot;,&quot;options&quot;:[&quot;lesesaal&quot;,&quot;sk&quot;,&quot;kd&quot;,&quot;pr&quot;,&quot;start&quot;,&quot;puls&quot;,&quot;tag&quot;,&quot;bib&quot;,&quot;zeit&quot;,&quot;repo&quot;,&quot;ausst&quot;,&quot;set&quot;,&quot;none&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;running&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { ov: {} };
+  _toggle(k) {
+    return (e) => { e.preventDefault(); e.stopPropagation();
+      this.setState(s => ({ ov: { ...s.ov, [k]: !(s.ov[k] !== undefined ? s.ov[k] : this._auto(k)) } })); };
+  }
+  _auto(k) {
+    const a = this.props.active ?? "lesesaal";
+    if (k === "sk") return a !== "pr" && a !== "kd" && a !== "ausst";
+    return a === k;
+  }
+  _open(k) { const v = this.state.ov[k]; return v !== undefined ? v : this._auto(k); }
+  renderVals() {
+    const a = this.props.active ?? "lesesaal";
+    const on = k => a === k;
+    const item = (k, name, hue, wash) => ({
+      [name + "Bar"]: on(k) ? (hue || "#B8720F") : "transparent",
+      [name + "Bg"]: on(k) ? `linear-gradient(90deg,${wash || "rgba(184,114,15,.08)"},transparent 70%)` : "transparent",
+      [name + "Weight"]: on(k) ? "700" : "500",
+      [name + "Ink"]: on(k) ? "#26241E" : "#5C5748"
+    });
+    return {
+      ...item("sk", "sk", "#8A5A18", "rgba(138,90,24,.09)"),
+      skWeight: on("sk") || on("lesesaal") || on("repo") ? "700" : "500",
+      skInk: "#26241E",
+      ...item("lesesaal", "ls", "#8A4F7A", "rgba(138,79,122,.09)"),
+      lsWeight: on("lesesaal") ? "700" : "500",
+      ...item("kd", "kd", "#8A5A18", "rgba(138,90,24,.09)"),
+      ...item("pr", "pr", "#8A5A18", "rgba(138,90,24,.09)"),
+      skOpen: this._open("sk"), prOpen: this._open("pr"), kdOpen: this._open("kd"), ausstOpen: this._open("ausst"),
+      skCaret: this._open("sk") ? "▾" : "▸", kdCaret: this._open("kd") ? "▾" : "▸",
+      prCaret: this._open("pr") ? "▾" : "▸", ausstCaret: this._open("ausst") ? "▾" : "▸",
+      tSk: this._toggle("sk"), tKd: this._toggle("kd"), tPr: this._toggle("pr"), tAusst: this._toggle("ausst"),
+      runningLabel: this.props.running || (on("pr") ? "Straßenfuchs · 6:12/8:00" : "Lesesaal-Rebuild · 6:12/8:00"),
+      ...item("repo", "repo", "#4A6B8A", "rgba(74,107,138,.10)"),
+      repoInk: on("repo") ? "#26241E" : "#8A8578",
+      ...item("start", "start"), ...item("puls", "puls"), ...item("tag", "tag"), ...item("bib", "bib"), ...item("zeit", "zeit"),
+      ...item("ausst", "ausst"), ...item("set", "set"),
+      setInk: a === "set" ? "#26241E" : "#8A8578"
+    };
+  }
+}
+</script>
+</body>
+</html>

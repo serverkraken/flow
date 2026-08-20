@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid #E6E1D4">
+  <a href="#" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:650;color:#5C5748;background:#FDFCF7;border:1px solid #D9D4C6;padding:4px 10px 4px 8px;text-decoration:none" style-hover="border-color:#B8720F;color:#B8720F">‹ {{ backLabel }}</a>
+  <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0">
+    <sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="2">
+      <a href="#" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:{{ c.ink }};font-weight:{{ c.weight }};text-decoration:none" style-hover="color:#B8720F">
+        <span style="width:7px;height:7px;background:{{ c.dot }}"></span>{{ c.label }}
+      </a>
+      <span style="color:#C9C3B2;font-size:12px">{{ c.sep }}</span>
+    </sc-for>
+    <span style="font-size:12px;font-weight:700;color:#26241E;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px">{{ hereLabel }}</span>
+  </span>
+  <span style="flex:1"></span>
+  <span style="font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:{{ levelInk }};background:{{ levelWash }};padding:3px 8px;flex-shrink:0">{{ levelLabel }}</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:760,&quot;height&quot;:80},&quot;level&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;engagement&quot;,&quot;vorhaben&quot;,&quot;repo&quot;,&quot;karte&quot;,&quot;bereich&quot;],&quot;default&quot;:&quot;vorhaben&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;path&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;serverkraken › Lesesaal-Rebuild&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dotLevels&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;engagement&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Ebenen&quot;},&quot;back&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;serverkraken&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;levelLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const L = {
+      engagement: { label: "Engagement", ink: "#8A5A18", wash: "#F8ECD4", dot: "#8A5A18" },
+      vorhaben: { label: "Vorhaben", ink: "#8A4F7A", wash: "#F3E6F0", dot: "#8A4F7A" },
+      repo: { label: "Repo", ink: "#4A6B8A", wash: "#E7EBFA", dot: "#4A6B8A" },
+      karte: { label: "Karte", ink: "#7A4FD0", wash: "#F1EAFE", dot: "#7A4FD0" },
+      bereich: { label: "Bereich", ink: "#5C5748", wash: "#EDE9DC", dot: "#8A8578" }
+    };
+    const lvl = L[this.props.level] || L.bereich;
+    const raw = (this.props.path ?? "").split("›").map(s => s.trim()).filter(Boolean);
+    const here = raw.length ? raw[raw.length - 1] : "";
+    const parents = raw.slice(0, -1);
+    // Ebene pro Segment explizit aus dotLevels lesen — kein Positions-Mapping.
+    const levelDots = { engagement: "#8A5A18", vorhaben: "#8A4F7A", repo: "#4A6B8A", karte: "#7A4FD0" };
+    const declared = (this.props.dotLevels ?? "").split(",").map(s => s.trim()).filter(Boolean);
+    const back = this.props.back ?? (parents.length ? parents[parents.length - 1] : "Zurück");
+    // Elternteil nicht doppelt zeigen, wenn er schon als Zurück-Schalter dasteht (egal an welcher Stelle)
+    const dupAt = parents.indexOf(back);
+    const keep = parents.map((p, i) => ({ p, i })).filter(({ i }) => i !== dupAt);
+    return {
+      backLabel: back,
+      hereLabel: here,
+      crumbs: keep.map(({ p, i }) => ({ label: p, ink: "#8A8578", weight: "500", dot: levelDots[declared[i]] || "#B5AFA0", sep: "›" })),
+      levelLabel: this.props.levelLabel ?? lvl.label,
+      levelInk: lvl.ink, levelWash: lvl.wash
+    };
+  }
+}
+</script>
+</body>
+</html>

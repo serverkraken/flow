@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 128" width="660" height="128" role="img" aria-label="flow — Wissen und Zeit für Menschen und Agenten">
+  <rect width="660" height="128" fill="#F1EDE2"></rect>
+  <g transform="translate(28 48)">
+    <rect x="0" y="0" width="22" height="22" transform="rotate(45 11 11)" fill="#B8720F" opacity=".3"></rect>
+    <rect x="16" y="0" width="22" height="22" transform="rotate(45 27 11)" fill="#B8720F" opacity=".55"></rect>
+    <rect x="32" y="0" width="22" height="22" transform="rotate(45 43 11)" fill="#B8720F"></rect>
+  </g>
+  <text x="118" y="66" font-family="Schibsted Grotesk, Helvetica Neue, Arial, sans-serif" font-size="38" font-weight="750" letter-spacing="-1" fill="#26241E">flow<tspan fill="#B8720F">.</tspan></text>
+  <text x="118" y="88" font-family="Schibsted Grotesk, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" fill="#8A8578">Wissen und Zeit — für Menschen und Agenten</text>
+  <rect x="0" y="126" width="220" height="2" fill="#8A5A18"></rect>
+  <rect x="220" y="126" width="220" height="2" fill="#8A4F7A"></rect>
+  <rect x="440" y="126" width="220" height="2" fill="#4A6B8A"></rect>
+</svg>
