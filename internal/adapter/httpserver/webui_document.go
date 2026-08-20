@@ -139,6 +139,16 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 			vm.Context = webui.BuildDocContext(usecase.StandingOf(cc, doc.ID), nodeName, doc.ContextMode.OrAuto())
 		}
 	}
+	// Screen 01: die Kasten-Spalte trägt das Register der offenen Karte als
+	// durchblätterbare Liste — die Karte wird nie aus dem Zusammenhang
+	// gelesen (Soennes Punkt b). ?regal= filtert die Zeilen nach Typ; die
+	// Zählung der Reiter bleibt davon unberührt.
+	if names, _, kinds, nerr := s.nodeMaps(r.Context(), ownerID); nerr == nil {
+		vm.Kasten = webui.BuildDocKasten(r.Context(), doc, all, names, kinds, s.Clock.Now(), r.URL.Query().Get("regal"))
+		if doc.NodeID != nil {
+			vm.EbeneColor = webui.EbeneAccentColor(kinds[*doc.NodeID])
+		}
+	}
 	return vm, nil
 }
 

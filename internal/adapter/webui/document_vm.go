@@ -17,6 +17,13 @@ type DocCrumb struct {
 // pin/edit/archive), the rendered prose, the ToC rail, and the Verweise rail
 // (Outgoing/Backlinks, Task 6).
 type DocumentVM struct {
+	// Kasten ist die mittlere Spalte von Screen 01 — das Register der
+	// offenen Karte als durchblätterbare Liste. nil, wenn die Karte zu
+	// keinem Regal gehört; dann steht die Lesespalte allein.
+	Kasten *DocKastenVM
+	// EbeneColor ist der Ton des Registers, in dem die Karte liegt — er
+	// färbt den 3px-Streifen über der Fläche.
+	EbeneColor string
 	ID     string
 	Title  string
 	Path   string

@@ -33,6 +33,8 @@ func init() {
 			// top-level navigation
 			"nav.today":     "Heute",
 			"wissen.cards": "Karten",
+			"karte.kasten.alle": "Alle",
+			"wissen.unknownRegister": "Unbekanntes Register",
 			"sort.changed": "zuletzt geändert",
 			"sort.created": "angelegt",
 			"sort.title": "Titel · A→Z",
@@ -555,6 +557,8 @@ func init() {
 			"auth.badState.msg":    "Die Anmeldung ist abgelaufen. Bitte erneut versuchen.",
 		},
 		plurals: map[string]Plural{
+			"karte.kasten.more": {One: "Alle {{.N}} Karten ansehen", Other: "Alle {{.N}} Karten ansehen"},
+			"karte.kasten.cardsWord": {One: "Karte", Other: "Karten"},
 			"list.entries": {One: "{{.N}} Eintrag", Other: "{{.N}} Einträge"},
 			// unassigned-sessions banner (plural via Tn)
 			"historie.unassignedBanner": {One: "{{.N}} Sitzung ohne Projekt", Other: "{{.N}} Sitzungen ohne Projekt"},

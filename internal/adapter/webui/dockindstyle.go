@@ -28,6 +28,13 @@ func DocKindStyle(t domain.DocumentType) DocKind {
 		return DocKind{Label: "Skill", Glyph: "▪", Tone: "warning"}
 	case domain.DocPlan:
 		return DocKind{Label: "Plan", Glyph: "▪", Tone: "warning"}
+	case domain.DocSpec:
+		// Fehlte: fiel auf den Rohwert "spec" durch und stand so in den
+		// Regal-Reitern der Kasten-Spalte neben "Plan" und "Memory".
+		return DocKind{Label: "Spec", Glyph: "▪", Tone: "warning"}
+	case domain.DocActiveContext:
+		// Ebenso — "activecontext" stand roh in der Oberfläche.
+		return DocKind{Label: "Kontext", Glyph: "▪", Tone: "warning"}
 	default:
 		return DocKind{Label: string(t), Glyph: "▪", Tone: "warning"}
 	}

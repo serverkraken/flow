@@ -31,6 +31,8 @@ func init() {
 			"home.countsPrivat":  "Private",
 			"nav.today":          "Today",
 			"wissen.cards": "Cards",
+			"karte.kasten.alle": "All",
+			"wissen.unknownRegister": "Unknown register",
 			"sort.changed": "last changed",
 			"sort.created": "created",
 			"sort.title": "Title · A→Z",
@@ -546,6 +548,8 @@ func init() {
 			"auth.badState.msg":    "The sign-in flow expired. Please try again.",
 		},
 		plurals: map[string]Plural{
+			"karte.kasten.more": {One: "View all {{.N}} cards", Other: "View all {{.N}} cards"},
+			"karte.kasten.cardsWord": {One: "card", Other: "cards"},
 			"list.entries":              {One: "{{.N}} entry", Other: "{{.N}} entries"},
 			"historie.unassignedBanner": {One: "{{.N}} session without project", Other: "{{.N}} sessions without project"},
 		},

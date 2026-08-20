@@ -18,20 +18,37 @@ templ DocumentPage(vm DocumentVM) {
 // component is mounted by the node cockpit (cockpit.templ) so both surfaces
 // render a document body identically.
 templ documentBody(vm DocumentVM) {
-	@components.AppShell("docs", nil, nil, documentOuter(vm))
+	// Buendig und mit Ebenenstreifen in der Farbe des Registers, in dem die
+	// Karte liegt — die Karte wird nie ausserhalb ihres Kontexts gelesen.
+	@components.AppShellFlush("docs", vm.EbeneColor, documentOuter(vm))
 	@DocRenderScripts()
 }
 
+// documentOuter ist Screen 01: zwischen Schiene und Lesespalte steht der
+// KASTEN — das Register der offenen Karte als durchblätterbare Liste. Die
+// Karte wird nie aus dem Zusammenhang gelesen; ihre Nachbarn bleiben einen
+// Blick weit entfernt. Genau das war Soennes Punkt (b).
 templ documentOuter(vm DocumentVM) {
 	<div
 		id="content"
+		class="flex flex-1 flex-col"
 		hx-get={ "/wissen/" + vm.ID }
 		hx-trigger="sse:document.updated"
 		hx-select="#document-fragment"
 		hx-target="#document-fragment"
 		hx-swap="outerHTML"
 	>
-		@DocumentFragment(vm)
+		<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+			if vm.Kasten != nil {
+				@documentKastenColumn(*vm.Kasten)
+			}
+			<div class="min-w-0 bg-canvas px-6 py-7 lg:px-14">
+				if vm.Kasten != nil {
+					@components.PanelToggle("wissen.title", "mb-4")
+				}
+				@DocumentFragment(vm)
+			</div>
+		</div>
 	</div>
 }
 
@@ -207,4 +224,73 @@ templ DocumentEmbedBadge(docID string, e EmbedView) {
 			</form>
 		}
 	</div>
+}
+
+// ── Kasten-Spalte (Screen 01), portiert aus dem Entwurfs-Branch ──
+
+// documentKastenColumn is the middle column of Screens 01/22: head with the
+// register's name, kind badge and card count, the Regal tabs, then the card
+// rows. Rows are tint-hover surfaces; the open card keeps its wash and mark.
+templ documentKastenColumn(k DocKastenVM) {
+	<div class="k3-panel flex flex-col bg-panel border-b border-hairp lg:border-b-0 lg:border-r">
+		<div class="px-6 pt-6">
+			if k.KindKey != "" {
+				<div class="flex items-baseline">
+					<span class="flex-1"></span>
+					<span class={ "px-2 py-[3px] text-[10px] font-bold uppercase tracking-[.1em]", k.KindClass }>{ components.T(ctx, k.KindKey) }</span>
+				</div>
+			}
+			<div class="mt-1.5 flex items-center gap-3">
+				<h2 class="min-w-0 flex-1 truncate font-display text-xl font-bold tracking-tight">{ k.Title }</h2>
+				<a href={ templ.SafeURL(k.NewHref) } class="text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "common.new") }</a>
+			</div>
+			<div class="mt-3 flex gap-4 text-[12px] text-muted">
+				<span><b class="font-mono font-semibold tnum text-ink">{ itoa(k.CardCount) }</b> { components.Tn(ctx, "karte.kasten.cardsWord", k.CardCount) }</span>
+			</div>
+			<div class="mt-4 flex gap-px overflow-x-auto border-b border-line text-[11.5px] font-semibold">
+				for _, tab := range k.Tabs {
+					@documentKastenTab(tab)
+				}
+			</div>
+		</div>
+		<div class="pb-4 pt-1">
+			for _, row := range k.Rows {
+				@documentKastenRow(row)
+			}
+			if k.MoreCount > 0 {
+				<a href={ templ.SafeURL(k.MoreHref) } class="block px-6 py-3 text-[12.5px] font-semibold text-accent hover:underline">
+					{ components.Tn(ctx, "karte.kasten.more", k.MoreCount) }
+				</a>
+			}
+		</div>
+	</div>
+}
+
+templ documentKastenTab(tab DocKastenTab) {
+	<a href={ templ.SafeURL(tab.Href) }
+		class={ "-mb-px whitespace-nowrap px-[7px] py-[7px]",
+			templ.KV("border-b-2 border-ink text-ink", tab.Active),
+			templ.KV("text-muted hover:text-ink", !tab.Active) }>
+		if tab.Regal == "" {
+			{ components.T(ctx, "karte.kasten.alle") }
+		} else {
+			{ tab.Label + " " + itoa(tab.Count) }
+		}
+	</a>
+}
+
+templ documentKastenRow(row DocKastenRow) {
+	<a href={ templ.SafeURL(row.Href) }
+		data-tint={ components.Tint(row.TypeColor) }
+		data-tint-on?={ row.Active }
+		class="block border-b border-line border-l-[3px] border-l-transparent px-6 py-[13px] pl-[21px]">
+		<span class="flex items-baseline gap-2.5">
+			<span class={ "text-[10px] font-bold uppercase tracking-[.1em]", paletteTypeTextClass(row.TypeColor) }>{ row.TypeLabel }</span>
+			<span class="ml-auto font-mono text-[10.5px] text-muted">{ row.When }</span>
+		</span>
+		<span class="mt-1 block text-[14.5px] font-[650] leading-[1.35]">{ row.Title }</span>
+		if row.Excerpt != "" {
+			<span class="mt-[3px] block text-[12.5px] leading-[1.55] text-muted">{ row.Excerpt }</span>
+		}
+	</a>
 }
