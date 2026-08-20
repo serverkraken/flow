@@ -10,13 +10,14 @@ templ FreiPage(vm FreiVM) {
 }
 
 templ freiBody(vm FreiVM) {
-	@components.AppShell("frei", nil, nil, freiOuter(vm))
+	@components.AppShellFlush("frei", "live", freiOuter(vm))
 }
 
 // freiOuter is the SSE-swap container: it reloads FreiFragment on any day-off
 // or settings mutation (Bundesland changes recompute holidays).
 templ freiOuter(vm FreiVM) {
 	<div id="content"
+		class="flex flex-1 flex-col"
 		hx-get="/ui/dayoffs"
 		hx-trigger="sse:dayoff.changed, sse:settings.changed"
 		hx-swap="innerHTML">
@@ -29,22 +30,33 @@ templ freiOuter(vm FreiVM) {
 // entries, and the settings panel (Bundesland + ICS feed). No glass/Card/
 // shadow-soft/font-display chrome — Kristall is fully retired from this page.
 templ FreiFragment(vm FreiVM) {
-	<div class="narrow">
-		<div class="spine">
-			<div class="up">
-				<a href="/zeit">{ components.T(ctx, "zeit.back") }</a>
+	// Dreispalter: die Abwesenheiten des Jahres stehen im Kasten — eine
+	// Liste, aus der man wählt (Katalog 3.13). Eintragen und Einstellungen
+	// bleiben im Lesesaal.
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+		<div class="k3-panel flex flex-col border-b border-hairp bg-panel lg:border-b-0 lg:border-r">
+			<div class="px-6 pb-2.5 pt-6">
+				<span class="eyebrow">{ components.T(ctx, "frei.eyebrow") }</span>
 			</div>
+			@freiListSection(vm)
 		</div>
-		<div class="pagehead">
-			<span class="eyebrow">{ components.T(ctx, "frei.eyebrow") }</span>
-			<h1>{ components.T(ctx, "frei.title") }</h1>
+		<div class="min-w-0 bg-canvas px-6 py-7 lg:px-14">
+			@components.PanelToggle("frei.eyebrow", "mb-4")
+			<div class="spine">
+				<div class="up">
+					<a href="/zeit">{ components.T(ctx, "zeit.back") }</a>
+				</div>
+			</div>
+			<div class="pagehead">
+				<span class="eyebrow">{ components.T(ctx, "frei.eyebrow") }</span>
+				<h1>{ components.T(ctx, "frei.title") }</h1>
+			</div>
+			if vm.Err != "" {
+				<p class="alert-err" role="alert">{ vm.Err }</p>
+			}
+			@freiAddSection(vm)
+			@freiSettingsSection(vm)
 		</div>
-		if vm.Err != "" {
-			<p class="alert-err" role="alert">{ vm.Err }</p>
-		}
-		@freiAddSection(vm)
-		@freiListSection(vm)
-		@freiSettingsSection(vm)
 	</div>
 }
 

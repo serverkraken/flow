@@ -14,7 +14,7 @@ templ HeutePage(vm HeuteVM) {
 // heuteBody mounts the Zeit-Hub with NO sub-tab-strip (subnav = nil) — L4
 // Task 3 retires the Heute/Woche/Historie pill strip from this surface.
 templ heuteBody(vm HeuteVM) {
-	@components.AppShell("zeit", nil, nil, heuteOuter(vm))
+	@components.AppShellFlush("zeit", "live", heuteOuter(vm))
 }
 
 // heuteOuter is the SSE-swap container: it reloads the inner HeuteFragment on
@@ -23,6 +23,7 @@ templ heuteBody(vm HeuteVM) {
 // node from the Nachbuchen picker live-updates the picker's option list).
 templ heuteOuter(vm HeuteVM) {
 	<div id="content"
+		class="flex flex-1 flex-col"
 		hx-get="/ui/worktime"
 		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.created, sse:dayoff.changed, sse:settings.changed"
 		hx-swap="innerHTML">
@@ -35,18 +36,27 @@ templ heuteOuter(vm HeuteVM) {
 // "Heute" ledger, vertical "Diese Woche" Wochenskala, and the "Werkzeuge"
 // menu. No Saldo-Kacheln, no Burndown-Banner, no sub-tab-strip.
 templ HeuteFragment(vm HeuteVM) {
-	if vm.Err != "" {
-		<p class="alert-err" role="alert">{ vm.Err }</p>
-	}
-	<div class="narrow">
-		<div class="pagehead">
-			<span class="eyebrow">{ components.T(ctx, "zeit.eyebrow") }</span>
-			<h1>{ vm.DateTitle }</h1>
-			<p class="sub">{ vm.AllTimeSub }</p>
+	// Dreispalter: die Woche und die Werkzeuge stehen im Kasten — die Woche
+	// ist die Liste, aus der man einen Tag wählt, die Werkzeuge sind
+	// Steuerung, die stehen bleibt (Katalog 3.13). Der Tag selbst hat den
+	// Lesesaal.
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+		<div class="k3-panel flex flex-col border-b border-hairp bg-panel px-6 pb-4 pt-6 lg:border-b-0 lg:border-r">
+			@heuteWeekSection(vm)
+			@heuteToolsSection(vm)
 		</div>
-		@heuteTodaySection(vm)
-		@heuteWeekSection(vm)
-		@heuteToolsSection(vm)
+		<div class="min-w-0 bg-canvas px-6 py-7 lg:px-14">
+			@components.PanelToggle("zeit.eyebrow", "mb-4")
+			if vm.Err != "" {
+				<p class="alert-err" role="alert">{ vm.Err }</p>
+			}
+			<div class="pagehead">
+				<span class="eyebrow">{ components.T(ctx, "zeit.eyebrow") }</span>
+				<h1>{ vm.DateTitle }</h1>
+				<p class="sub">{ vm.AllTimeSub }</p>
+			</div>
+			@heuteTodaySection(vm)
+		</div>
 	</div>
 }
 
