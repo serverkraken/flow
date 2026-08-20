@@ -361,10 +361,10 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .wtblock-unassigned:hover { border-color: rgb(var(--orange) / .8); }
 
   /* selected state for any block (bulk mode) */
-  .wtblock.is-selected { outline-color: rgb(var(--blue)); }
+  .wtblock.is-selected { outline-color: rgb(var(--accent)); }
   .wtblock.is-selected::after {
     content:"✓"; position:absolute; top:5px; right:6px;
-    font-size:.72rem; font-weight:700; color: rgb(var(--blue));
+    font-size:.72rem; font-weight:700; color: rgb(var(--accent));
   }
 
   /* running block — live green, breathing rail (Spec §7.3: Live = Grün) */
@@ -389,13 +389,16 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     transition: background .12s ease, border-color .12s ease;
     flex: none;
   }
-  .chk:checked { background: rgb(var(--blue)); border-color: rgb(var(--blue)); }
+  /* R2 — Farbe erklärt Herkunft. Blau bedeutet im Karteikasten Notiz und
+     Bibliothek; "ausgewählt" und "aktiv" sind Handlungen und tragen den
+     Akzent. Die blaue Interaktionsfarbe stammt aus der Kristall-Zeit. */
+  .chk:checked { background: rgb(var(--accent)); border-color: rgb(var(--accent)); }
   .chk:checked::after { content:"✓"; color: rgb(var(--oncolor)); font-size:.72rem; font-weight:800; line-height:1; }
 
   /* segmented control (Woche / Monat, Alle / …) */
   .seg { background: rgb(var(--sunken)); border:1px solid rgb(var(--line)); border-radius: 0; padding:3px; }
   .seg button, .seg a { border-radius: 0; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
-  .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); }
+  .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--accent)); }
 
   /* Kristall form field — single source for glass inputs across editor + node form */
   .field { width: 100%; background: rgb(255 255 255 / .8); border: 1px solid rgb(var(--hair2)); border-radius: 0; padding: 8px 12px; color: rgb(var(--ink)); transition: border-color .13s ease, box-shadow .13s ease; }

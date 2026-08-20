@@ -145,7 +145,7 @@ func IconButton(glyph, ariaLabel string, attrs templ.Attributes) templ.Component
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button class=\"grid place-items-center h-9 w-9 border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button class=\"grid place-items-center h-9 w-9 border border-line bg-sunken text-body hover:text-accent hover:border-accent/40 transition-colors\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

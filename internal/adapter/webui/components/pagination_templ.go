@@ -230,7 +230,7 @@ func Pagination(p PageNav) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"border border-dashed border-line px-3.5 py-2 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"border border-dashed border-line px-3.5 py-2 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-accent transition-colors\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

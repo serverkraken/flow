@@ -40,7 +40,7 @@ templ Button(variant ButtonVariant, label, glyph string, attrs templ.Attributes)
 // IconButton is a square, icon-only button; ariaLabel is required for a11y.
 templ IconButton(glyph, ariaLabel string, attrs templ.Attributes) {
 	<button
-		class="grid place-items-center h-9 w-9 border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+		class="grid place-items-center h-9 w-9 border border-line bg-sunken text-body hover:text-accent hover:border-accent/40 transition-colors"
 		aria-label={ ariaLabel }
 		{ attrs... }
 	>
