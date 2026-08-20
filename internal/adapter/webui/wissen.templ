@@ -260,13 +260,13 @@ templ wissenTagChips(vm WissenVM) {
 				for _, chip := range vm.AllTags {
 					if chip.Active {
 						<a href={ templ.SafeURL(chip.Href) }
-							class="inline-flex items-center gap-1.5 rounded-full border border-blue/40 bg-blue/10 px-3 py-1 text-[.8rem] font-medium text-blue">
+							class="inline-flex items-center gap-1.5 border border-blue/40 bg-blue/10 px-3 py-1 text-[.8rem] font-medium text-blue">
 							<span aria-hidden="true">#</span>{ chip.Tag }
 							<span class="text-faint">{ itoa(chip.Count) }</span>
 						</a>
 					} else {
 						<a href={ templ.SafeURL(chip.Href) }
-							class="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue">
+							class="inline-flex items-center gap-1.5 border border-line px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue">
 							<span aria-hidden="true">#</span>{ chip.Tag }
 							<span class="text-faint">{ itoa(chip.Count) }</span>
 						</a>

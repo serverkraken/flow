@@ -63,7 +63,7 @@ func PaletteResults(vm PaletteVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" data-palette-row class=\"flex items-center gap-3 rounded-lg px-3 py-2 text-[14px] hover:bg-wash aria-selected:bg-wash\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" data-palette-row class=\"flex items-center gap-3 px-3 py-2 text-[14px] hover:bg-wash aria-selected:bg-wash\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -112,7 +112,7 @@ func PaletteResults(vm PaletteVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" data-palette-row class=\"flex items-center gap-3 rounded-lg px-3 py-2 text-[14px] hover:bg-wash aria-selected:bg-wash\"><span class=\"typechip\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" data-palette-row class=\"flex items-center gap-3 px-3 py-2 text-[14px] hover:bg-wash aria-selected:bg-wash\"><span class=\"typechip\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

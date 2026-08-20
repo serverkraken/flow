@@ -26,9 +26,9 @@ func rowTileClass(hue string, unassigned bool) string {
 // sessions, a dashed "empty" frame with a faint warning wash when unassigned.
 func rowShellClass(unassigned bool) string {
 	if unassigned {
-		return "rounded-2xl border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3"
+		return " border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3"
 	}
-	return "rounded-2xl bg-surface border border-line shadow-soft px-3.5 py-3"
+	return " bg-surface border border-line shadow-soft px-3.5 py-3"
 }
 
 // SessionRow renders one mobile-agenda / list row for a worktime session
@@ -125,7 +125,7 @@ func SessionRow(vm SessionRowVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var8 = []any{"grid place-items-center h-9 w-9 rounded-xl text-[.95rem] flex-none", rowTileClass(vm.Hue, vm.Unassigned)}
+		var templ_7745c5c3_Var8 = []any{"grid place-items-center h-9 w-9 text-[.95rem] flex-none", rowTileClass(vm.Hue, vm.Unassigned)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var8...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -150,7 +150,7 @@ func SessionRow(vm SessionRowVM) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Glyph)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionrow.templ`, Line: 36, Col: 153}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionrow.templ`, Line: 36, Col: 142}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {

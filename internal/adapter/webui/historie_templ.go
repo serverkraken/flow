@@ -468,7 +468,7 @@ func historieToolbar(vm HistorieVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if vm.UnassignedCount > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"rounded-xl border border-orange/30 bg-orange/10 px-3.5 py-2.5 flex flex-wrap items-center gap-y-2 gap-x-4 mt-2.5\"><span class=\"text-orange inline-flex items-center gap-1.5 text-[.86rem] font-semibold\"><span aria-hidden=\"true\">○</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"border border-orange/30 bg-orange/10 px-3.5 py-2.5 flex flex-wrap items-center gap-y-2 gap-x-4 mt-2.5\"><span class=\"text-orange inline-flex items-center gap-1.5 text-[.86rem] font-semibold\"><span aria-hidden=\"true\">○</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -505,7 +505,7 @@ func historieToolbar(vm HistorieVM) templ.Component {
 
 // historieSeg is a bare Lesesaal `.seg` segmented toggle (Kalender|Liste,
 // Woche|Monat) — replaces components.SegToggle (whose option markup baked in
-// Kristall shadow-soft/rounded-[9px]/text-blue) with the `.seg` primitive
+// Kristall shadow-soft//text-blue) with the `.seg` primitive
 // alone: its own `[aria-pressed="true"]` CSS (tailwind.css:335-337) already
 // supplies the active surface/color/shadow. SegToggle has zero other callers
 // after this task (verified via rg), so nothing downstream depends on it
@@ -603,7 +603,7 @@ func historieSeg(options []components.SegOption, active string) templ.Component 
 
 // historieWeek is the desktop time-grid (md+; mobile uses the agenda). The
 // grid mechanism itself (.grid-lines/.wtblock/.now-line, Task-1-era tokens)
-// is unchanged Bestand — only the outer card chrome (was rounded-3xl glass
+// is unchanged Bestand — only the outer card chrome (was glass
 // shadow-soft) is retired for a hairline frame that scrolls in its own frame
 // on medium viewports (no page-level H-pan).
 func historieWeek(vm HistorieVM) templ.Component {
@@ -640,7 +640,7 @@ func historieWeek(vm HistorieVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "\"><div class=\"rounded-xl border border-line2 overflow-hidden\"><div class=\"overflow-x-auto scroll-thin\"><div class=\"narrow-min\"><div class=\"grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line2\"><div class=\"border-r border-line2\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "\"><div class=\"border border-line2 overflow-hidden\"><div class=\"overflow-x-auto scroll-thin\"><div class=\"narrow-min\"><div class=\"grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line2\"><div class=\"border-r border-line2\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1601,8 +1601,8 @@ func historieAgenda(vm HistorieVM) templ.Component {
 }
 
 // historieMonth is the month view: a continuous hairline day-cell grid
-// (Haarlinien-Tageszellen), replacing the Kristall rounded-3xl glass card +
-// isolated rounded-xl border cells.
+// (Haarlinien-Tageszellen), replacing the Kristall glass card +
+// isolated border cells.
 func historieMonth(vm HistorieVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -1650,14 +1650,14 @@ func historieMonth(vm HistorieVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "</h2><div class=\"flex items-center gap-2 text-[.72rem] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2 w-2 rounded-sm bg-blue\"></span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "</h2><div class=\"flex items-center gap-2 text-[.72rem] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2 w-2 bg-blue\"></span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var91 string
 		templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "historie.withProject"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 299, Col: 156}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 299, Col: 145}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 		if templ_7745c5c3_Err != nil {
@@ -1998,27 +1998,27 @@ func historieLegend() templ.Component {
 			templ_7745c5c3_Var111 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 148, "<div class=\"mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.78rem] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2.5 w-2.5 rounded-sm border border-dashed border-faint bg-sunken\"></span> <span class=\"text-orange\">○</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 148, "<div class=\"mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.78rem] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2.5 w-2.5 border border-dashed border-faint bg-sunken\"></span> <span class=\"text-orange\">○</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var112 string
 		templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "historie.unassigned"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 353, Col: 230}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 353, Col: 219}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var112))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 149, "</span> <span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2.5 w-2.5 rounded-sm bg-live\"></span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 149, "</span> <span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2.5 w-2.5 bg-live\"></span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var113 string
 		templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "heute.running"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 354, Col: 151}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 354, Col: 140}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 		if templ_7745c5c3_Err != nil {
@@ -2338,7 +2338,7 @@ func HistorieListFragment(vm HistorieListVM) templ.Component {
 
 // historieSessionRow is one Lesesaal .row session row (calendar agenda + flat
 // list): .led-when (Von–Bis) · .grow (Title · Tags/Note fallback) · .right .v
-// (Dauer). Replaces components.SessionRow (Kristall: rounded-2xl card chrome
+// (Dauer). Replaces components.SessionRow (Kristall: card chrome
 // + a per-project glyph tile — Farb-Gesetz §7 keeps project color out of
 // anything but the avatar, and this row carries none). The checkbox keeps its
 // exact .chk/.row-chk classes and the <li data-session-id> + literal
@@ -2526,7 +2526,7 @@ func historieSessionRow(row components.SessionRowVM) templ.Component {
 // ── Shared: selection bar + single-edit dialog ───────────────────────────────
 
 // historieActionBar is the Lesesaal .panel/.btn sticky bulk-action bar,
-// replacing components.SelectionActionBar (Kristall: rounded-3xl glass
+// replacing components.SelectionActionBar (Kristall: glass
 // shadow-lift). SelectionActionBar has zero other callers after this task
 // (verified via rg), so nothing downstream depends on its chrome. All
 // data-attrs / the hidden ids/projectId/newProject fields / the ConfirmDialog
@@ -2565,7 +2565,7 @@ func historieActionBar(vm components.SelectionBarVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 185, "\" method=\"post\" class=\"contents\"><input type=\"hidden\" name=\"ids\" data-bulk-ids value=\"\"> <input type=\"hidden\" name=\"projectId\" data-bulk-project-id value=\"\"> <input type=\"hidden\" name=\"newProject\" data-bulk-new-project value=\"\"></form><div class=\"flex flex-wrap items-center gap-2.5 sm:gap-3\"><span class=\"inline-flex items-center gap-2 rounded-xl bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue\"><span aria-hidden=\"true\">▎</span><span data-sel-count>0</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 185, "\" method=\"post\" class=\"contents\"><input type=\"hidden\" name=\"ids\" data-bulk-ids value=\"\"> <input type=\"hidden\" name=\"projectId\" data-bulk-project-id value=\"\"> <input type=\"hidden\" name=\"newProject\" data-bulk-new-project value=\"\"></form><div class=\"flex flex-wrap items-center gap-2.5 sm:gap-3\"><span class=\"inline-flex items-center gap-2 bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue\"><span aria-hidden=\"true\">▎</span><span data-sel-count>0</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

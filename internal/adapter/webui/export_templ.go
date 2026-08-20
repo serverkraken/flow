@@ -418,7 +418,7 @@ func exportDownloadSection(d ExportPageData) templ.Component {
 
 // exportSummarySection is the preview table as .tblwrap + .prose table
 // (L3-Bestand: Versalien-Köpfe, Haarlinien), replacing the retired
-// exportSummaryTable rounded-2xl glass shadow-soft card.
+// exportSummaryTable glass shadow-soft card.
 func exportSummarySection(d ExportPageData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

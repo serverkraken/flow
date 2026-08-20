@@ -573,7 +573,7 @@ func freeArtifactRenameForm(a ArtifactCardVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\" required class=\"rounded-lg border border-hair2 bg-surface px-3 py-2\"></label><div class=\"flex justify-end gap-2\"><button type=\"submit\" class=\"btn btn-pri btn-s\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\" required class=\"border border-hair2 bg-surface px-3 py-2\"></label><div class=\"flex justify-end gap-2\"><button type=\"submit\" class=\"btn btn-pri btn-s\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

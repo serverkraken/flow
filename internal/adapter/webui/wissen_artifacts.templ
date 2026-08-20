@@ -144,7 +144,7 @@ templ freeArtifactRenameForm(a ArtifactCardVM) {
 	>
 		<label class="flex flex-col gap-1">
 			<span class="text-sm text-meta">{ components.T(ctx, "node.name") }</span>
-			<input type="text" name="name" value={ a.Name } required class="rounded-lg border border-hair2 bg-surface px-3 py-2"/>
+			<input type="text" name="name" value={ a.Name } required class="border border-hair2 bg-surface px-3 py-2"/>
 		</label>
 		<div class="flex justify-end gap-2">
 			<button type="submit" class="btn btn-pri btn-s">{ components.T(ctx, "common.save") }</button>

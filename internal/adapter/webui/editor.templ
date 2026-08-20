@@ -60,7 +60,7 @@ templ editorOuter(vm EditorVM) {
 		})
 	}
 	if vm.Err != "" {
-		<p class="mb-5 rounded-lg bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
+		<p class="mb-5 bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
 	}
 	<div class="grid gap-6 lg:grid-cols-2 lg:items-start">
 		<form action={ templ.SafeURL(vm.Action()) } method="post" class="panel p-5" data-document-metadata>
@@ -91,7 +91,7 @@ templ editorOuter(vm EditorVM) {
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
 				<input type="text" name="path" value={ vm.Path } class="field font-mono" data-document-path disabled?={ vm.Daily() } required?={ !vm.Daily() }/>
 			</label>
-			<div class="mt-4 rounded-lg border border-line bg-sunken px-4 py-3" data-metadata-field="derived-path" hidden?={ !vm.Daily() }>
+			<div class="mt-4 border border-line bg-sunken px-4 py-3" data-metadata-field="derived-path" hidden?={ !vm.Daily() }>
 				<span class="mb-1 block text-[.72rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path.derived") }</span>
 				<code class="text-[.86rem] text-ink" data-derived-path>{ vm.Path }</code>
 				<p class="mt-1 text-[.78rem] text-muted">{ components.T(ctx, "wissen.path.dailyHint") }</p>

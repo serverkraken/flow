@@ -69,7 +69,7 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"w-[min(86vw,300px)] rounded-2xl bg-surface border border-line shadow-lift p-2\" role=\"listbox\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"w-[min(86vw,300px)] bg-surface border border-line shadow-lift p-2\" role=\"listbox\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -108,12 +108,12 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" class=\"w-full rounded-lg border border-line bg-sunken/60 py-2 pl-7 pr-2 text-[.85rem] placeholder:text-faint focus:border-blue/40 transition-colors\"></label></div><ul class=\"max-h-[230px] overflow-auto scroll-thin\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" class=\"w-full border border-line bg-sunken/60 py-2 pl-7 pr-2 text-[.85rem] placeholder:text-faint focus:border-blue/40 transition-colors\"></label></div><ul class=\"max-h-[230px] overflow-auto scroll-thin\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, p := range vm.Nodes {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<li class=\"pick-row flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-sunken\" role=\"option\" aria-selected=\"false\" data-project-id=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<li class=\"pick-row flex items-center justify-between gap-2 px-2.5 py-2 cursor-pointer hover:bg-sunken\" role=\"option\" aria-selected=\"false\" data-project-id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -205,7 +205,7 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"border-t border-line2 mt-1 pt-1\"><button type=\"button\" data-new-project class=\"pick-row flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[.9rem] font-medium text-green hover:bg-green/10\" role=\"option\" aria-selected=\"false\"><span aria-hidden=\"true\">✚</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"border-t border-line2 mt-1 pt-1\"><button type=\"button\" data-new-project class=\"pick-row flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[.9rem] font-medium text-green hover:bg-green/10\" role=\"option\" aria-selected=\"false\"><span aria-hidden=\"true\">✚</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

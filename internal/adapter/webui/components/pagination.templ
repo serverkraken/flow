@@ -44,23 +44,23 @@ templ Pagination(p PageNav) {
 		<div class="flex items-center gap-2">
 			if p.HasPrev() {
 				<a href={ templ.SafeURL(p.PrevHref()) }
-					class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+					class="inline-flex items-center gap-1.5 border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
 					<span aria-hidden="true">‹</span> { T(ctx, "page.prev") }
 				</a>
 			} else {
 				<span aria-disabled="true"
-					class="inline-flex items-center gap-1.5 rounded-xl border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed">
+					class="inline-flex items-center gap-1.5 border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed">
 					<span aria-hidden="true">‹</span> { T(ctx, "page.prev") }
 				</span>
 			}
 			if p.HasNext() {
 				<a href={ templ.SafeURL(p.NextHref()) }
-					class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+					class="inline-flex items-center gap-1.5 border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
 					{ T(ctx, "page.next") } <span aria-hidden="true">›</span>
 				</a>
 			} else {
 				<span aria-disabled="true"
-					class="inline-flex items-center gap-1.5 rounded-xl border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed">
+					class="inline-flex items-center gap-1.5 border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed">
 					{ T(ctx, "page.next") } <span aria-hidden="true">›</span>
 				</span>
 			}
@@ -68,7 +68,7 @@ templ Pagination(p PageNav) {
 		<span class="text-[.82rem] text-muted tnum">{ T(ctx, "page.page") } { strconv.Itoa(p.Page) } / { strconv.Itoa(p.Pages()) }</span>
 		if p.HasNext() {
 			<a href={ templ.SafeURL(p.NextHref()) }
-				class="rounded-xl border border-dashed border-line px-3.5 py-2 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors">
+				class="border border-dashed border-line px-3.5 py-2 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors">
 				{ T(ctx, "page.more") }
 			</a>
 		}

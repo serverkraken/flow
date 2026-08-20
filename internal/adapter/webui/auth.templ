@@ -23,7 +23,7 @@ templ AuthPage(vm AuthVM) {
 
 templ authBody(vm AuthVM) {
 	<main class="grid place-items-center px-6 py-12">
-		<div class="glass shadow-soft rounded-2xl p-6 max-w-sm w-full text-center">
+		<div class="glass shadow-soft p-6 max-w-sm w-full text-center">
 			<p class="eyebrow mb-2 text-[.72rem] font-semibold uppercase text-cyan">flow</p>
 			<h1 class="font-display text-2xl font-semibold text-ink mb-2">{ components.T(ctx, vm.TitleKey) }</h1>
 			<p class="text-[.92rem] text-muted mb-6">{ components.T(ctx, vm.MsgKey) }</p>
@@ -31,7 +31,7 @@ templ authBody(vm AuthVM) {
 				<a
 					href="/auth/login"
 					hx-boost="false"
-					class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor"
+					class="inline-flex items-center justify-center bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor"
 				>
 					{ components.T(ctx, "auth.login") } ›
 				</a>

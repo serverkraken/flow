@@ -142,7 +142,7 @@ templ freiRow(row FreiRowVM) {
 			<div class="right">
 				<button type="button" aria-label={ components.T(ctx, "common.delete") }
 					data-dialog-open={ "frei-del-" + row.Day }
-					class="grid place-items-center h-8 w-8 rounded-lg text-faint hover:text-red hover:bg-red/10 transition-colors">
+					class="grid place-items-center h-8 w-8 text-faint hover:text-red hover:bg-red/10 transition-colors">
 					<span aria-hidden="true">✗</span>
 				</button>
 			</div>
@@ -184,7 +184,7 @@ templ freiSettingsSection(vm FreiVM) {
 				<span class="eyebrow">{ components.T(ctx, "frei.icsFeed") }</span>
 				<p class="mt-1 text-[.82rem] text-muted">{ components.T(ctx, "frei.icsHint") }</p>
 				<div class="mt-2 flex items-center gap-2">
-					<code class="flex-1 min-w-0 truncate rounded-lg bg-sunken px-3 py-2 text-[.78rem] font-mono text-body">{ vm.IcsURL }</code>
+					<code class="flex-1 min-w-0 truncate bg-sunken px-3 py-2 text-[.78rem] font-mono text-body">{ vm.IcsURL }</code>
 					<button type="button" data-copy={ vm.IcsURL } data-copied-label={ components.T(ctx, "frei.copied") }
 						class="btn btn-q shrink-0">
 						{ components.T(ctx, "frei.copy") }

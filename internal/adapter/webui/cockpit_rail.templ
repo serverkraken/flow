@@ -88,7 +88,7 @@ templ CockpitRailBlocks(d NodeCockpit) {
 		}
 		if d.N.Kind == domain.KindRepo {
 			<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-rail" hx-swap="innerHTML" class="bindadd mt-2 flex items-center gap-2">
-				<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="min-w-0 flex-1 rounded-lg border border-hair2 bg-surface px-2 py-1.5 font-mono"/>
+				<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="min-w-0 flex-1 border border-hair2 bg-surface px-2 py-1.5 font-mono"/>
 				<button class="btn btn-q btn-s" type="submit">+</button>
 			</form>
 		}

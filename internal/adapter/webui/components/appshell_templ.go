@@ -544,7 +544,7 @@ func appShellHull(active string, ebeneColor string, flush bool, breadcrumb, subn
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</main></div></div><dialog id=\"user-menu\" aria-modal=\"true\" aria-labelledby=\"user-menu-title\" class=\"fixed m-0 mt-[64px] ml-auto mr-4 w-[240px] rounded-[14px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20\"><div class=\"px-4 pt-3 pb-2 border-b border-hair\"><span id=\"user-menu-title\" class=\"eyebrow\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</main></div></div><dialog id=\"user-menu\" aria-modal=\"true\" aria-labelledby=\"user-menu-title\" class=\"fixed m-0 mt-[64px] ml-auto mr-4 w-[240px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20\"><div class=\"px-4 pt-3 pb-2 border-b border-hair\"><span id=\"user-menu-title\" class=\"eyebrow\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -602,7 +602,7 @@ func appShellHull(active string, ebeneColor string, flush bool, breadcrumb, subn
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</button></form></div></dialog><dialog id=\"mobile-nav\" aria-modal=\"true\" aria-labelledby=\"mobile-nav-title\" class=\"fixed m-0 mt-[54px] ml-4 mr-auto w-[240px] rounded-[14px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20\"><div class=\"px-4 pt-3 pb-2 border-b border-hair\"><span id=\"mobile-nav-title\" class=\"eyebrow\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</button></form></div></dialog><dialog id=\"mobile-nav\" aria-modal=\"true\" aria-labelledby=\"mobile-nav-title\" class=\"fixed m-0 mt-[54px] ml-4 mr-auto w-[240px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20\"><div class=\"px-4 pt-3 pb-2 border-b border-hair\"><span id=\"mobile-nav-title\" class=\"eyebrow\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -210,7 +210,7 @@ templ DocumentFragment(vm DocumentVM) {
 // `.btn.btn-q.btn-s` button instead of a hand-rolled glass pill.
 templ DocumentEmbedBadge(docID string, e EmbedView) {
 	<div class="mb-4 flex flex-wrap items-center gap-2 seg-sm">
-		<span class={ "inline-flex items-center rounded-full border px-2.5 py-1 font-medium", embedToneClass(e.State) }>
+		<span class={ "inline-flex items-center border px-2.5 py-1 font-medium", embedToneClass(e.State) }>
 			{ components.T(ctx, embedLabelKey(e.State)) }
 		</span>
 		if e.LastError != "" {

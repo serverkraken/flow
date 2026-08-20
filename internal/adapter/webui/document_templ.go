@@ -948,7 +948,7 @@ func DocumentEmbedBadge(docID string, e EmbedView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var52 = []any{"inline-flex items-center rounded-full border px-2.5 py-1 font-medium", embedToneClass(e.State)}
+		var templ_7745c5c3_Var52 = []any{"inline-flex items-center border px-2.5 py-1 font-medium", embedToneClass(e.State)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var52...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

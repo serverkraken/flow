@@ -14,12 +14,12 @@ templ TimerWidget(vm TimerWidgetVM) {
 	<section class="panel p-4 text-[.9rem]">
 		<div class="eyebrow uppercase text-[.62rem] font-bold text-faint mb-2">{ components.T(ctx, "timer.title") }</div>
 		if vm.Err != "" {
-			<p class="mb-2 rounded-lg bg-red/10 px-2.5 py-1.5 text-[.78rem] text-red" role="alert">{ vm.Err }</p>
+			<p class="mb-2 bg-red/10 px-2.5 py-1.5 text-[.78rem] text-red" role="alert">{ vm.Err }</p>
 		}
 		if !vm.Running {
 			<form hx-post="/ui/timer/start" hx-target="closest section" hx-swap="outerHTML" class="space-y-2">
 				@timerNodeSelect(vm.Bookable, "")
-				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]"/>
+				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]"/>
 				<div class="grid">
 					@components.Button(components.BtnSecondary, components.T(ctx, "timer.start"), "▶", templ.Attributes{"type": "submit"})
 				</div>
@@ -63,7 +63,7 @@ templ timerNodeSelect(bookable []domain.Node, label string) {
 	if label != "" {
 		<label class="block text-sm md:text-[.72rem] text-yellow">{ label }</label>
 	}
-	<select name="projectId" class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]">
+	<select name="projectId" class="w-full border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]">
 		<option value="">{ components.T(ctx, "timer.choose") }</option>
 		for _, n := range bookable {
 			<option value={ n.ID }>{ n.Name }</option>
@@ -76,7 +76,7 @@ templ timerNodeSelect(bookable []domain.Node, label string) {
 // das Timer-Sheet (TimerWidget als Dialog-Body) öffnet.
 templ TimerPill(vm TimerWidgetVM) {
 	if vm.Running {
-		<span class="timerpill inline-flex items-center gap-2 rounded-full border border-hair2 bg-surface pl-2.5 pr-3 py-[5px]">
+		<span class="timerpill inline-flex items-center gap-2 border border-hair2 bg-surface pl-2.5 pr-3 py-[5px]">
 			<span class="h-[7px] w-[7px] rounded-full bg-live-bright shadow-[0_0_0_3px_rgb(var(--live-wash))]" aria-hidden="true"></span>
 			<span class="font-mono tnum text-[13px] font-semibold" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
 			if vm.NodeName != "" {
@@ -86,7 +86,7 @@ templ TimerPill(vm TimerWidgetVM) {
 		</span>
 	} else {
 		<button type="button" data-dialog-open="timer-sheet"
-			class="timerpill inline-flex items-center gap-1.5 rounded-full border border-hair2 bg-surface px-3 py-[5px] text-[13px] font-medium text-meta hover:text-ink hover:border-faint">
+			class="timerpill inline-flex items-center gap-1.5 border border-hair2 bg-surface px-3 py-[5px] text-[13px] font-medium text-meta hover:text-ink hover:border-faint">
 			<span aria-hidden="true">▶</span> { components.T(ctx, "timer.start") }
 		</button>
 	}

@@ -255,7 +255,7 @@ aside, header, nav, article, input, .theme-fade {
 *:focus-visible {
   outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 /* Styled native <dialog> backdrop (Task 8). */
@@ -284,7 +284,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .topbar-mark { font-size: 17px; }
   .topbar-nav { display: none; }
   .topbar-burger { display: inline-flex; }
-  .searchbtn { padding: 7px 8px; border-radius: 7px; }
+  .searchbtn { padding: 7px 8px; border-radius: 0; }
   .searchbtn-kbd { display: none; }
   .timerpill { padding: 6px 9px; }
 }
@@ -319,7 +319,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     --c: var(--muted);
     position: absolute;
     left: 4px; right: 4px;
-    border-radius: 12px;
+    border-radius: 0;
     border: 1px solid rgb(var(--c) / .35);
     background: rgb(var(--c) / .12);
     overflow: hidden;
@@ -391,8 +391,8 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .chk:checked::after { content:"✓"; color: rgb(var(--oncolor)); font-size:.72rem; font-weight:800; line-height:1; }
 
   /* segmented control (Woche / Monat, Alle / …) */
-  .seg { background: rgb(var(--sunken)); border:1px solid rgb(var(--line)); border-radius: 12px; padding:3px; }
-  .seg button, .seg a { border-radius: 9px; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
+  .seg { background: rgb(var(--sunken)); border:1px solid rgb(var(--line)); border-radius: 0; padding:3px; }
+  .seg button, .seg a { border-radius: 0; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
   .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); box-shadow: var(--tw-shadow, 0 1px 2px rgb(var(--shadow)/.06)); }
 
   /* Kristall form field — single source for glass inputs across editor + node form */
@@ -451,7 +451,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: rgb(var(--faint)); }
 
   /* Dokumenttyp-Chips (Spec §7.1) — feste semantische Zuordnung, nie pro Projekt */
-  .typechip { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(var(--meta)); border: 1px solid rgb(var(--hair2)); border-radius: 4px; padding: 1.5px 6px; background: rgb(var(--surface)); flex-shrink: 0; }
+  .typechip { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(var(--meta)); border: 1px solid rgb(var(--hair2)); border-radius: 0; padding: 1.5px 6px; background: rgb(var(--surface)); flex-shrink: 0; }
   .tc-b { color: #2554E8; background: #E8EEFE; border-color: #C9D8FC; }
   .tc-v { color: #7A3FE4; background: #F1EAFE; border-color: #DFD0FA; }
   .tc-t { color: #0B8A7B; background: #E2F5F2; border-color: #C6EAE5; }
@@ -460,11 +460,11 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .tc-r { color: #D14324; background: #FDEAE4; border-color: #F8D5C9; }
 
   /* Ersatz-Avatare (Spec §7.2/§8): weiße Initialen auf sattem Grund */
-  .ava { display: inline-grid; place-items: center; flex-shrink: 0; font-weight: 700; color: #fff; border-radius: 9px; }
-  .av-28 { width: 28px; height: 28px; font-size: 11px; border-radius: 7px; }
+  .ava { display: inline-grid; place-items: center; flex-shrink: 0; font-weight: 700; color: #fff; border-radius: 0; }
+  .av-28 { width: 28px; height: 28px; font-size: 11px; border-radius: 0; }
   .av-36 { width: 36px; height: 36px; font-size: 13px; }
-  .av-64 { width: 64px; height: 64px; font-size: 22px; border-radius: 15px; }
-  .av-96 { width: 96px; height: 96px; font-size: 32px; border-radius: 22px; }
+  .av-64 { width: 64px; height: 64px; font-size: 22px; border-radius: 0; }
+  .av-96 { width: 96px; height: 96px; font-size: 32px; border-radius: 0; }
   .ava-agent { background: rgb(var(--surface)); border: 1.5px dashed rgb(var(--hair2)); color: rgb(var(--meta)); }
   .ava-me { background: rgb(var(--wash)); border: 1px solid rgb(var(--hair2)); color: rgb(var(--ink)); }
   .ava-logo { background: rgb(var(--surface)); border: 1px solid rgb(var(--hair2)); }
@@ -483,9 +483,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .spine-title { display: flex; flex-direction: column; min-width: 0; }
   .spine-desc { color: rgb(var(--meta)); font-size: .9rem; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   .spine-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: rgb(var(--meta)); }
-  .spine-meta .k { border: 1px solid rgb(var(--hair2)); background: rgb(var(--surface)); border-radius: 4px; padding: 1.5px 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgb(var(--meta)); }
+  .spine-meta .k { border: 1px solid rgb(var(--hair2)); background: rgb(var(--surface)); border-radius: 0; padding: 1.5px 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgb(var(--meta)); }
   .fullpath { margin-top: 9px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--faint)); word-break: break-all; }
-  .fullpath button { color: rgb(var(--faint)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; margin-left: 6px; border: 1px solid rgb(var(--hair)); border-radius: 4px; padding: 0 5px; }
+  .fullpath button { color: rgb(var(--faint)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; margin-left: 6px; border: 1px solid rgb(var(--hair)); border-radius: 0; padding: 0 5px; }
   .fullpath button:hover { color: rgb(var(--meta)); border-color: rgb(var(--hair2)); }
   /* Cockpit-Grid + instr-Band */
   .cock { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 56px; padding-bottom: 70px; }
@@ -496,7 +496,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .instr .clock { font-size: 13px; font-weight: 600; }
   .instr .note { font-size: 13px; }
   /* Meta-Spalte (rail) */
-  .rail .blk { margin-top: 18px; background: rgb(var(--panel)); border-radius: 14px; padding: 16px 18px; }
+  .rail .blk { margin-top: 18px; background: rgb(var(--panel)); border-radius: 0; padding: 16px 18px; }
   .rail .blk:first-child { margin-top: 46px; }
   .rail .blk > .eyebrow { display: block; padding-bottom: 9px; color: rgb(var(--meta)); }
   .blk .empty { font-size: 12.5px; }
@@ -510,8 +510,8 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .krow a.n:hover { color: rgb(var(--accent)); }
   .krow .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--meta)); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   /* Kontext-Instrument */
-  .meter { height: 6px; border-radius: 3px; background: rgb(var(--hairp)); margin: 12px 0 7px; overflow: hidden; }
-  .meter i { display: block; height: 100%; background: rgb(var(--accent)); border-radius: 3px; }
+  .meter { height: 6px; border-radius: 0; background: rgb(var(--hairp)); margin: 12px 0 7px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: rgb(var(--accent)); border-radius: 0; }
   .meter.full i { background: rgb(var(--warn)); }
   .meter-l { display: flex; justify-content: space-between; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: rgb(var(--meta)); }
   .meter-l .warn { color: rgb(var(--warn)); font-weight: 600; }
@@ -539,7 +539,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .btn-q { border-color: rgb(var(--hair2)); color: rgb(var(--ink)); background: rgb(var(--surface)); }
   .btn-q:hover { border-color: rgb(var(--faint)); }
   .btn-s { padding: 6px 12px; font-size: 13px; }
-  .livechip { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: rgb(var(--live)); background: rgb(var(--live-wash)); border-radius: 4px; padding: 2px 7px; }
+  .livechip { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: rgb(var(--live)); background: rgb(var(--live-wash)); border-radius: 0; padding: 2px 7px; }
   .targetlink { color: rgb(var(--accent)); font-weight: 500; }
   /* Puls-Zeile (Cockpit-Inhalt T6, Mockup Z.611–626 .puls .who/.agentname) */
   .pulse .who { font-weight: 600; }
@@ -578,7 +578,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .read { display: grid; grid-template-columns: minmax(0,1fr) 250px; gap: 64px; padding-bottom: 80px; }
   /* Figuren (Mermaid/statisch) */
   figure { margin-top: 1.6em; min-width: 0; }
-  figure .frame { border: 1px solid rgb(var(--hair2)); border-radius: 10px; background: rgb(var(--surface)); padding: 20px; overflow-x: auto; }
+  figure .frame { border: 1px solid rgb(var(--hair2)); border-radius: 0; background: rgb(var(--surface)); padding: 20px; overflow-x: auto; }
   .frame svg { display: block; }
   figcaption { margin-top: 9px; font-size: 12.5px; color: rgb(var(--faint)); }
   figcaption b { color: rgb(var(--meta)); font-weight: 600; }
@@ -587,7 +587,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      Bestand-Klassen figure/.frame oben. min-width:0 + overflow:hidden +
      text-overflow:ellipsis truncaten einen langen Dateinamen statt die
      Prosaspalte horizontal aufzureißen. */
-  .filechip { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; padding: 9px 14px; border: 1px solid rgb(var(--hair2)); border-radius: 10px; background: rgb(var(--surface)); color: rgb(var(--ink)); text-decoration: none; font-size: 13.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .filechip { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; padding: 9px 14px; border: 1px solid rgb(var(--hair2)); border-radius: 0; background: rgb(var(--surface)); color: rgb(var(--ink)); text-decoration: none; font-size: 13.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .filechip:hover { background: rgb(var(--wash)); }
   /* Bild-Lightbox (fr-doc-lightbox): jedes Bitmap-Bild im Dokument öffnet
      beim Klick #doc-lightbox. Die Klasse setzt der Renderer server-seitig,
@@ -610,14 +610,14 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   dialog.lightbox { max-width: 92vw; max-height: 92vh; }
   dialog.lightbox[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); justify-items: center; }
   dialog.lightbox .lightbox-bar { display: flex; justify-content: flex-end; justify-self: stretch; margin-bottom: 8px; }
-  dialog.lightbox .lightbox-img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; background: rgb(var(--surface)); }
+  dialog.lightbox .lightbox-img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0; background: rgb(var(--surface)); }
   /* Cockpit-Artefakt-Galerie (Lesesaal L6 Task 5, Spec OE #2/#3): eigene
      Klassen fürs Karten-Grid, den Bild-Thumb, den Datei-Chip (monospace
      Glyph statt Emoji) und die Aktionsleiste. Grid kollabiert unten
      (960px/620px) auf 2 bzw. 1 Spalte statt horizontal zu pannen (§11). */
   .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
-  .artcard { min-width: 0; border: 1px solid rgb(var(--hair2)); border-radius: 12px; background: rgb(var(--surface)); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-  .artcard-thumb { aspect-ratio: 4 / 3; border-radius: 8px; background: rgb(var(--sheet)); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .artcard { min-width: 0; border: 1px solid rgb(var(--hair2)); border-radius: 0; background: rgb(var(--surface)); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .artcard-thumb { aspect-ratio: 4 / 3; border-radius: 0; background: rgb(var(--sheet)); overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .artcard-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .artcard-chip { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--meta)); letter-spacing: .03em; }
   .artcard-name { font-size: 13px; font-weight: 500; }
@@ -634,13 +634,13 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .mermaid-src[open] summary::before { transform: rotate(90deg); }
   .mermaid-src pre { margin-top: 8px; }
   /* Mermaid-Fehlerzustand (Parse-Fehler sichtbar + Codefence-Quelle bleibt lesbar) */
-  .mermaid-error { border: 1px dashed rgb(var(--warn) / .5); background: rgb(var(--warn-wash) / .5); border-radius: 8px; padding: 12px 14px; font-size: 12.5px; color: rgb(var(--warn)); }
+  .mermaid-error { border: 1px dashed rgb(var(--warn) / .5); background: rgb(var(--warn-wash) / .5); border-radius: 0; padding: 12px 14px; font-size: 12.5px; color: rgb(var(--warn)); }
   .mermaid-error pre { margin-top: 8px; }
   .mermaid-figure { position: relative; }
   .mermaid-figure svg { max-width: 100%; height: auto; }
   /* Doc-Meta-Spalte */
   .docrail { font-size: 13px; padding-top: 8px; }
-  .docrail .blk { margin-top: 16px; background: rgb(var(--panel)); border-radius: 14px; padding: 15px 17px; }
+  .docrail .blk { margin-top: 16px; background: rgb(var(--panel)); border-radius: 0; padding: 15px 17px; }
   .docrail .blk:first-child { margin-top: 0; }
   .docrail .blk > .eyebrow { display: block; padding-bottom: 8px; color: rgb(var(--meta)); }
   .docrail .krow { border-color: rgb(var(--hairp)); }
@@ -657,12 +657,12 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      Prov-Zeile nicht sprengen — ellipsiert, voller Wert via title-Attribut. */
   .provref { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
   /* Wissen: große Suche + Regal-Zeilen */
-  .bigsearch { display: flex; align-items: center; gap: 14px; margin-top: 26px; border: 1.5px solid rgb(var(--hair2)); border-radius: 12px; background: rgb(var(--surface)); padding: 16px 20px; }
+  .bigsearch { display: flex; align-items: center; gap: 14px; margin-top: 26px; border: 1.5px solid rgb(var(--hair2)); border-radius: 0; background: rgb(var(--surface)); padding: 16px 20px; }
   .bigsearch input { flex: 1; min-width: 0; border: none; outline: none; font: inherit; font-size: 16.5px; background: none; color: rgb(var(--ink)); }
   .bigsearch input::placeholder { color: rgb(var(--faint)); }
   /* Mockup nennt die Lupe .glass — kollidiert mit der Kristall-.glass-Übergangs-Fläche (Codex #13) */
   .bigsearch .ico { color: rgb(var(--faint)); font-size: 17px; }
-  .bigsearch kbd { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; border: 1px solid rgb(var(--hair)); border-radius: 4px; padding: 2px 6px; color: rgb(var(--faint)); }
+  .bigsearch kbd { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; border: 1px solid rgb(var(--hair)); border-radius: 0; padding: 2px 6px; color: rgb(var(--faint)); }
   .shelf .t { font-weight: 600; }
   .shelf .mono { font-size: 11.5px; }
   /* Generische Zeile (Mockup .row) — zusätzlich zu .projrow, Task 7 wählt frei */
@@ -691,14 +691,14 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .narrow-min { min-width: 860px; }
   /* Fehler-Hinweiszeile der Seiten-Flows (Rest-Sweep L4: 5× identisches
      Inline-Muster → benannte Klasse; Rot bleibt Fehler-Reserve, Spec §7). */
-  .alert-err { margin-bottom: 1.25rem; border-radius: 14px; background: rgb(var(--red)/.1); padding: 12px 16px; font-size: .9rem; font-weight: 500; color: rgb(var(--red)); }
+  .alert-err { margin-bottom: 1.25rem; border-radius: 0; background: rgb(var(--red)/.1); padding: 12px 16px; font-size: .9rem; font-weight: 500; color: rgb(var(--red)); }
   /* Jetzt-Panelzeile (zweite Fläche, Zwei-Flächen-Regel) */
   .panelrow { background: rgb(var(--panel)); border-radius: 0; padding: 13px 16px; border-bottom: none; margin-top: 12px; }
   /* Zeit-Wochenskala: vertikale Balken (horizontale heuteWeekRows/wocheDayBarStyle bleiben unberührt) */
-  .weekbar { display: flex; gap: 26px; align-items: flex-end; padding: 20px 18px 14px; background: rgb(var(--panel)); border-radius: 14px; margin-top: 14px; overflow-x: auto; }
+  .weekbar { display: flex; gap: 26px; align-items: flex-end; padding: 20px 18px 14px; background: rgb(var(--panel)); border-radius: 0; margin-top: 14px; overflow-x: auto; }
   .day { flex: 1; min-width: 36px; text-align: center; }
   .day .bar { height: 74px; display: flex; align-items: flex-end; justify-content: center; }
-  .day .bar i { display: block; width: 22px; border-radius: 3px 3px 0 0; background: rgb(var(--hair2)); min-height: 3px; }
+  .day .bar i { display: block; width: 22px; border-radius: 0; background: rgb(var(--hair2)); min-height: 3px; }
   .day.has .bar i { background: rgb(var(--accent)); }
   .day.today .bar i { background: rgb(var(--live-bright)); }
   .day .d { margin-top: 8px; font-size: 11.5px; color: rgb(var(--faint)); }
@@ -719,19 +719,19 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .insert-picker {
     position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
     width: min(86vw, 320px);
-    border-radius: 14px; background: rgb(var(--surface));
+    border-radius: 0; background: rgb(var(--surface));
     border: 1px solid rgb(var(--line)); box-shadow: var(--shadow-lift);
     padding: 8px;
   }
   .insert-picker-input {
-    width: 100%; border-radius: 8px; border: 1px solid rgb(var(--line));
+    width: 100%; border-radius: 0; border: 1px solid rgb(var(--line));
     background: rgb(var(--sunken) / .6); padding: 8px 10px; font-size: 13.5px;
   }
   .insert-picker-input:focus { outline: none; border-color: rgb(var(--accent) / .5); }
   .insert-picker-list { max-height: 230px; overflow: auto; margin-top: 8px; }
   .insert-picker-row {
     display: flex; width: 100%; flex-direction: column; align-items: flex-start;
-    gap: 2px; border-radius: 8px; padding: 8px 10px; text-align: left;
+    gap: 2px; border-radius: 0; padding: 8px 10px; text-align: left;
   }
   .insert-picker-row:hover, .insert-picker-row[aria-selected="true"] { background: rgb(var(--sunken)); }
   .insert-picker-label, .insert-picker-sub { display: block; width: 100%; }
@@ -759,7 +759,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .projrow .right .k { display: none; }               /* §12 nur Hauptwert */
   .projrow .right .v { font-size: 12px; }
   .instr .stats { margin-left: 0; width: 100%; }
-  .ava.av-96 { width: 64px; height: 64px; font-size: 22px; border-radius: 15px; }
+  .ava.av-96 { width: 64px; height: 64px; font-size: 22px; border-radius: 0; }
   .spine-main h1 { font-size: 27px; }
   .row .right .k { display: none; }
   .row .right .v { font-size: 12px; }
@@ -849,7 +849,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     font-size: .87em;
     background: rgb(var(--sheet));
     border: 1px solid rgb(var(--hair));
-    border-radius: 4px;
+    border-radius: 0;
     padding: .08em .35em;
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -857,7 +857,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .prose pre {
     background: rgb(var(--sheet));
     border: 1px solid rgb(var(--hair));
-    border-radius: 8px;
+    border-radius: 0;
     padding: 16px 18px;
     overflow-x: auto;
   }
@@ -907,7 +907,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      .callout.callout-<kind> + .callout-title/.callout-glyph (nicht das
      Mockup-.m) — Kind-Farbcodierung bleibt über die bestehenden
      .callout-<kind>-Utilities erhalten. */
-  .callout { @apply my-4 rounded-lg; display: flex; gap: 12px; background: rgb(var(--warn-wash)); border: 1px solid #EADFC8; border-radius: 8px; padding: 14px 16px; font-size: 14px; }
+  .callout { @apply my-4 rounded-lg; display: flex; gap: 12px; background: rgb(var(--warn-wash)); border: 1px solid #EADFC8; border-radius: 0; padding: 14px 16px; font-size: 14px; }
   .callout-title { @apply font-semibold mb-1 flex items-center gap-2; }
   .callout-glyph { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 700; color: rgb(var(--warn)); flex-shrink: 0; }
   .callout-note { @apply border-accent bg-accent/5; }

@@ -14,8 +14,8 @@ func progressFill(variant string) string {
 
 // ProgressBar renders a horizontal bar filled to pct% in the variant color.
 templ ProgressBar(pct int, variant string) {
-	<div class="h-2 w-full overflow-hidden rounded-full bg-sunken" role="progressbar"
+	<div class="h-2 w-full overflow-hidden bg-sunken" role="progressbar"
 		aria-valuenow={ itoa(pct) } aria-valuemin="0" aria-valuemax="100">
-		<div class={ "h-full rounded-full transition-[width]", progressFill(variant) } style={ "width:" + itoa(pct) + "%" }></div>
+		<div class={ "h-full transition-[width]", progressFill(variant) } style={ "width:" + itoa(pct) + "%" }></div>
 	</div>
 }

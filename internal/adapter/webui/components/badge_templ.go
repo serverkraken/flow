@@ -58,7 +58,7 @@ func Badge(kind DocKind) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		b := docBadge(kind)
-		var templ_7745c5c3_Var2 = []any{"inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[.72rem] font-medium", b.cls}
+		var templ_7745c5c3_Var2 = []any{"inline-flex items-center gap-1.5 px-2 py-0.5 text-[.72rem] font-medium", b.cls}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

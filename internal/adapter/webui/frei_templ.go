@@ -656,7 +656,7 @@ func freiRow(row FreiRowVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\" class=\"grid place-items-center h-8 w-8 rounded-lg text-faint hover:text-red hover:bg-red/10 transition-colors\"><span aria-hidden=\"true\">✗</span></button></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\" class=\"grid place-items-center h-8 w-8 text-faint hover:text-red hover:bg-red/10 transition-colors\"><span aria-hidden=\"true\">✗</span></button></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -826,14 +826,14 @@ func freiSettingsSection(vm FreiVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</p><div class=\"mt-2 flex items-center gap-2\"><code class=\"flex-1 min-w-0 truncate rounded-lg bg-sunken px-3 py-2 text-[.78rem] font-mono text-body\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</p><div class=\"mt-2 flex items-center gap-2\"><code class=\"flex-1 min-w-0 truncate bg-sunken px-3 py-2 text-[.78rem] font-mono text-body\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(vm.IcsURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/frei.templ`, Line: 187, Col: 119}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/frei.templ`, Line: 187, Col: 108}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {

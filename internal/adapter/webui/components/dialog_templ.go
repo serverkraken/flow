@@ -71,7 +71,7 @@ func Dialog(id, titleKey string, body templ.Component, open bool) templ.Componen
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " class=\"m-auto w-[min(92vw,32rem)] rounded-3xl border border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40\"><div class=\"flex items-center justify-between px-6 pt-5 pb-3 border-b border-line2\"><h2 id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " class=\"m-auto w-[min(92vw,32rem)] border border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40\"><div class=\"flex items-center justify-between px-6 pt-5 pb-3 border-b border-line2\"><h2 id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -208,7 +208,7 @@ func ConfirmDialog(spec ConfirmSpec) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"m-auto w-[min(92vw,26rem)] rounded-3xl border border-line bg-surface text-ink p-6 shadow-lift backdrop:bg-ink/40\"><h2 id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"m-auto w-[min(92vw,26rem)] border border-line bg-surface text-ink p-6 shadow-lift backdrop:bg-ink/40\"><h2 id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -247,7 +247,7 @@ func ConfirmDialog(spec ConfirmSpec) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</p><div class=\"mt-6 flex items-center justify-end gap-3\"><button type=\"button\" data-dialog-close autofocus class=\"inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-[.92rem] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</p><div class=\"mt-6 flex items-center justify-end gap-3\"><button type=\"button\" data-dialog-close autofocus class=\"inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

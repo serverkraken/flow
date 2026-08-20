@@ -46,7 +46,7 @@ func PaletteDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"fixed left-1/2 top-[16%] -translate-x-1/2 m-0 w-[min(600px,92vw)] rounded-[14px] border border-hair2 bg-surface p-0 shadow-lift backdrop:bg-ink/25\"><input id=\"palette-input\" type=\"text\" name=\"q\" autocomplete=\"off\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"fixed left-1/2 top-[16%] -translate-x-1/2 m-0 w-[min(600px,92vw)] border border-hair2 bg-surface p-0 shadow-lift backdrop:bg-ink/25\"><input id=\"palette-input\" type=\"text\" name=\"q\" autocomplete=\"off\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

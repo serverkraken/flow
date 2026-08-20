@@ -331,14 +331,14 @@ func editorOuter(vm EditorVM) templ.Component {
 			}
 		}
 		if vm.Err != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<p class=\"mb-5 rounded-lg bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger\" role=\"alert\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<p class=\"mb-5 bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger\" role=\"alert\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Err)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 63, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 63, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -619,7 +619,7 @@ func editorOuter(vm EditorVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "></label><div class=\"mt-4 rounded-lg border border-line bg-sunken px-4 py-3\" data-metadata-field=\"derived-path\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "></label><div class=\"mt-4 border border-line bg-sunken px-4 py-3\" data-metadata-field=\"derived-path\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

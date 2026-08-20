@@ -18,9 +18,9 @@ func rowTileClass(hue string, unassigned bool) string {
 // sessions, a dashed "empty" frame with a faint warning wash when unassigned.
 func rowShellClass(unassigned bool) string {
 	if unassigned {
-		return "rounded-2xl border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3"
+		return" border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3"
 	}
-	return "rounded-2xl bg-surface border border-line shadow-soft px-3.5 py-3"
+	return" bg-surface border border-line shadow-soft px-3.5 py-3"
 }
 
 // SessionRow renders one mobile-agenda / list row for a worktime session
@@ -33,7 +33,7 @@ templ SessionRow(vm SessionRowVM) {
 			class={ "chk row-chk", templ.KV("hidden", !vm.Selectable) }
 			aria-label={ vm.Title + " " + vm.TimeRange }
 		/>
-		<span class={ "grid place-items-center h-9 w-9 rounded-xl text-[.95rem] flex-none", rowTileClass(vm.Hue, vm.Unassigned) } aria-hidden="true">{ vm.Glyph }</span>
+		<span class={ "grid place-items-center h-9 w-9 text-[.95rem] flex-none", rowTileClass(vm.Hue, vm.Unassigned) } aria-hidden="true">{ vm.Glyph }</span>
 		<div class="min-w-0 flex-1">
 			<p class={ "text-[.9rem] font-semibold truncate", templ.KV("text-muted", vm.Unassigned) }>
 				{ vm.Title }

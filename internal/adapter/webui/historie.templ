@@ -105,7 +105,7 @@ templ historieToolbar(vm HistorieVM) {
 		</button>
 	</div>
 	if vm.UnassignedCount > 0 {
-		<div class="rounded-xl border border-orange/30 bg-orange/10 px-3.5 py-2.5 flex flex-wrap items-center gap-y-2 gap-x-4 mt-2.5">
+		<div class="border border-orange/30 bg-orange/10 px-3.5 py-2.5 flex flex-wrap items-center gap-y-2 gap-x-4 mt-2.5">
 			<span class="text-orange inline-flex items-center gap-1.5 text-[.86rem] font-semibold">
 				<span aria-hidden="true">○</span> { components.Tn(ctx, "historie.unassignedBanner", vm.UnassignedCount) }
 			</span>
@@ -118,7 +118,7 @@ templ historieToolbar(vm HistorieVM) {
 
 // historieSeg is a bare Lesesaal `.seg` segmented toggle (Kalender|Liste,
 // Woche|Monat) — replaces components.SegToggle (whose option markup baked in
-// Kristall shadow-soft/rounded-[9px]/text-blue) with the `.seg` primitive
+// Kristall shadow-soft//text-blue) with the `.seg` primitive
 // alone: its own `[aria-pressed="true"]` CSS (tailwind.css:335-337) already
 // supplies the active surface/color/shadow. SegToggle has zero other callers
 // after this task (verified via rg), so nothing downstream depends on it
@@ -138,12 +138,12 @@ templ historieSeg(options []components.SegOption, active string) {
 
 // historieWeek is the desktop time-grid (md+; mobile uses the agenda). The
 // grid mechanism itself (.grid-lines/.wtblock/.now-line, Task-1-era tokens)
-// is unchanged Bestand — only the outer card chrome (was rounded-3xl glass
+// is unchanged Bestand — only the outer card chrome (was glass
 // shadow-soft) is retired for a hairline frame that scrolls in its own frame
 // on medium viewports (no page-level H-pan).
 templ historieWeek(vm HistorieVM) {
 	<section class="hidden md:block" aria-label={ components.T(ctx, "historie.calendar") }>
-		<div class="rounded-xl border border-line2 overflow-hidden">
+		<div class="border border-line2 overflow-hidden">
 			<div class="overflow-x-auto scroll-thin">
 				<div class="narrow-min">
 					<div class="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line2">
@@ -289,14 +289,14 @@ templ historieAgenda(vm HistorieVM) {
 }
 
 // historieMonth is the month view: a continuous hairline day-cell grid
-// (Haarlinien-Tageszellen), replacing the Kristall rounded-3xl glass card +
-// isolated rounded-xl border cells.
+// (Haarlinien-Tageszellen), replacing the Kristall glass card +
+// isolated border cells.
 templ historieMonth(vm HistorieVM) {
 	<section class="panel p-4 sm:p-6" aria-label={ components.T(ctx, "historie.month") }>
 		<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
 			<h2 class="text-lg font-semibold">{ vm.MonthLabel }</h2>
 			<div class="flex items-center gap-2 text-[.72rem] text-muted">
-				<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rounded-sm bg-blue"></span> { components.T(ctx, "historie.withProject") }</span>
+				<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 bg-blue"></span> { components.T(ctx, "historie.withProject") }</span>
 				<span class="inline-flex items-center gap-1.5"><span class="text-orange" aria-hidden="true">○</span> { components.T(ctx, "historie.unassigned") }</span>
 			</div>
 		</div>
@@ -350,8 +350,8 @@ templ historieMonthCell(c HistorieMonthCellVM) {
 // historieLegend is the unassigned/running swatch legend under the week grid.
 templ historieLegend() {
 	<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.78rem] text-muted">
-		<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-sm border border-dashed border-faint bg-sunken"></span> <span class="text-orange">○</span> { components.T(ctx, "historie.unassigned") }</span>
-		<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-live"></span> { components.T(ctx, "heute.running") }</span>
+		<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 border border-dashed border-faint bg-sunken"></span> <span class="text-orange">○</span> { components.T(ctx, "historie.unassigned") }</span>
+		<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 bg-live"></span> { components.T(ctx, "heute.running") }</span>
 	</div>
 }
 
@@ -421,7 +421,7 @@ templ HistorieListFragment(vm HistorieListVM) {
 
 // historieSessionRow is one Lesesaal .row session row (calendar agenda + flat
 // list): .led-when (Von–Bis) · .grow (Title · Tags/Note fallback) · .right .v
-// (Dauer). Replaces components.SessionRow (Kristall: rounded-2xl card chrome
+// (Dauer). Replaces components.SessionRow (Kristall: card chrome
 // + a per-project glyph tile — Farb-Gesetz §7 keeps project color out of
 // anything but the avatar, and this row carries none). The checkbox keeps its
 // exact .chk/.row-chk classes and the <li data-session-id> + literal
@@ -445,7 +445,7 @@ templ historieSessionRow(row components.SessionRowVM) {
 // ── Shared: selection bar + single-edit dialog ───────────────────────────────
 
 // historieActionBar is the Lesesaal .panel/.btn sticky bulk-action bar,
-// replacing components.SelectionActionBar (Kristall: rounded-3xl glass
+// replacing components.SelectionActionBar (Kristall: glass
 // shadow-lift). SelectionActionBar has zero other callers after this task
 // (verified via rg), so nothing downstream depends on its chrome. All
 // data-attrs / the hidden ids/projectId/newProject fields / the ConfirmDialog
@@ -459,7 +459,7 @@ templ historieActionBar(vm components.SelectionBarVM) {
 				<input type="hidden" name="newProject" data-bulk-new-project value=""/>
 			</form>
 			<div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
-				<span class="inline-flex items-center gap-2 rounded-xl bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue">
+				<span class="inline-flex items-center gap-2 bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue">
 					<span aria-hidden="true">▎</span><span data-sel-count>0</span> { components.T(ctx, "historie.selectedCount") }
 				</span>
 				<div class="flex-1"></div>

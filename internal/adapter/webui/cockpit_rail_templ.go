@@ -696,7 +696,7 @@ func CockpitRailBlocks(d NodeCockpit) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" class=\"min-w-0 flex-1 rounded-lg border border-hair2 bg-surface px-2 py-1.5 font-mono\"> <button class=\"btn btn-q btn-s\" type=\"submit\">+</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" class=\"min-w-0 flex-1 border border-hair2 bg-surface px-2 py-1.5 font-mono\"> <button class=\"btn btn-q btn-s\" type=\"submit\">+</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
