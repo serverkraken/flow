@@ -76,10 +76,16 @@ func TestEmptyState(t *testing.T) {
 
 func TestButtonPrimary_LesesaalCTA(t *testing.T) {
 	out := render(t, components.Button(components.BtnPrimary, "Timer starten", "▶", nil))
-	for _, want := range []string{"from-green", "to-cyan", "text-oncolor", "font-bold"} {
+	// Flach im Akzent statt grün-türkisem Verlauf: "Gradients sterben —
+	// beide Enden = Akzent" (TOKENS.md). Der Verlauf stammte aus der
+	// Kristall-Zeit und sagte nichts über die Handlung.
+	for _, want := range []string{"bg-accent", "text-oncolor", "font-bold"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("primary CTA missing %q: %s", want, out)
 		}
+	}
+	if strings.Contains(out, "gradient") {
+		t.Errorf("die Hauptaktion trägt keinen Verlauf mehr: %s", out)
 	}
 	if strings.Contains(out, "cta-glow") {
 		t.Error("primary CTA must be a quiet Lesesaal surface, not glow: no cta-glow")

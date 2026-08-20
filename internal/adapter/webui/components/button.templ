@@ -14,7 +14,10 @@ func btnClass(v ButtonVariant) string {
 	base := "inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition active:scale-[.99] "
 	switch v {
 	case BtnPrimary:
-		return base + "bg-gradient-to-r from-green to-cyan text-oncolor font-bold"
+		// Flach im Akzent: "Gradients sterben — beide Enden = Akzent"
+		// (TOKENS.md). Der grün-türkise Verlauf stammt aus der Kristall-Zeit
+		// und sagte nichts über die Handlung.
+		return base + "bg-accent text-oncolor font-bold hover:bg-accent-deep"
 	case BtnSecondary:
 		return base + "border border-line bg-surface text-ink hover:bg-sunken"
 	case BtnGhost:

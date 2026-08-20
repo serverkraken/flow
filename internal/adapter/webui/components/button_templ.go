@@ -22,7 +22,10 @@ func btnClass(v ButtonVariant) string {
 	base := "inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition active:scale-[.99] "
 	switch v {
 	case BtnPrimary:
-		return base + "bg-gradient-to-r from-green to-cyan text-oncolor font-bold"
+		// Flach im Akzent: "Gradients sterben — beide Enden = Akzent"
+		// (TOKENS.md). Der grün-türkise Verlauf stammt aus der Kristall-Zeit
+		// und sagte nichts über die Handlung.
+		return base + "bg-accent text-oncolor font-bold hover:bg-accent-deep"
 	case BtnSecondary:
 		return base + "border border-line bg-surface text-ink hover:bg-sunken"
 	case BtnGhost:
@@ -95,7 +98,7 @@ func Button(variant ButtonVariant, label, glyph string, attrs templ.Attributes) 
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(glyph)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 34, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 37, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -109,7 +112,7 @@ func Button(variant ButtonVariant, label, glyph string, attrs templ.Attributes) 
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 36, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 39, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -152,7 +155,7 @@ func IconButton(glyph, ariaLabel string, attrs templ.Attributes) templ.Component
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(ariaLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 44, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 47, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -173,7 +176,7 @@ func IconButton(glyph, ariaLabel string, attrs templ.Attributes) templ.Component
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(glyph)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 47, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/button.templ`, Line: 50, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
