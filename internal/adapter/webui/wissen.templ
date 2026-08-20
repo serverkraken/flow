@@ -11,11 +11,11 @@ templ WissenPage(vm WissenOverviewVM) {
 }
 
 templ wissenBody(vm WissenOverviewVM) {
-	@components.AppShell("docs", nil, nil, wissenOuter(vm))
+	@components.AppShellFlush("docs", "blue", wissenOuter(vm))
 }
-
 templ wissenOuter(vm WissenOverviewVM) {
 	<div id="content"
+		class="flex flex-1 flex-col"
 		hx-get={ "/ui/wissen/list" + vm.Query }
 		hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted"
 		hx-swap="innerHTML">
@@ -30,7 +30,13 @@ templ wissenOuter(vm WissenOverviewVM) {
 // "Zuletzt aktualisiert" list. Tags stay available as a collapsed management
 // filter instead of a permanent tag wall.
 templ WissenFragment(vm WissenOverviewVM) {
-	<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px">
+	// Dreispalter (Screen 06): die REGALE stehen im 372px-Kasten, Suche,
+	// Filter und Liste im Lesesaal. Vorher lief alles untereinander in einer
+	// Spalte — das war mains Anatomie, nicht die des Karteikastens.
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+		@wissenShelfColumn(vm)
+		<div class="min-w-0 bg-canvas px-6 py-7 lg:px-14">
+			<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px">
 		<div style="flex:1">
 			<span class="eyebrow">{ components.T(ctx, "nav.knowledge") }</span>
 			<h1>{ components.T(ctx, "wissen.libraryTitle") }</h1>
@@ -41,17 +47,44 @@ templ WissenFragment(vm WissenOverviewVM) {
 			data-label-select={ components.T(ctx, "wissen.bulk.select") }
 			data-label-done={ components.T(ctx, "wissen.bulk.done") }>{ components.T(ctx, "wissen.bulk.select") }</button>
 		<a href={ templ.SafeURL(WissenNewDocumentHref("", vm.NodeParam)) } class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
+			</div>
+			@wissenManagementFilters(vm.WissenVM)
+			@wissenBigsearch(vm.WissenVM)
+			@wissenTagChips(vm.WissenVM)
+			if vm.SearchQ != "" {
+				@wissenResults(vm.WissenVM)
+			} else {
+				@wissenRecentSection(vm)
+			}
+		</div>
 	</div>
-	@wissenManagementFilters(vm.WissenVM)
-	@wissenBigsearch(vm.WissenVM)
-	@wissenTagChips(vm.WissenVM)
-	if vm.SearchQ != "" {
-		@wissenResults(vm.WissenVM)
-	} else {
-		@wissenShelvesSection(vm.Shelves)
-		@wissenRecentSection(vm)
-	}
 	@wissenBulkActionBar()
+}
+
+// wissenShelfColumn ist die Kasten-Spalte der Bibliothek: die Regale als
+// Liste, aus der man wählt (Katalog 3.13 — "Panel: Liste, aus der man
+// wählt"). Auf dem Tablet-Band schiebt der PanelToggle sie ein.
+templ wissenShelfColumn(vm WissenOverviewVM) {
+	<div class="k3-panel flex flex-col border-b border-hairp bg-panel lg:border-b-0 lg:border-r">
+		<div class="px-6 pb-2.5 pt-6">
+			<span class="eyebrow">{ components.T(ctx, "wissen.shelves") }</span>
+		</div>
+		for _, shelf := range vm.Shelves {
+			<a
+				href={ templ.SafeURL(wissenShelfHref(shelf)) }
+				data-tint="blue"
+				class={ "flex items-baseline gap-2.5 border-b border-line border-l-[3px] border-l-transparent px-6 py-[13px] pl-[21px]",
+					templ.KV("opacity-60", shelf.Count == 0) }
+			>
+				<span class="min-w-0 flex-1">
+					<span class="block truncate text-[14.5px] font-[650] leading-[1.35] text-ink">{ components.T(ctx, shelf.LabelKey) }</span>
+					<span class="mt-[3px] block truncate text-[12.5px] leading-[1.55] text-muted">{ components.T(ctx, shelf.DescKey) }</span>
+				</span>
+				<span class="shrink-0 font-mono text-[10px] uppercase tracking-[.1em] text-faint">{ shelf.TypeKey }</span>
+				<span class="w-8 shrink-0 text-right font-mono text-[12.5px] font-semibold tnum text-ink">{ itoa(shelf.Count) }</span>
+			</a>
+		}
+	</div>
 }
 
 // wissenBigsearch is the Wissen page's main door (Mockup Z.815–819): a plain

@@ -36,7 +36,47 @@ func areaStripeClass(active string) string {
 // Die Signatur bleibt unverändert, damit keine der aufrufenden Seiten
 // angefasst werden muss; der Umbau bleibt dadurch auf diese eine Datei
 // beschränkt.
+// stripeClass wählt den Ton des Ebenenstreifens: eine ausdrücklich
+// übergebene Ebenenfarbe (Engagement/Vorhaben/Repo, oder ein Bereichston)
+// schlägt die Ableitung aus dem active-Schlüssel. Die Klassen stehen
+// ausgeschrieben da, damit der Tailwind-Scanner sie findet.
+func stripeClass(active, ebeneColor string) string {
+	switch ebeneColor {
+	case "amber":
+		return "bg-amber"
+	case "violet":
+		return "bg-violet"
+	case "steel":
+		return "bg-steel"
+	case "blue":
+		return "bg-blue"
+	case "live":
+		return "bg-live"
+	case "green":
+		return "bg-green"
+	case "accent":
+		return "bg-accent"
+	}
+	return areaStripeClass(active)
+}
+
+// AppShell ist die gepolsterte Fassung: der Inhalt sitzt in einer zentrierten
+// Spalte mit Rand. AppShellFlush daneben ist die randlose — für die
+// Dreispalter-Flächen des Karteikastens, die ihr eigenes Raster mitbringen
+// und bündig an der Schiene beginnen (264px · 372px Kasten · 1fr Lesesaal).
 templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
+	@appShellHull(active, "", false, breadcrumb, subnav, content)
+}
+
+// AppShellFlush ist die randlose Fassung für die Dreispalter-Screens: die
+// Seite bringt ihr eigenes k3-cols-Raster mit, und die 372px-Kasten-Spalte
+// beginnt direkt an der Schiene — so steht es im Mockup-Canvas. ebeneColor
+// färbt den 3px-Streifen über der Fläche ("" = nach Bereich).
+templ AppShellFlush(active string, ebeneColor string, content templ.Component) {
+	@appShellHull(active, ebeneColor, true, nil, nil, content)
+}
+
+templ appShellHull(active string, ebeneColor string, flush bool, breadcrumb, subnav, content templ.Component) {
 	<div class="md:grid md:min-h-screen md:grid-cols-[264px_minmax(0,1fr)]">
 		<aside id="app-rail" class="hidden md:flex md:flex-col md:sticky md:top-0 md:h-screen overflow-hidden bg-panel border-r border-hairp">
 			<div class="flex items-center px-6 pt-6">
@@ -73,7 +113,7 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 		</aside>
 		<div class="flex min-w-0 flex-col bg-canvas">
 			// Ebenenstreifen: 3px, erst rechts der Schiene — die bleibt neutral.
-			<div class={ "hidden md:block h-[3px] shrink-0", areaStripeClass(active) } aria-hidden="true"></div>
+			<div class={ "hidden md:block h-[3px] shrink-0", stripeClass(active, ebeneColor) } aria-hidden="true"></div>
 			// Mobil bleibt eine schmale Kopfzeile: die Schiene ist unter 768px
 			// ausgeblendet, und ohne sie käme man sonst nirgendwo hin.
 			<header class="sticky top-0 z-40 border-b border-hair bg-paper/90 backdrop-blur-sm md:hidden">
@@ -87,16 +127,22 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 					<button type="button" data-dialog-open="mobile-nav" aria-label={ T(ctx, "nav.primary") } class="font-mono text-[16px] leading-none text-ink">☰</button>
 				</div>
 			</header>
-			<main class="flex-1 pb-16">
-				<div class="mx-auto w-full max-w-[1140px] px-4 pt-6 sm:px-7 md:pt-8">
-					if breadcrumb != nil {
-						@breadcrumb
-					}
-					if subnav != nil {
-						@subnav
-					}
+			<main class="flex flex-1 flex-col pb-16 md:pb-0">
+				if flush {
+					// Bündig: die Seite bringt ihr eigenes Raster mit, die
+					// Kasten-Spalte beginnt ohne Polster an der Schiene.
 					@content
-				</div>
+				} else {
+					<div class="mx-auto w-full max-w-[1140px] px-4 pt-6 sm:px-7 md:pt-8">
+						if breadcrumb != nil {
+							@breadcrumb
+						}
+						if subnav != nil {
+							@subnav
+						}
+						@content
+					</div>
+				}
 			</main>
 		</div>
 	</div>

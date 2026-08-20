@@ -776,6 +776,22 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 }
 
 @layer components {
+  .nv-guide-1::before,
+  .nv-guide-2::before { content:""; position:absolute; left:12px; top:0; bottom:0; width:1px; background: rgb(var(--amber) / .30); }
+  .nv-guide-2::after  { content:""; position:absolute; left:29px; top:0; bottom:0; width:1px; background: rgb(var(--violet) / .30); }
+  /* soft fade truncation (mockup .node .lb) — replaces the hard ellipsis */
+  /* Repo-Zeilen tragen den vollen Knotennamen (github-com-serverkraken-flow).
+     Das Unterscheidende steht am ENDE, also blendet .fade-start vorne aus statt
+     hinten — sonst sieht man in der Schiene zehnmal "github-com-serverkr…". */
+  .fade-start { white-space:nowrap; overflow:hidden; direction:rtl; text-align:left;
+    -webkit-mask-image: linear-gradient(90deg,transparent,#000 20%); mask-image: linear-gradient(90deg,transparent,#000 20%); }
+  .fade-label { white-space:nowrap; overflow:hidden; -webkit-mask-image: linear-gradient(90deg,#000 80%,transparent); mask-image: linear-gradient(90deg,#000 80%,transparent); }
+  /* Karteikasten Auswahlkante (TOKENS.md Kartentypen): 3px Kante links in der
+     Typfarbe plus Wash als Zeilenhintergrund — nie Rahmen, nie Radius, nie
+     Schatten. --nc is the row's own node color (nvHue); falls back to the
+     general ocher accent for nodes without one. */
+  .nv-row-active { border-left: 3px solid rgb(var(--nc, var(--accent))); background: linear-gradient(90deg, rgb(var(--nc, var(--accent)) / .09), transparent 70%); color: rgb(var(--ink)); font-weight:700; }
+  .nv-row-active .fade-label { -webkit-mask-image:none; mask-image:none; }
   .prose {
     @apply text-body leading-relaxed;
     /* Karteikasten-Typo-Leiter (TOKENS.md): Lesetext 16,5px auf 1,82 —
@@ -895,3 +911,70 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .callout-important { @apply border-highlight bg-highlight/5; }
   .callout-danger { @apply border-danger bg-danger/5; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   KARTEIKASTEN — portiert aus dem Entwurfs-Branch (karteikasten-tokens).
+   Diese Blöcke sind dort gebaut und erprobt worden; sie hier neu zu
+   schreiben hieße, dieselbe Sache ein zweites Mal zu erfinden.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════
+   TINT-HOVER — die eine Regel hinter jeder Listenzeile (Mockup-CSS
+   `[data-tint]:hover`). Eine Zeile nennt über data-tint ihren Ton; beim
+   Überfahren trägt sie den Wash dieses Tons als Fläche und die 3px-
+   Auswahlkante in der vollen Tonfarbe. Auswahl ist derselbe Zustand,
+   nur dauerhaft (data-tint-on) — deshalb steht beides hier zusammen.
+   Voraussetzung an der Zeile: border-l-[3px] + border-transparent, damit
+   die Kante ohne Sprung erscheint.
+   ════════════════════════════════════════════════════════════════════ */
+[data-tint] {
+  --tint:      var(--accent);
+  --tint-wash: var(--accent-wash);
+  transition: background-color .15s cubic-bezier(.2,0,.3,1),
+              border-left-color .15s cubic-bezier(.2,0,.3,1);
+}
+[data-tint="purple"] { --tint: var(--purple); --tint-wash: var(--purple-wash); }
+[data-tint="teal"]   { --tint: var(--teal);   --tint-wash: var(--teal-wash); }
+[data-tint="cyan"]   { --tint: var(--cyan);   --tint-wash: var(--cyan-wash); }
+[data-tint="blue"]   { --tint: var(--blue);   --tint-wash: var(--blue-wash); }
+[data-tint="red"]    { --tint: var(--red);    --tint-wash: var(--red-wash); }
+[data-tint="green"]  { --tint: var(--green);  --tint-wash: var(--green-wash); }
+[data-tint="live"]   { --tint: var(--live);   --tint-wash: var(--live-wash); }
+[data-tint="violet"] { --tint: var(--violet); --tint-wash: var(--violet-wash); }
+[data-tint="steel"]  { --tint: var(--steel);  --tint-wash: var(--steel-wash); }
+[data-tint="amber"]  { --tint: var(--amber);  --tint-wash: var(--amber-wash); }
+
+[data-tint]:hover,
+[data-tint][data-tint-on] {
+  background-color: rgb(var(--tint-wash));
+  border-left-color: rgb(var(--tint));
+}
+
+@media (min-width: 48rem) and (max-width: 74.9375rem) {
+  /* The FULL rail becomes the fixed overlay itself — the aside stays in the
+     grid so the content column keeps its track (fixed-positioning the aside
+     would collapse the grid and squeeze the content into the 76px track). */
+  #app-rail.rail-expanded .k3-rail-full {
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; bottom: 0; left: 0; width: 264px; z-index: 60;
+    background: rgb(var(--panel)); border-right: 1px solid rgb(var(--hairp));
+    box-shadow: var(--shadow-lift);
+  }
+
+  /* Screen 21A list panel: on the tablet band the 372px middle column of a
+     three-column screen ("Liste, aus der man wählt") is hidden; the
+     PanelToggle button slides it in as a fixed overlay next to the 76px
+     strip. The element keeps its own bg-panel/border classes — this block
+     only supplies visibility + overlay geometry. */
+  .k3-panel-toggle { display: inline-flex; }
+  .k3-cols { display: flex; flex-direction: column; }
+  .k3-cols > .k3-panel { display: none; }
+  .k3-cols.panel-open > .k3-panel {
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; bottom: 0; left: 76px; width: 372px; z-index: 55;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lift);
+    border-right: 1px solid rgb(var(--hair2));
+  }
+}
+
