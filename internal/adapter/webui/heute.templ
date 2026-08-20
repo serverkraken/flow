@@ -99,7 +99,7 @@ templ heuteTodaySection(vm HeuteVM) {
 // convention rather than wrapping the whole row in a <button> (which would
 // nest interactive elements once delete sits beside it).
 templ heuteLedgerRow(dayParam string, lr HeuteLedgerRow) {
-	<div class="row">
+	<div class="row" data-tint="live">
 		<span class="led-when">
 			if lr.Row.Running {
 				{ zeitRunningStartLabel(lr.Row.TimeRange) + " – " + components.T(ctx, "heute.running") }
@@ -176,7 +176,7 @@ templ heuteToolsSection(vm HeuteVM) {
 	<div class="sect">
 		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "zeit.tools") }</span></div>
 		for _, tool := range vm.Tools {
-			<a class="row" href={ templ.SafeURL(tool.Href) }>
+			<a class="row" data-tint="live" href={ templ.SafeURL(tool.Href) }>
 				<div class="grow">
 					<div class="t">{ components.T(ctx, tool.TitleKey) }</div>
 					<div class="s">{ components.T(ctx, tool.DescKey) }</div>

@@ -130,7 +130,7 @@ templ wocheDaysSection(vm WocheVM) {
 // duration/target (.right) — a single unified row (replacing the Kristall
 // wocheDayRow/wocheWeekendRow split, which differed only in card chrome).
 templ wocheDayRow(d WocheDayVM) {
-	<div class="row">
+	<div class="row" data-tint="live">
 		<span class="led-when">{ d.Label }</span>
 		<div class="grow">
 			<div class="t">{ d.DateLabel }</div>

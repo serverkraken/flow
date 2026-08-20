@@ -68,7 +68,7 @@ templ homeNowSection(vm HomeVM) {
 			<a class="more" href="/zeit">{ components.T(ctx, "nav.zeit") } ›</a>
 		</div>
 		if vm.Now != nil {
-			<div class="row panelrow">
+			<div class="row panelrow" data-tint="accent">
 				@components.NodeAvatar(vm.Now.NodeID, vm.Now.LogoRef, vm.Now.Initials, vm.Now.Tone, "av-36")
 				<div class="grow">
 					<div class="t">
@@ -89,7 +89,7 @@ templ homeNowSection(vm HomeVM) {
 				}
 			</div>
 		} else {
-			<div class="row panelrow">
+			<div class="row panelrow" data-tint="accent">
 				<div class="grow">
 					<div class="t">{ components.T(ctx, "home.noTimer") }</div>
 				</div>
@@ -111,7 +111,7 @@ templ homeContinueSection(vm HomeVM) {
 			<p class="text-sm text-faint">{ components.T(ctx, "home.emptyRecent") }</p>
 		} else {
 			for _, row := range vm.Continue {
-				<a class="row" href={ templ.SafeURL("/nodes/" + row.ID) }>
+				<a class="row" data-tint="accent" href={ templ.SafeURL("/nodes/" + row.ID) }>
 					@components.NodeAvatar(row.ID, row.LogoRef, row.Initials, row.Tone, "av-36")
 					<div class="grow">
 						<div class="t">{ row.Name }</div>
