@@ -434,7 +434,6 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .nvdot-vor { transform: rotate(45deg); border-radius:1.5px; }
   .nvdot-repo { clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); box-shadow:none; }
   /* soft fade truncation (mockup .node .lb) — replaces the hard ellipsis */
-  .fade-label { white-space:nowrap; overflow:hidden; -webkit-mask-image: linear-gradient(90deg,#000 80%,transparent); mask-image: linear-gradient(90deg,#000 80%,transparent); }
   /* Die Kristall-Fassung der aktiven Schienenzeile (blauer Verlauf plus
      blauer Innenschatten) ist entfallen — die Karteikasten-Regel weiter unten
      trägt sie. Ihr Innenschatten überlebte den Wechsel, weil die neue Regel
