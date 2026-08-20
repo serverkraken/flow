@@ -39,7 +39,7 @@ func StatTile(labelKey, value, hue string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"relative overflow-hidden glass shadow-soft py-3 px-4 text-center\"><div class=\"eyebrow uppercase text-[.62rem] font-semibold text-faint\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"relative overflow-hidden glass py-3 px-4 text-center\"><div class=\"eyebrow uppercase text-[.62rem] font-semibold text-faint\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

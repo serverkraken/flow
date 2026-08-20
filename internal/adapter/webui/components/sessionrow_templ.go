@@ -28,7 +28,7 @@ func rowShellClass(unassigned bool) string {
 	if unassigned {
 		return " border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3"
 	}
-	return " bg-surface border border-line shadow-soft px-3.5 py-3"
+	return " bg-surface border border-line px-3.5 py-3"
 }
 
 // SessionRow renders one mobile-agenda / list row for a worktime session

@@ -75,7 +75,7 @@ func authBody(vm AuthVM) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"grid place-items-center px-6 py-12\"><div class=\"glass shadow-soft p-6 max-w-sm w-full text-center\"><p class=\"eyebrow mb-2 text-[.72rem] font-semibold uppercase text-cyan\">flow</p><h1 class=\"font-display text-2xl font-semibold text-ink mb-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"grid place-items-center px-6 py-12\"><div class=\"glass p-6 max-w-sm w-full text-center\"><p class=\"eyebrow mb-2 text-[.72rem] font-semibold uppercase text-cyan\">flow</p><h1 class=\"font-display text-2xl font-semibold text-ink mb-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -31,7 +31,7 @@ templ exportBody(d ExportPageData) {
 // pagehead, and the swappable #ep block (Zeitraum-form + Download-form +
 // summary preview — all three reload together so the Download form's hidden
 // from/to always match the last-previewed range, same as the retired
-// Kristall card did). No glass/Card/shadow-soft/font-display chrome.
+// Kristall card did). No glass/Card//font-display chrome.
 templ exportContent(d ExportPageData) {
 	<div class="narrow">
 		<div class="spine">
@@ -112,7 +112,7 @@ templ exportDownloadSection(d ExportPageData) {
 
 // exportSummarySection is the preview table as .tblwrap + .prose table
 // (L3-Bestand: Versalien-Köpfe, Haarlinien), replacing the retired
-// exportSummaryTable glass shadow-soft card.
+// exportSummaryTable glass card.
 templ exportSummarySection(d ExportPageData) {
 	<div class="sect">
 		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "export.summary") }</span></div>

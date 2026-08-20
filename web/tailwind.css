@@ -330,7 +330,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .wtblock::before {
     content:""; position:absolute; inset-block:0; left:0; width:3px; background: rgb(var(--c));
   }
-  .wtblock:hover { box-shadow: 0 6px 20px -8px rgb(var(--c) / .55); transform: translateY(-1px); z-index: 5; }
+  /* Schatten gibt es nur an Dialog und Overlay (TOKENS.md). Das
+     Überfahren zeigt Fläche und Kante, es hebt nichts an. */
+  .wtblock:hover { z-index: 5; }
   .wtblock-c   { color: rgb(var(--c)); }                 /* hue-colored text inside a block */
 
   /* Inner text never overflows: clamp the whole label, force the time line to a
@@ -356,10 +358,10 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     border: 1.5px dashed rgb(var(--faint));
   }
   .wtblock-unassigned::before { background: transparent; }
-  .wtblock-unassigned:hover { box-shadow: 0 6px 20px -8px rgb(var(--orange) / .45); border-color: rgb(var(--orange) / .8); }
+  .wtblock-unassigned:hover { border-color: rgb(var(--orange) / .8); }
 
   /* selected state for any block (bulk mode) */
-  .wtblock.is-selected { outline-color: rgb(var(--blue)); box-shadow: 0 6px 22px -8px rgb(var(--blue) / .6); }
+  .wtblock.is-selected { outline-color: rgb(var(--blue)); }
   .wtblock.is-selected::after {
     content:"✓"; position:absolute; top:5px; right:6px;
     font-size:.72rem; font-weight:700; color: rgb(var(--blue));
@@ -393,7 +395,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* segmented control (Woche / Monat, Alle / …) */
   .seg { background: rgb(var(--sunken)); border:1px solid rgb(var(--line)); border-radius: 0; padding:3px; }
   .seg button, .seg a { border-radius: 0; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
-  .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); box-shadow: var(--tw-shadow, 0 1px 2px rgb(var(--shadow)/.06)); }
+  .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); }
 
   /* Kristall form field — single source for glass inputs across editor + node form */
   .field { width: 100%; background: rgb(255 255 255 / .8); border: 1px solid rgb(var(--hair2)); border-radius: 0; padding: 8px 12px; color: rgb(var(--ink)); transition: border-color .13s ease, box-shadow .13s ease; }
@@ -419,7 +421,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .pill-tabs::-webkit-scrollbar { display: none; }
   .pill-tab { display:flex; align-items:center; gap:8px; padding:9px 15px; border-radius:10px; color: rgb(var(--muted)); font-weight:600; font-size:13px; white-space:nowrap; transition: color .13s ease, background .13s ease; }
   .pill-tab:hover { color: rgb(var(--ink)); }
-  .pill-tab[aria-current="page"] { background: rgb(var(--glass) / var(--glass-strong-a)); color: rgb(var(--ink)); box-shadow: inset 0 0 0 1px rgb(var(--glass) / var(--glass-border-a)); }
+  .pill-tab[aria-current="page"] { background: rgb(var(--glass) / var(--glass-strong-a)); color: rgb(var(--ink)); }
   .pill-cnt { font-size:10.5px; color: rgb(var(--faint)); background: rgb(var(--glass) / .07); padding:1px 7px; border-radius:999px; }
   .pill-tab[aria-current="page"] .pill-cnt { color: rgb(var(--cyan)); }
 

@@ -133,7 +133,7 @@ func wocheOuter(vm WocheVM) templ.Component {
 // Offene Entsch. #4/#5): the "‹ Zeit" spine, the pagehead (KW label + KW-nav),
 // the vertical .weekbar skyline, the Mo–So .row detail list, the two
 // Kennzahlen panels (Woche gesamt + Kennzahlen), and the monthly Statistik/
-// Burndown panel. No glass/Card/shadow-soft/font-display chrome — Kristall is
+// Burndown panel. No glass/Card//font-display chrome — Kristall is
 // fully retired from this page.
 func WocheFragment(vm WocheVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

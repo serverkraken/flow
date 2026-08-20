@@ -145,7 +145,7 @@ func historieCalOuter(vm HistorieVM) templ.Component {
 // HistorieCalendarFragment is the inner calendar content (week or month): the
 // "‹ Zeit" spine, the pagehead, the Kalender/Liste + Woche/Monat toggles, the
 // hairline time-grid (week) or hairline day-cell grid (month), and the
-// selection bar + single-edit dialog. No glass/Card/shadow-soft/font-display
+// selection bar + single-edit dialog. No glass/Card//font-display
 // chrome — Kristall is fully retired from this page.
 func HistorieCalendarFragment(vm HistorieVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -505,7 +505,7 @@ func historieToolbar(vm HistorieVM) templ.Component {
 
 // historieSeg is a bare Lesesaal `.seg` segmented toggle (Kalender|Liste,
 // Woche|Monat) — replaces components.SegToggle (whose option markup baked in
-// Kristall shadow-soft//text-blue) with the `.seg` primitive
+// Kristall//text-blue) with the `.seg` primitive
 // alone: its own `[aria-pressed="true"]` CSS (tailwind.css:335-337) already
 // supplies the active surface/color/shadow. SegToggle has zero other callers
 // after this task (verified via rg), so nothing downstream depends on it
@@ -604,7 +604,7 @@ func historieSeg(options []components.SegOption, active string) templ.Component 
 // historieWeek is the desktop time-grid (md+; mobile uses the agenda). The
 // grid mechanism itself (.grid-lines/.wtblock/.now-line, Task-1-era tokens)
 // is unchanged Bestand — only the outer card chrome (was glass
-// shadow-soft) is retired for a hairline frame that scrolls in its own frame
+// ) is retired for a hairline frame that scrolls in its own frame
 // on medium viewports (no page-level H-pan).
 func historieWeek(vm HistorieVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

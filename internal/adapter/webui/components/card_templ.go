@@ -32,7 +32,7 @@ func Card(class string, body templ.Component) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var2 = []any{"relative overflow-hidden glass shadow-soft p-6", class}
+		var templ_7745c5c3_Var2 = []any{"relative overflow-hidden glass p-6", class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -91,7 +91,7 @@ func CardCorner(hueVar string, class string) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var5 = []any{"relative overflow-hidden glass shadow-soft p-6 pl-7", class}
+		var templ_7745c5c3_Var5 = []any{"relative overflow-hidden glass p-6 pl-7", class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var5...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

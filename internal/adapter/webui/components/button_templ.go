@@ -28,7 +28,7 @@ func btnClass(v ButtonVariant) string {
 	case BtnGhost:
 		return base + "text-body hover:bg-sunken hover:text-ink"
 	case BtnDanger:
-		return base + "bg-red text-oncolor shadow-soft hover:bg-red/90"
+		return base + "bg-red text-oncolor hover:bg-red/90"
 	default:
 		return base + "bg-ink text-canvas"
 	}

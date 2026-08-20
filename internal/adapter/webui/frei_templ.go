@@ -113,7 +113,7 @@ func freiOuter(vm FreiVM) templ.Component {
 // FreiFragment is the Lesesaal Frei page (Werkzeuge-Destination, L4 Task 6):
 // the "‹ Zeit" spine, the pagehead, the add-panel, the year list of .row
 // entries, and the settings panel (Bundesland + ICS feed). No glass/Card/
-// shadow-soft/font-display chrome — Kristall is fully retired from this page.
+// /font-display chrome — Kristall is fully retired from this page.
 func FreiFragment(vm FreiVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
