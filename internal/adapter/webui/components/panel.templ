@@ -1,0 +1,13 @@
+package components
+
+// PanelToggle opens the tablet-band list panel (Screen 21A): on 768–1199px
+// the 372px middle column of a three-column screen is hidden and slides in
+// as an overlay over the content when this button is pressed. The button is
+// display:none outside the band (.k3-panel-toggle CSS), so it never affects
+// desktop or phone layouts. labelKey names the list (Kuratieren, Tagebuch).
+templ PanelToggle(labelKey string, extraClass string) {
+	<button type="button" data-panel-toggle aria-expanded="false"
+		class={ "k3-panel-toggle hidden items-center gap-2 border border-ink bg-sheet px-3.5 py-2 text-[12.5px] font-bold text-ink", extraClass }>
+		<span aria-hidden="true">☰</span> { T(ctx, labelKey) }
+	</button>
+}

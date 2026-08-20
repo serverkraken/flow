@@ -1,0 +1,65 @@
+package components
+
+import "strings"
+
+// Aus dem Entwurfs-Branch portiert: das Monogramm ist die Identität eines
+// Registers im Karteikasten (Screen 08) — Initialen auf dem Wash seiner
+// Ebenenfarbe, eckig. Es trägt den 76px-Streifen im Tablet-Band.
+
+func MonogramInitials(name string) string {
+	fields := strings.FieldsFunc(name, func(r rune) bool {
+		return r == ' ' || r == '-' || r == '\t' || r == '\n'
+	})
+	switch len(fields) {
+	case 0:
+		return ""
+	case 1:
+		r := []rune(strings.ToUpper(fields[0]))
+		if len(r) == 1 {
+			return string(r)
+		}
+		return string(r[:2])
+	default:
+		a := []rune(strings.ToUpper(fields[0]))
+		b := []rune(strings.ToUpper(fields[1]))
+		return string(a[:1]) + string(b[:1])
+	}
+}
+
+// monogramClass maps a node color name (domain.NodeColors) to the
+// wash-background + hue-text pair — same tone the tree row and cockpit rail
+// hero use, spelled out per case (not string-concatenated) so the Tailwind
+// scanner can find every literal it needs. Unset/unknown colors fall back to
+// amber, the design's default Engagement/Kontext tone (never a colorless tile).
+func monogramClass(color string) string {
+	switch color {
+	case "blue":
+		return "bg-blue/15 text-blue"
+	case "teal":
+		return "bg-teal/15 text-teal"
+	case "red":
+		return "bg-red/15 text-red"
+	case "purple":
+		return "bg-purple/15 text-purple"
+	case "green":
+		return "bg-green/15 text-green"
+	case "violet":
+		return "bg-violet/15 text-violet"
+	case "steel":
+		return "bg-steel/15 text-steel"
+	default:
+		return "bg-amber/15 text-amber"
+	}
+}
+
+// Monogram renders the square identity tile used across the Karteikasten
+// register screens (02/08/23): two-letter initials on a wash-tinted square, no
+// border-radius (the design language is square throughout). sizeClass sets
+// the box + text size (e.g. "h-11 w-11 text-[15px]" for the standard 44×44
+// header mark, larger for a hero context).
+templ Monogram(name, color, sizeClass string) {
+	<span class={ "inline-grid shrink-0 place-items-center font-bold", sizeClass, monogramClass(color) } aria-hidden="true">
+		{ MonogramInitials(name) }
+	</span>
+}
+

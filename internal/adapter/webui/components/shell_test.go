@@ -174,12 +174,16 @@ func TestAppShell_RailNoTopbarNav(t *testing.T) {
 			t.Fatalf("Schiene vermisst %q:\n%s", want, out)
 		}
 	}
-	// Unter 768px ist die Schiene ausgeblendet — ohne die schmale Kopfzeile
-	// käme man dort nirgendwo hin.
-	for _, want := range []string{"md:hidden", `data-dialog-open="mobile-nav"`} {
+	// Drei Zustände (Katalog 3.13): unter 768px Dock unten, 768–1199px der
+	// 76px-Monogrammstreifen mit ☰, ab 1200px die volle Schiene.
+	for _, want := range []string{"md:hidden", "k3-rail-mini", "k3-rail-full", "data-rail-expand", "wide:hidden"} {
 		if !strings.Contains(out, want) {
-			t.Fatalf("mobiler Einstieg vermisst %q", want)
+			t.Fatalf("responsive Hülle vermisst %q", want)
 		}
+	}
+	// Das Dock trägt die Bereiche und hält die 44px-Trefffläche ein.
+	if !strings.Contains(out, "min-h-[44px]") {
+		t.Fatalf("das Dock braucht die 44px-Trefffläche für Berührungsgeräte")
 	}
 }
 

@@ -79,43 +79,68 @@ templ AppShellFlush(active string, ebeneColor string, content templ.Component) {
 templ appShellHull(active string, ebeneColor string, flush bool, breadcrumb, subnav, content templ.Component) {
 	<div class="md:grid md:min-h-screen md:grid-cols-[264px_minmax(0,1fr)]">
 		<aside id="app-rail" class="hidden md:flex md:flex-col md:sticky md:top-0 md:h-screen overflow-hidden bg-panel border-r border-hairp">
-			<div class="flex items-center px-6 pt-6">
-				<a href="/" class="inline-flex items-center gap-2.5" aria-label={ T(ctx, "app.name") }>
+			// ── Tablet-Band (768–1199px): 76px-Monogrammstreifen. Das ☰
+			// schiebt die volle Schiene als Overlay ein (Screen 21A). ──
+			<div class="k3-rail-mini flex flex-1 flex-col items-center gap-2.5 py-4 wide:hidden">
+				<a href="/" aria-label={ T(ctx, "app.name") }>
 					@BrandMark("h-5 w-5")
-					<span class="font-display text-[19px] font-bold tracking-tight">{ T(ctx, "app.name") }<span class="text-accent">.</span></span>
 				</a>
-				<button type="button" data-dialog-open="user-menu" aria-label={ T(ctx, "nav.menu") } class="ml-auto shrink-0">
-					<span class="ava ava-me av-28" style="width:26px;height:26px;border-radius:0" aria-hidden="true">{ T(ctx, "app.userInitials") }</span>
-				</button>
+				<span class="w-7 border-t border-line2" aria-hidden="true"></span>
+				// Die Monogramme der Engagements werden nachgeladen — der
+				// Streifen ist ab 1200px display:none, also fragt der Desktop
+				// sie nie an (intersect once).
+				<div class="flex flex-col items-center gap-2.5"
+					hx-get="/ui/rail/monograms" hx-trigger="intersect once" hx-swap="innerHTML"></div>
+				<span class="w-7 border-t border-line2" aria-hidden="true"></span>
+				<button type="button" data-rail-expand aria-label={ T(ctx, "nav.menu") } aria-expanded="false"
+					class="grid h-11 w-11 place-items-center bg-sunken font-mono text-[15px] font-bold text-body2 hover:text-ink">☰</button>
+				<button type="button" data-palette-open aria-label={ T(ctx, "palette.open") }
+					class="grid h-11 w-11 place-items-center text-[17px] text-muted hover:text-ink">⌕</button>
+				<span class="flex-1"></span>
+				<a href="/einstellungen" aria-label={ T(ctx, "nav.settings") }
+					class="grid h-[26px] w-[26px] place-items-center bg-sunken font-mono text-[9px] font-bold text-body2 hover:text-ink">{ T(ctx, "app.userInitials") }</a>
 			</div>
-			<div
-				id="timer-pill"
-				class="px-5 pt-4"
-				hx-get="/ui/timer"
-				hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
-				hx-swap="innerHTML"
-			></div>
-			<button type="button" data-palette-open class="mx-6 mt-4 flex w-[calc(100%-3rem)] items-center gap-2 border-b border-ink pb-2 text-left text-[.8rem] text-faint hover:text-muted">
-				<span class="flex-1">{ T(ctx, "palette.hint") }</span>
-				<kbd class="font-mono text-[.68rem]">⌘K</kbd>
-			</button>
-			<nav class="min-h-0 flex-1 overflow-y-auto pb-3" aria-label={ T(ctx, "nav.primary") }>
-				<div hx-get={ "/ui/nav/tree?active=" + active } hx-trigger="load" hx-swap="innerHTML"></div>
-			</nav>
-			<div class="border-t border-line2 px-6 pb-5 pt-2.5">
-				for _, l := range UtilityNav() {
-					<a href={ templ.SafeURL(l.Href) } class="block py-[5px] text-[13px] font-medium text-body2 hover:text-ink">{ T(ctx, l.LabelKey) }</a>
-				}
-				<form action="/auth/logout" method="post" hx-boost="false">
-					<button class="w-full py-[5px] text-left text-[13px] font-medium text-muted hover:text-ink">{ T(ctx, "nav.logout") }</button>
-				</form>
+			// ── Volle Schiene: ab 1200px immer, im Tablet-Band nur ausgeklappt ──
+			<div class="k3-rail-full hidden wide:contents">
+				<div class="flex items-center px-6 pt-6">
+					<a href="/" class="inline-flex items-center gap-2.5" aria-label={ T(ctx, "app.name") }>
+						@BrandMark("h-5 w-5")
+						<span class="font-display text-[19px] font-bold tracking-tight">{ T(ctx, "app.name") }<span class="text-accent">.</span></span>
+					</a>
+					<button type="button" data-dialog-open="user-menu" aria-label={ T(ctx, "nav.menu") } class="ml-auto shrink-0">
+						<span class="ava ava-me av-28" style="width:26px;height:26px;border-radius:0" aria-hidden="true">{ T(ctx, "app.userInitials") }</span>
+					</button>
+				</div>
+				<div
+					id="timer-pill"
+					class="px-5 pt-4"
+					hx-get="/ui/timer"
+					hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
+					hx-swap="innerHTML"
+				></div>
+				<button type="button" data-palette-open class="mx-6 mt-4 flex w-[calc(100%-3rem)] items-center gap-2 border-b border-ink pb-2 text-left text-[.8rem] text-faint hover:text-muted">
+					<span class="flex-1">{ T(ctx, "palette.hint") }</span>
+					<kbd class="font-mono text-[.68rem]">⌘K</kbd>
+				</button>
+				<nav class="min-h-0 flex-1 overflow-y-auto pb-3" aria-label={ T(ctx, "nav.primary") }>
+					<div hx-get={ "/ui/nav/tree?active=" + active } hx-trigger="load" hx-swap="innerHTML"></div>
+				</nav>
+				<div class="border-t border-line2 px-6 pb-5 pt-2.5">
+					for _, l := range UtilityNav() {
+						<a href={ templ.SafeURL(l.Href) } class="block py-[5px] text-[13px] font-medium text-body2 hover:text-ink">{ T(ctx, l.LabelKey) }</a>
+					}
+					<form action="/auth/logout" method="post" hx-boost="false">
+						<button class="w-full py-[5px] text-left text-[13px] font-medium text-muted hover:text-ink">{ T(ctx, "nav.logout") }</button>
+					</form>
+				</div>
 			</div>
 		</aside>
 		<div class="flex min-w-0 flex-col bg-canvas">
 			// Ebenenstreifen: 3px, erst rechts der Schiene — die bleibt neutral.
 			<div class={ "hidden md:block h-[3px] shrink-0", stripeClass(active, ebeneColor) } aria-hidden="true"></div>
-			// Mobil bleibt eine schmale Kopfzeile: die Schiene ist unter 768px
-			// ausgeblendet, und ohne sie käme man sonst nirgendwo hin.
+			// ── Telefon (<768px): schmale Kopfzeile oben, Dock unten
+			// (Katalog 3.13 — "unter 768 Dock unten, jede Fläche eine eigene
+			// Seite"). Die Schiene ist hier ausgeblendet. ──
 			<header class="sticky top-0 z-40 border-b border-hair bg-paper/90 backdrop-blur-sm md:hidden">
 				<div class="flex h-[54px] items-center gap-3 px-4">
 					<a href="/" class="inline-flex items-center gap-2" aria-label={ T(ctx, "app.name") }>
@@ -124,10 +149,11 @@ templ appShellHull(active string, ebeneColor string, flush bool, breadcrumb, sub
 					</a>
 					<div class="flex-1"></div>
 					<button type="button" data-palette-open aria-label={ T(ctx, "palette.open") } class="text-[17px] text-muted">⌕</button>
-					<button type="button" data-dialog-open="mobile-nav" aria-label={ T(ctx, "nav.primary") } class="font-mono text-[16px] leading-none text-ink">☰</button>
+					<a href="/einstellungen" aria-label={ T(ctx, "nav.settings") }
+						class="grid h-[26px] w-[26px] place-items-center bg-sunken font-mono text-[9px] font-bold text-body2">{ T(ctx, "app.userInitials") }</a>
 				</div>
 			</header>
-			<main class="flex flex-1 flex-col pb-16 md:pb-0">
+			<main class="flex flex-1 flex-col pb-24 md:pb-0">
 				if flush {
 					// Bündig: die Seite bringt ihr eigenes Raster mit, die
 					// Kasten-Spalte beginnt ohne Polster an der Schiene.
@@ -178,10 +204,29 @@ templ appShellHull(active string, ebeneColor string, flush bool, breadcrumb, sub
 			}
 		</div>
 	</dialog>
+	// ── Dock (<768px): die Bereiche als feste Leiste unten. Trefffläche
+	// mindestens 44px (Katalog 3.13, Berührungsgeräte). ──
+	<nav class="fixed inset-x-0 bottom-0 z-40 border-t border-line2 bg-panel md:hidden" aria-label={ T(ctx, "nav.primary") }>
+		<ul class="grid grid-cols-4">
+			for _, l := range PrimaryNav() {
+				<li>
+					if l.Key == AreaFor(active) {
+						<a href={ templ.SafeURL(l.Href) } aria-current="page" class="flex min-h-[44px] flex-col items-center justify-center py-2 text-[12px] font-semibold text-ink">{ T(ctx, l.LabelKey) }</a>
+					} else {
+						<a href={ templ.SafeURL(l.Href) } class="flex min-h-[44px] flex-col items-center justify-center py-2 text-[12px] font-medium text-body2">{ T(ctx, l.LabelKey) }</a>
+					}
+				</li>
+			}
+			<li>
+				<button type="button" data-dialog-open="user-menu" class="flex min-h-[44px] w-full flex-col items-center justify-center py-2 text-[12px] font-medium text-body2">{ T(ctx, "nav.menu") }</button>
+			</li>
+		</ul>
+	</nav>
 	@PaletteDialog()
 	<script src={ AssetURL("js/dialog.js") } defer></script>
 	// railnav.js statt Inline-Skript im Fragment: htmx läuft hier mit
 	// allowScriptTags = false, ein Skript im nachgeladenen Baum würde nie
 	// ausgeführt (und die Schiene klappte lautlos nicht auf).
 	<script src={ AssetURL("js/railnav.js") } defer></script>
+	<script src={ AssetURL("js/shellnav.js") } defer></script>
 }

@@ -79,3 +79,17 @@ func navParentID(n domain.Node) string {
 	}
 	return *n.ParentID
 }
+
+// handleRailMonograms bedient GET /ui/rail/monograms — die Kacheln des
+// 76px-Streifens im Tablet-Band. Der Streifen ist ab 1200px display:none,
+// der Desktop fragt das Fragment also nie an (htmx intersect once).
+func (s *Server) handleRailMonograms(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	all, err := s.ListNodes.Execute(r.Context(), u.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "rail monograms: list nodes failed", "err", err)
+		all = nil
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.RailMonograms(webui.RailMonogramNodes(all)).Render(r.Context(), w)
+}

@@ -161,3 +161,34 @@ templ railNavRow(row RailNavRow) {
 	</div>
 }
 
+
+// railMonogramLimit begrenzt den Tablet-Streifen auf eine Handvoll Kacheln —
+// die 76px-Schiene ist eine Abkürzungsreihe, nicht das volle Register
+// (das öffnet das ☰).
+const railMonogramLimit = 6
+
+// RailMonogramNodes filtert auf das, was der Streifen zeigt: AKTIVE
+// Engagements in ListNodes-Reihenfolge, gedeckelt.
+func RailMonogramNodes(all []domain.Node) []domain.Node {
+	out := make([]domain.Node, 0, railMonogramLimit)
+	for _, n := range all {
+		if n.ParentID != nil || n.Status != domain.NodeActive {
+			continue
+		}
+		out = append(out, n)
+		if len(out) == railMonogramLimit {
+			break
+		}
+	}
+	return out
+}
+
+// RailMonograms ist das Fragment /ui/rail/monograms: eine 44px-Kachel je
+// Engagement (Screen 21A — "Schiene auf 76px Monogramme").
+templ RailMonograms(nodes []domain.Node) {
+	for _, n := range nodes {
+		<a href={ templ.SafeURL("/nodes/" + n.ID) } title={ n.Name } aria-label={ n.Name }>
+			@components.Monogram(n.Name, n.Color, "h-11 w-11 text-[12px]")
+		</a>
+	}
+}

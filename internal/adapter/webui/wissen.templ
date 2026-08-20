@@ -36,6 +36,9 @@ templ WissenFragment(vm WissenOverviewVM) {
 	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
 		@wissenShelfColumn(vm)
 		<div class="min-w-0 bg-canvas px-6 py-7 lg:px-14">
+			// Im Tablet-Band ist die Kasten-Spalte ausgeblendet; dieser
+			// Schalter schiebt sie als Overlay ein (Screen 21A).
+			@components.PanelToggle("wissen.shelves", "mb-4")
 			<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px">
 		<div style="flex:1">
 			<span class="eyebrow">{ components.T(ctx, "nav.knowledge") }</span>

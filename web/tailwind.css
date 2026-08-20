@@ -196,6 +196,11 @@
   --color-warn:        rgb(var(--warn));
   --color-warn-wash:   rgb(var(--warn-wash));
 
+  /* Umbrüche des Karteikastens (Katalog 3.13): 768px und 1200px.
+     Über 1200 drei Spalten; 768–1199 wird die Schiene ein 76px-Streifen
+     und die Kasten-Spalte ein einschiebbares Panel; unter 768 Dock unten. */
+  --breakpoint-wide: 75rem;
+
   --font-display: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans:    "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
