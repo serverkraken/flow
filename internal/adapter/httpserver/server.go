@@ -258,6 +258,7 @@ func (s *Server) Routes() http.Handler {
 	// Global shell timer pill (Lesesaal Task 5) — the ONE global home for the
 	// running timer, mounted in the topbar as #timer-pill.
 	mux.Handle("GET /ui/timer", s.webAuth(http.HandlerFunc(s.handleTimerWidget)))
+	mux.Handle("GET /ui/nav/tree", s.webAuth(http.HandlerFunc(s.handleNavTreeFragment)))
 	mux.Handle("POST /ui/timer/start", s.webAuth(http.HandlerFunc(s.handleTimerStart)))
 	mux.Handle("POST /ui/timer/stop", s.webAuth(http.HandlerFunc(s.handleTimerStop)))
 	mux.Handle("POST /ui/timer/switch", s.webAuth(http.HandlerFunc(s.handleTimerSwitch)))

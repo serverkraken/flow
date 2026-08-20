@@ -1,0 +1,163 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// RailNavVM ist die Nutzlast von GET /ui/nav/tree: der Registerbaum plus die
+// ALLGEMEIN-Zeilen mit ihren Zählern (K3Rail). Die Schiene lädt ihn per htmx
+// nach, weil components.AppShell das webui-Paket nicht importieren darf.
+type RailNavVM struct {
+	Rows          []RailNavRow
+	Active        string // Seitenschlüssel: home|puls|docs|zeit|tagebuch|projekte
+	TagebuchCount int
+	BibCount      int
+	ZeitToday     string // "6:12", wenn heute schon etwas gebucht ist
+}
+
+// RailNavRow ist eine Zeile des Registerbaums.
+type RailNavRow struct {
+	ID, Name, ParentID string
+	Kind               domain.NodeKind
+	Level              int
+	Cards              int
+	HasChildren        bool
+	RunningDur         string // "2:41" auf dem Knoten, auf dem die Uhr läuft
+}
+
+// railRowPad bildet die Tiefe auf die K3Rail-Einzüge ab (21/38/55px). Die
+// Beschriftung beginnt AT diesem Wert; der Pfeil sitzt außerhalb des
+// Textflusses in der Einzugsrinne und nimmt dem Namen keine Breite.
+func railRowPad(level int) string {
+	switch level {
+	case 0:
+		return "pl-[21px]"
+	case 1:
+		return "pl-[38px]"
+	default:
+		return "pl-[55px]"
+	}
+}
+
+// railCaretPos setzt den Pfeil 15px links der Beschriftung in die Rinne.
+func railCaretPos(level int) string {
+	switch level {
+	case 0:
+		return "left-[6px]"
+	case 1:
+		return "left-[23px]"
+	default:
+		return "left-[40px]"
+	}
+}
+
+// railRowType ist die Ebenen-Abstufung: Schriftfamilie, Grad und Gewicht
+// tragen sie, niemals Helligkeit. Repo/Branch stehen in JetBrains Mono, weil
+// TOKENS.md die Mono für "alles Gemessene und Adressierte" reserviert — und
+// ein Repo-Name ist eine Adresse. Entschieden wird nach KIND, nicht nach
+// Tiefe: ein drei Ebenen tief liegendes Vorhaben bleibt ein Vorhaben.
+func railRowType(kind domain.NodeKind, level int) string {
+	switch {
+	case kind == domain.KindRepo || kind == domain.KindBranch:
+		return "py-[4px] font-mono text-[11.5px]"
+	case level == 0:
+		return "py-[7px] text-[14px] font-medium"
+	default:
+		return "py-[7px] text-[13.5px]"
+	}
+}
+
+// railTint bildet die Ebene auf ihren Ton ab (TOKENS.md Ebenenfarben) — der
+// Wert, auf den die Hover-/Auswahlregeln im Stylesheet hören.
+func railTint(kind domain.NodeKind) string {
+	switch kind {
+	case domain.KindEngagement:
+		return "amber"
+	case domain.KindRepo, domain.KindBranch:
+		return "steel"
+	default:
+		return "violet"
+	}
+}
+
+func railAllgemeinClass(active bool) string {
+	base := "flex items-baseline border-l-[3px] border-transparent px-6 py-[7px] pl-[21px] text-[14px]"
+	if active {
+		return base + " nv-row-active"
+	}
+	return base + " font-medium text-body2 hover:text-ink"
+}
+
+// RailNav rendert die beiden Sektionen zwischen Suche und Schienenfuß.
+templ RailNav(vm RailNavVM) {
+	<div class="mx-6 mb-1.5 mt-6 font-mono text-[10px] tracking-[.18em] text-muted">01 — REGISTER</div>
+	<div id="navtree-list">
+		for _, row := range vm.Rows {
+			@railNavRow(row)
+		}
+		if len(vm.Rows) == 0 {
+			<p class="px-6 py-1 text-[.78rem] text-faint">—</p>
+		}
+	</div>
+	// ALLGEMEIN klebt am Fuß der scrollenden Schiene: ein echter Kasten
+	// schiebt seinen Registerbaum über 1400px hinaus, und das hier sind die
+	// kürzesten Wege der App — sie dürfen nicht eine Bildschirmhöhe unter
+	// dem Baum liegen.
+	<div class="sticky bottom-0 z-10 border-t border-line2 bg-panel pb-1 pt-1">
+		<div class="mx-6 mb-1.5 mt-2 font-mono text-[10px] tracking-[.18em] text-muted">02 — ALLGEMEIN</div>
+		<a href="/" data-tint="accent" class={ railAllgemeinClass(vm.Active == "home") }>{ components.T(ctx, "nav.start") }</a>
+		<a href="/nodes" data-tint="amber" class={ railAllgemeinClass(vm.Active == "projekte") }>{ components.T(ctx, "nav.projects") }</a>
+		<a href="/wissen" data-tint="blue" class={ railAllgemeinClass(vm.Active == "docs") }>
+			{ components.T(ctx, "nav.wissen") }
+			if vm.BibCount > 0 {
+				<span class="ml-auto font-mono text-[10.5px] text-muted tnum">{ itoa(vm.BibCount) }</span>
+			}
+		</a>
+		<a href="/zeit" data-tint="live" class={ railAllgemeinClass(vm.Active == "zeit") }>
+			{ components.T(ctx, "nav.zeit") }
+			if vm.ZeitToday != "" {
+				<span class="ml-auto font-mono text-[10.5px] text-live tnum">{ vm.ZeitToday }</span>
+			}
+		</a>
+	</div>
+}
+
+// railNavRow rendert eine Baumzeile. EINE Form für alle drei Ebenen — die
+// Abstufung liegt in railRowType, die Verschachtelung im Einzug. Die Zeile
+// kommt ab Ebene 1 ZUGEKLAPPT vom Server; das Skript klappt nur auf, damit
+// beim htmx-Tausch nie der ganze Baum aufblitzt.
+templ railNavRow(row RailNavRow) {
+	<div data-id={ row.ID } data-parent={ row.ParentID } class={ "relative", templ.KV("hidden", row.Level > 0) }>
+		<a
+			href={ templ.SafeURL("/nodes/" + row.ID) }
+			title={ row.Name }
+			data-tint={ railTint(row.Kind) }
+			class={ "flex items-baseline gap-2 border-l-[3px] border-transparent px-6 text-body2 hover:text-ink",
+				railRowPad(row.Level), railRowType(row.Kind, row.Level) }
+		>
+			<span class="min-w-0 flex-1 truncate">{ row.Name }</span>
+			if row.RunningDur != "" {
+				<span class="inline-flex shrink-0 items-baseline gap-1.5">
+					<span class="h-1.5 w-1.5 self-center rounded-full bg-live" aria-hidden="true"></span>
+					<span class="font-mono text-[10.5px] font-semibold text-live tnum">{ row.RunningDur }</span>
+				</span>
+			}
+			if row.Cards > 0 {
+				<span class="w-6 shrink-0 text-right font-mono text-[10.5px] text-muted tnum">{ itoa(row.Cards) }</span>
+			}
+		</a>
+		if row.HasChildren {
+			// Die Tiefe entscheidet das NICHT — Kinder zu haben entscheidet es.
+			<button
+				type="button"
+				data-nv-caret={ row.ID }
+				aria-expanded="false"
+				aria-label={ components.T(ctx, "nav.collapseToggle") }
+				class={ "absolute inset-y-0 grid w-3 place-items-center font-mono text-[9px] text-faint hover:text-accent",
+					railCaretPos(row.Level) }
+			>▸</button>
+		}
+	</div>
+}
+

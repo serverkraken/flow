@@ -32,6 +32,8 @@ func init() {
 			"home.countsPrivat": "Privat",
 			// top-level navigation
 			"nav.today":     "Heute",
+			"nav.start":          "Schreibtisch",
+			"nav.collapseToggle": "Auf- und zuklappen",
 			"nav.wissen":    "Wissen",
 			"nav.week":      "Woche",
 			"nav.history":   "Historie",

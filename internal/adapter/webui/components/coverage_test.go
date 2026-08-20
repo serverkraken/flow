@@ -143,36 +143,37 @@ func TestAppShellBreadcrumbNilSubnavSet(t *testing.T) {
 	}
 }
 
-// ── AppShell topbar: non-primary active key and empty active ───────────────
-// (Lesesaal L1 Task 4: SiteNav/sidebar died; AreaFor(active) now carries the
-// same "which area is this page under" wayfinding logic the old SiteNav did.)
+// ── AppShell: Bereichs-Wegweisung über den Ebenenstreifen ─────────────────
+// Früher trug die Topbar das aria-current; seit der Karteikasten-Hülle
+// (Slice 2) ist die Topbar entfallen und AreaFor(active) entscheidet die
+// Farbe des 3px-Streifens über der Arbeitsfläche. Die Aussage der beiden
+// Tests bleibt dieselbe: welcher Bereich trägt diese Seite.
 
 func TestAppShellNonPrimaryActiveKeyMarksArea(t *testing.T) {
-	// "frei" is a utility-menu destination, not a PrimaryNav key — but it
-	// belongs to the Zeit area, so the Zeit topbar link must get aria-current.
+	// "frei" ist ein Ziel des Werkzeug-Menüs, kein PrimaryNav-Schlüssel —
+	// gehört aber zum Bereich Zeit, also muss der Streifen den Zeit-Ton tragen.
 	out := render(t, components.AppShell("frei", nil, nil, components.Empty()))
-	if !strings.Contains(out, "Zeit") {
-		t.Errorf("AppShell should still render all primary areas: %s", out)
+	if !strings.Contains(out, "bg-live") {
+		t.Errorf("AppShell(frei) muss den Zeit-Streifen tragen: %s", out)
 	}
-	if !strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("AppShell with active 'frei' must mark the Zeit area as aria-current: %s", out)
-	}
-	// Exactly one aria-current in the primary nav landmark: the Zeit item only.
-	// (The mobile-nav dialog — Burger-Fix 2026-07-05 — mirrors the same
-	// aria-current on its own copy of the link, so the global count is 2.)
-	topbarNav := out[strings.Index(out, `class="topbar-nav`):strings.Index(out, "</nav>")]
-	if n := strings.Count(topbarNav, `aria-current="page"`); n != 1 {
-		t.Errorf("AppShell(frei) must have exactly 1 aria-current=page in topbar-nav, got %d: %s", n, topbarNav)
+	for _, notWant := range []string{"bg-blue", "bg-amber"} {
+		if strings.Contains(out, notWant) {
+			t.Errorf("AppShell(frei) darf nicht zusätzlich %q tragen: %s", notWant, out)
+		}
 	}
 }
 
 func TestAppShellEmptyActiveKeyMarksNoArea(t *testing.T) {
+	// Ohne Bereich fällt der Streifen auf den Start-Ton zurück — er ist immer
+	// da, aber er behauptet keinen der drei Arbeitsbereiche.
 	out := render(t, components.AppShell("", nil, nil, components.Empty()))
-	if !strings.Contains(out, "Projekte") || !strings.Contains(out, "Wissen") {
-		t.Errorf("AppShell with empty active should render all primary areas: %s", out)
+	if !strings.Contains(out, "bg-accent") {
+		t.Errorf("AppShell(\"\") braucht den Start-Streifen: %s", out)
 	}
-	if strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("AppShell with empty active must not mark any area current: %s", out)
+	for _, notWant := range []string{"bg-live", "bg-blue", "bg-amber"} {
+		if strings.Contains(out, notWant) {
+			t.Errorf("AppShell(\"\") darf keinen Bereich behaupten (%q): %s", notWant, out)
+		}
 	}
 }
 

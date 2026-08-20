@@ -30,6 +30,8 @@ func init() {
 			"home.countsWork":    "Work",
 			"home.countsPrivat":  "Private",
 			"nav.today":          "Today",
+			"nav.start":          "Desk",
+			"nav.collapseToggle": "Expand and collapse",
 			"nav.wissen":         "Knowledge",
 			"nav.week":           "Week",
 			"nav.history":        "History",

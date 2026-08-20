@@ -275,3 +275,35 @@ func nodeCrumbs(d NodeCockpit) []components.Crumb {
 	}
 	return crumbs
 }
+
+// SubtreeDocTotals zählt Dokumente je Knoten EINSCHLIESSLICH seines Teilbaums
+// — die Kartenzähler der Schiene (eine Karte am Repo zählt über Vorhaben und
+// Engagement mit hoch). Dokumente an abwesenden oder fremden Knoten brechen
+// den Aufstieg gefahrlos ab.
+func SubtreeDocTotals(nodes []domain.Node, docs []domain.Document) map[string]int {
+	parent := make(map[string]*string, len(nodes))
+	for _, n := range nodes {
+		parent[n.ID] = n.ParentID
+	}
+	totals := make(map[string]int, len(nodes))
+	for _, d := range docs {
+		if d.NodeID == nil {
+			continue
+		}
+		id := *d.NodeID
+		seen := map[string]bool{}
+		for {
+			p, ok := parent[id]
+			if !ok || seen[id] {
+				break
+			}
+			seen[id] = true
+			totals[id]++
+			if p == nil {
+				break
+			}
+			id = *p
+		}
+	}
+	return totals
+}

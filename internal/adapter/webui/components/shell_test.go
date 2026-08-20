@@ -79,7 +79,7 @@ func TestAppShellRendersSlotsAndChrome(t *testing.T) {
 	out := render(t, components.AppShell("today", bc, sn, body))
 	for _, w := range []string{
 		`id="bc"`, `id="sn"`, `id="main"`,
-		`aria-label="Hauptnavigation"`, // topbar primary-nav landmark (i18n nav.primary)
+		`aria-label="Hauptnavigation"`, // Navigations-Landmark, seit Slice 2 an der Schiene (i18n nav.primary)
 	} {
 		if !strings.Contains(out, w) {
 			t.Errorf("AppShell missing %q", w)
@@ -125,20 +125,17 @@ func TestAppShellNilSlotsAreSafe(t *testing.T) {
 }
 
 func TestAppShellPrimaryAreaActive(t *testing.T) {
-	// "zeit" is now a PrimaryNav key (topbar area), not a drawer item — its
-	// topbar link must carry aria-current, and it must be the only one within
-	// the topbar-nav landmark. (The mobile-nav dialog — Burger-Fix 2026-07-05 —
-	// legitimately mirrors the same aria-current on its own copy of the link.)
+	// Seit der Karteikasten-Hülle (Slice 2) trägt nicht mehr ein Topbar-Link
+	// das aria-current, sondern der Ebenenstreifen den Ton des Bereichs — und
+	// die Schiene markiert die Zeile serverseitig im /ui/nav/tree-Fragment.
+	// Geprüft wird deshalb hier: der Streifen nennt den Bereich, und die
+	// Schiene fragt ihr Fragment für genau diesen Bereich an.
 	out := render(t, components.AppShell("zeit", nil, nil, templ.Raw(`<p id="c">x</p>`)))
-	if !strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("AppShell(zeit) must emit aria-current=page for the Zeit topbar link: %s", out)
+	if !strings.Contains(out, "bg-live") {
+		t.Errorf("AppShell(zeit) braucht den Zeit-Ebenenstreifen: %s", out)
 	}
-	topbarNav := out[strings.Index(out, `class="topbar-nav`):strings.Index(out, "</nav>")]
-	if n := strings.Count(topbarNav, `aria-current="page"`); n != 1 {
-		t.Errorf("AppShell(zeit) must have exactly 1 aria-current=page in topbar-nav, got %d: %s", n, topbarNav)
-	}
-	if !strings.Contains(out, `aria-current="page" href="/zeit"`) {
-		t.Errorf("AppShell(zeit) aria-current must sit on the /zeit topbar link: %s", out)
+	if !strings.Contains(out, "/ui/nav/tree?active=zeit") {
+		t.Errorf("die Schiene muss ihr Fragment für den aktiven Bereich laden: %s", out)
 	}
 }
 
@@ -153,56 +150,36 @@ func TestTabStripActive(t *testing.T) {
 	}
 }
 
-func TestAppShell_TopbarNoSidebar(t *testing.T) {
+// Slice 2 kehrt eine frühere Entscheidung ausdrücklich um: unter "Lesesaal L1"
+// war die Sidebar abgeschafft und die Topbar das Navigationsmodell. Das
+// Karteikasten-Konzept (Kapitel 02) macht die 264px-Schiene wieder zum GANZEN
+// Navigationsmodell — "es gibt keine zweite Hierarchie". Der Test hieß deshalb
+// einmal TopbarNoSidebar und prüft jetzt das Gegenteil; das ist gewollt und
+// keine Regression.
+func TestAppShell_RailNoTopbarNav(t *testing.T) {
 	var sb strings.Builder
-	err := components.AppShell("heute", nil, nil, components.Empty()).Render(testCtx(t), &sb)
-	if err != nil {
+	if err := components.AppShell("heute", nil, nil, components.Empty()).Render(testCtx(t), &sb); err != nil {
 		t.Fatal(err)
 	}
 	out := sb.String()
-	if strings.Contains(out, "<aside") {
-		t.Fatal("sidebar <aside> must be gone")
+	if !strings.Contains(out, `id="app-rail"`) {
+		t.Fatal("die Schiene muss da sein")
 	}
-	for _, want := range []string{`id="timer-pill"`, `href="/nodes"`, `href="/wissen"`, `href="/zeit"`, "data-palette-open"} {
+	if strings.Contains(out, "topbar-nav") {
+		t.Fatal("die Topbar-Navigation muss weg sein")
+	}
+	// Was die Schiene weiterhin trägt: Uhr, Suche, Baum-Fragment, Werkzeuge.
+	for _, want := range []string{`id="timer-pill"`, "data-palette-open", "/ui/nav/tree?active=heute", `href="/dayoffs"`, `href="/einstellungen"`} {
 		if !strings.Contains(out, want) {
-			t.Fatalf("topbar missing %q:\n%s", want, out)
+			t.Fatalf("Schiene vermisst %q:\n%s", want, out)
 		}
 	}
-	// Mobile-Fix (L1-Nachzügler): the topbar carries the responsive named
-	// classes that the 960px/620px @media rules in web/tailwind.css target —
-	// NOT Tailwind's sm/md (640/768) — so it compacts instead of overlapping
-	// at 375px.
-	for _, want := range []string{"topbar-in", "topbar-mark", "topbar-nav", "searchbtn", "searchbtn-lbl", "searchbtn-kbd"} {
+	// Unter 768px ist die Schiene ausgeblendet — ohne die schmale Kopfzeile
+	// käme man dort nirgendwo hin.
+	for _, want := range []string{"md:hidden", `data-dialog-open="mobile-nav"`} {
 		if !strings.Contains(out, want) {
-			t.Fatalf("topbar missing responsive class %q:\n%s", want, out)
+			t.Fatalf("mobiler Einstieg vermisst %q", want)
 		}
-	}
-	// active "heute" gehört zum Bereich Zeit
-	if !strings.Contains(out, `aria-current="page" href="/zeit"`) && !strings.Contains(out, `href="/zeit" aria-current="page"`) {
-		t.Fatal("Zeit area not marked current for active=heute")
-	}
-	if strings.Contains(out, "/ui/nav/tree") {
-		t.Fatal("nav tree mount must be gone")
-	}
-	// Burger-Fix (2026-07-05): unter 620px passen die drei Bereiche nicht mehr
-	// in die Zeile (Mockup-Lücke bei 375px) — sie wandern hinter einen
-	// Burger-Button + Dialog (dialog.js-Mechanik).
-	if !strings.Contains(out, `data-dialog-open="mobile-nav"`) {
-		t.Fatal("burger button (data-dialog-open=\"mobile-nav\") missing")
-	}
-	dialogIdx := strings.Index(out, `id="mobile-nav"`)
-	if dialogIdx == -1 {
-		t.Fatal("mobile-nav dialog missing")
-	}
-	mobileNav := out[dialogIdx:]
-	for _, want := range []string{`href="/nodes"`, `href="/wissen"`, `href="/zeit"`} {
-		if !strings.Contains(mobileNav, want) {
-			t.Fatalf("mobile-nav missing area href %q:\n%s", want, mobileNav)
-		}
-	}
-	// active "heute" (Bereich Zeit) muss im mobilen Dialog aria-current tragen.
-	if !strings.Contains(mobileNav, `aria-current="page" href="/zeit"`) && !strings.Contains(mobileNav, `href="/zeit" aria-current="page"`) {
-		t.Fatal("mobile-nav: active area /zeit not marked aria-current")
 	}
 }
 

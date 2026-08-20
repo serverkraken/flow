@@ -328,7 +328,14 @@ func TestEditorLesesaalPanelAndField(t *testing.T) {
 // mobile nav elsewhere on the page.
 func scopeToEditorPanel(t *testing.T, page string) string {
 	t.Helper()
-	start := strings.Index(page, "<form action=")
+	// Auf das EDITOR-Formular ankern, nicht auf das erste Formular der Seite:
+	// seit der Karteikasten-Schiene (Slice 2) steht das Abmelden-Formular des
+	// Schienenfußes weiter oben im Dokument, und "das erste Formular" schnitt
+	// damit die halbe Hülle mit in den angeblichen Editor-Bereich.
+	start := strings.Index(page, `<form action="/wissen/`)
+	if start < 0 {
+		start = strings.Index(page, "<form action=")
+	}
 	end := strings.LastIndex(page, "</section>")
 	if start < 0 || end < 0 || end < start {
 		t.Fatalf("could not locate editor form/preview panel in page: %.800s", page)
