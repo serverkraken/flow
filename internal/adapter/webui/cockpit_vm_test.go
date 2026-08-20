@@ -65,8 +65,9 @@ func TestBuildWissenRows_MapsChipAndMeta(t *testing.T) {
 	if !strings.Contains(row.Meta, "docs/gitlab-token-integration") {
 		t.Errorf("Meta = %q, must contain the path", row.Meta)
 	}
-	if !strings.Contains(row.Meta, "vor") { // fmtRelTime's German relative-time prefix
-		t.Errorf("Meta = %q, must contain a relative time", row.Meta)
+	// Datumsstaffel (Katalog 3.10): unter 24 h steht "heute HH:MM".
+	if !strings.Contains(row.Meta, "heute ") {
+		t.Errorf("Meta = %q, must contain the Datumsstaffel (Katalog 3.10)", row.Meta)
 	}
 }
 

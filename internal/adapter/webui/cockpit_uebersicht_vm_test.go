@@ -215,8 +215,11 @@ func TestBuildComp_LastActFromPulse(t *testing.T) {
 	if rows[0].LastAct == "" {
 		t.Fatalf("LastAct must be set from the matching pulse entry")
 	}
-	if rows[0].LastAct != "vor 10 Min" {
-		t.Errorf("LastAct = %q, want the freshest entry's rel time %q", rows[0].LastAct, "vor 10 Min")
+	// Der frischeste Eintrag liegt 10 Minuten zurück und fällt damit auf die
+	// erste Sprosse der Datumsstaffel: "heute HH:MM" (Katalog 3.10).
+	want := "heute " + now.Add(-10*time.Minute).Local().Format("15:04")
+	if rows[0].LastAct != want {
+		t.Errorf("LastAct = %q, want %q", rows[0].LastAct, want)
 	}
 }
 

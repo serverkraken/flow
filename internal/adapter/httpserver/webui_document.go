@@ -86,7 +86,11 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		Outgoing:      buildOutgoingRefs(doc, all),
 	}
 	if doc.ArchivedAt != nil {
-		vm.ArchivedRel = webui.FmtRelTime(*doc.ArchivedAt, s.Clock.Now())
+		// Volles Datum, nicht die Datumsstaffel: die Staffel ist fürs Abtasten
+		// einer Spalte gemacht (Katalog 3.10 — "immer rechtsbündig, immer die
+		// letzte Spalte"). In einem Satz ergäbe ihre Wochentag-Sprosse Unfug —
+		// "Archiviert Fr." sagt niemandem, welcher Freitag gemeint ist.
+		vm.ArchivedRel = doc.ArchivedAt.Local().Format("02.01.2006")
 	}
 	if refs, rerr := s.BacklinksDocument.Execute(r.Context(), ownerID, doc.ID); rerr == nil {
 		for _, b := range refs {

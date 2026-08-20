@@ -354,7 +354,10 @@ func TestWebDocumentArchiveAndRestoreRoundTrip(t *testing.T) {
 	if !archived.Archived || archived.Pinned {
 		t.Fatalf("archive state = %+v, want archived and unpinned", archived)
 	}
-	for _, want := range []string{`data-document-archived="true"`, "Archiviertes Dokument", "Archiviert vor 1 Min.", "Martin", "Wiederherstellen", `value="false"`} {
+	// Das Band nennt ein volles Datum, keine Datumsstaffel — im Satz wäre
+	// deren Wochentag-Sprosse mehrdeutig ("Archiviert Fr.").
+	archivedOn := "Archiviert " + archived.ArchivedAt.Local().Format("02.01.2006") + "."
+	for _, want := range []string{`data-document-archived="true"`, "Archiviertes Dokument", archivedOn, "Martin", "Wiederherstellen", `value="false"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("archive response missing %q in %.1800s", want, body)
 		}

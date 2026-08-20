@@ -1,11 +1,13 @@
 package webui
 
 import (
-	"fmt"
+	"context"
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/timefmt"
 )
 
 // ActivityRowVM is the view model for one activity-log row in the Home Puls feed.
@@ -15,7 +17,7 @@ type ActivityRowVM struct {
 	VerbKey   string // i18n key, e.g. "activity.verb.document.updated" — resolved in templ
 	Label     string // empty if nil in the entry
 	Href      string // "/wissen/{id}" for document.* events with a TargetRef, else ""
-	RelTime   string // German relative time, e.g. "vor 3 Min"
+	RelTime   string // Datumsstaffel (Katalog 3.10): "heute 14:32" · "Fr" · "11.08."
 	// Ziel-Pill (nur session.* mit NodeRef): live node name+kind, or the Label
 	// snapshot when the node no longer exists (then kind=="" and no href).
 	TargetName string
@@ -63,36 +65,39 @@ func BuildActivityRows(entries []domain.ActivityEntry, names map[string]string, 
 	return rows
 }
 
-// FmtRelTime formats a timestamp relative to now in German.
-// < 60 min  → "vor N Min"
-// < 24 h    → "vor N Std"
-// older     → date "02.01.2006"
+// FmtRelTime schreibt einen Zeitpunkt in der Datumsstaffel des Katalogs 3.10
+// aus: "heute 14:32" · "Fr" · "11.08." · "08.11.25". Vorher stand hier eine
+// eigene Staffel ("vor 3 Std", danach das volle Datum) — die Liste zeigte
+// damit zwei verschiedene Schreibweisen für denselben Sinn und die Spalte
+// war nicht mehr abtastbar.
 //
-// Exported so httpserver's document-page handler (Provenance row) can reuse
-// the exact same relative-time convention as the cockpit/activity feed
-// instead of inventing a second one. NOTE: this is hardcoded German
-// regardless of locale, matching the pre-existing behaviour of every other
-// caller (cockpit pulse, activity feed, Wissen "zuletzt aktualisiert") — a
-// wider locale-aware fix is out of scope for this task.
+// SPRACHE: die Wörter sind hier fest deutsch, weil keiner der sechs Aufrufer
+// ein ctx führt. Das ist kein neuer Mangel — die Funktion war vorher schon
+// deutsch fest verdrahtet ("vor %d Min"). Für neuen Code gibt es FmtStaffel
+// mit ctx; das Nachziehen der Altaufrufer ist ein eigener Schritt.
 func FmtRelTime(at, now time.Time) string {
-	diff := now.Sub(at)
-	if diff < 0 {
-		diff = 0
-	}
-	switch {
-	case diff < time.Hour:
-		mins := int(diff.Minutes())
-		if mins < 1 {
-			mins = 1
-		}
-		return fmt.Sprintf("vor %d Min", mins)
-	case diff < 24*time.Hour:
-		hours := int(diff.Hours())
-		if hours < 1 {
-			hours = 1
-		}
-		return fmt.Sprintf("vor %d Std", hours)
-	default:
-		return at.Local().Format("02.01.2006")
-	}
+	return timefmt.Staffel(at, now, staffelWordsDE)
+}
+
+// staffelWordsDE ist die deutsche Fassung der Staffel-Wörter.
+var staffelWordsDE = timefmt.StaffelWords{
+	Today:    "heute",
+	Weekdays: [7]string{"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"},
+}
+
+// FmtStaffel ist die sprachbewusste Fassung: sie zieht die Wörter aus dem
+// Katalog des Betrachters. Neuer Code nutzt diese.
+func FmtStaffel(ctx context.Context, at, now time.Time) string {
+	return timefmt.Staffel(at, now, timefmt.StaffelWords{
+		Today: components.T(ctx, "staffel.today"),
+		Weekdays: [7]string{
+			components.T(ctx, "staffel.wd.sun"),
+			components.T(ctx, "staffel.wd.mon"),
+			components.T(ctx, "staffel.wd.tue"),
+			components.T(ctx, "staffel.wd.wed"),
+			components.T(ctx, "staffel.wd.thu"),
+			components.T(ctx, "staffel.wd.fri"),
+			components.T(ctx, "staffel.wd.sat"),
+		},
+	})
 }
