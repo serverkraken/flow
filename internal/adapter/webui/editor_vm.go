@@ -59,11 +59,19 @@ func (vm EditorVM) HeadingKey() string {
 
 // editorCrumbs builds the Wissen -> heading breadcrumb trail for the editor
 // page, reusing components.Breadcrumb (like nodeCrumbs does for the cockpit).
-func editorCrumbs(ctx context.Context, vm EditorVM) []components.Crumb {
-	return []components.Crumb{
+// editorCrumbs behält beim Schreiben die Spur der Karte: der Zurück-Chip
+// führt auf die Karte selbst, nicht in die Bibliothek (Screen 16). Eine neue
+// Karte hat noch nichts, wohin sie zurückführen könnte — dann trägt die Spur
+// allein die Bibliothek.
+func editorCrumbs(ctx context.Context, vm EditorVM) (*components.Crumb, []components.Crumb, string) {
+	var back *components.Crumb
+	if vm.Editing() {
+		back = &components.Crumb{Href: "/wissen/" + vm.ID, Label: vm.Title}
+	}
+	return back, []components.Crumb{
 		{Href: "/wissen", Label: components.T(ctx, "wissen.title")},
 		{Label: components.T(ctx, vm.HeadingKey())},
-	}
+	}, "karte"
 }
 
 func DocumentTypeOptions(ctx context.Context, _ string) []EditorOption {

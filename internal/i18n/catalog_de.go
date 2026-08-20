@@ -33,6 +33,9 @@ func init() {
 			// top-level navigation
 			"nav.today":     "Heute",
 			"wissen.cards": "Karten",
+			"crumb.level.karte": "Karte",
+			"crumb.level.bereich": "Bereich",
+			"crumb.level.zeitverlauf": "Zeitverlauf",
 			"karte.kasten.alle": "Alle",
 			"wissen.unknownRegister": "Unbekanntes Register",
 			"sort.changed": "zuletzt geändert",

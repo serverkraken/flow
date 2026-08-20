@@ -259,17 +259,6 @@ func fmtDurHM(d time.Duration) string {
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
 }
 
-// SpineCrumbs returns the cockpit head's "up" crumb chain: every ancestor
-// EXCEPT self, root→leaf order (self renders as the <h1>, not a crumb link).
-// Derived from the same nodeCrumbs data as the old breadcrumb, minus the
-// trailing self segment.
-func SpineCrumbs(d NodeCockpit) []components.Crumb {
-	all := nodeCrumbs(d)
-	if len(all) <= 1 {
-		return nil // no ancestors (or the defensive self-only fallback)
-	}
-	return all[:len(all)-1]
-}
 
 // cockpitStatusWord maps a node status to its i18n KEY (not the resolved
 // label) — the VM stays domain-free/i18n-free, the templ resolves it via

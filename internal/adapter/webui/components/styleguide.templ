@@ -21,7 +21,7 @@ templ styleguideSubnav() {
 }
 
 templ styleguideContent() {
-	@Breadcrumb([]Crumb{{Href: "/", Label: "flow"}, {Label: T(ctx, "styleguide.title")}})
+	@Breadcrumb(nil, []Crumb{{Href: "/", Label: "flow"}, {Label: T(ctx, "styleguide.title")}}, "bereich")
 	<header class="mb-8">
 		<p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">{ T(ctx, "styleguide.subtitle") }</p>
 		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ T(ctx, "styleguide.title") }</h1>

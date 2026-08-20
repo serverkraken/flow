@@ -124,7 +124,7 @@ func styleguideContent() templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = Breadcrumb([]Crumb{{Href: "/", Label: "flow"}, {Label: T(ctx, "styleguide.title")}}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Breadcrumb(nil, []Crumb{{Href: "/", Label: "flow"}, {Label: T(ctx, "styleguide.title")}}, "bereich").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

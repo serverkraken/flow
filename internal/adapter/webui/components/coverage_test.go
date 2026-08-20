@@ -180,9 +180,9 @@ func TestAppShellEmptyActiveKeyMarksNoArea(t *testing.T) {
 // ── Breadcrumb: single-item (current only) and multi-item ──────────────────
 
 func TestBreadcrumbSingleItem(t *testing.T) {
-	out := render(t, components.Breadcrumb([]components.Crumb{
+	out := render(t, components.Breadcrumb(nil, []components.Crumb{
 		{Label: "Heute"},
-	}))
+	}, "bereich"))
 	if !strings.Contains(out, "Heute") {
 		t.Errorf("Breadcrumb single item should render label: %s", out)
 	}
@@ -192,10 +192,10 @@ func TestBreadcrumbSingleItem(t *testing.T) {
 }
 
 func TestBreadcrumbMultiItem(t *testing.T) {
-	out := render(t, components.Breadcrumb([]components.Crumb{
+	out := render(t, components.Breadcrumb(nil, []components.Crumb{
 		{Href: "/wissen", Label: "Wissen"},
 		{Label: "Notiz"},
-	}))
+	}, "bereich"))
 	if !strings.Contains(out, `href="/wissen"`) {
 		t.Errorf("Breadcrumb multi-item: first item should be linked: %s", out)
 	}

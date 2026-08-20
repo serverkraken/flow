@@ -79,33 +79,39 @@ func TestCockpitHead_EmptyDescriptionRendersNoLine(t *testing.T) {
 	}
 }
 
-// TestCockpitHead_UpCrumbsExcludeSelf verifies SpineCrumbs derives the "up"
-// chain from d.Ancestors without the trailing self segment (self renders as
-// the <h1>, not as a crumb link).
-func TestCockpitHead_UpCrumbsExcludeSelf(t *testing.T) {
+// Der Aufstieg steht seit der K3Crumb in der KRUME, nicht mehr in der Spine:
+// vorher lief er zweimal untereinander über dieselbe Seite. Der Test prüft
+// deshalb jetzt die Krume — Zurück-Chip auf den Elternteil, die übrigen Ahnen
+// als Spur, der Knoten selbst ohne Link (er ist die Überschrift).
+func TestNodeCrumbs_CarryTheAscentWithoutSelfLink(t *testing.T) {
 	d := seededCockpit()
 	d.N.ID = "n3"
 	d.N.Name = "backstage"
 	d.N.Kind = domain.KindRepo
 	d.Ancestors = []domain.Node{
-		{ID: "n3", Name: "backstage"},
-		{ID: "n2", Name: "backstage · Vorhaben"},
-		{ID: "n1", Name: "RTL Extern"},
+		{ID: "n3", Name: "backstage", Kind: domain.KindRepo},
+		{ID: "n2", Name: "backstage · Vorhaben", Kind: domain.KindVorhaben},
+		{ID: "n1", Name: "RTL Extern", Kind: domain.KindEngagement},
 	}
-	crumbs := SpineCrumbs(d)
-	if len(crumbs) != 2 {
-		t.Fatalf("SpineCrumbs must exclude self, got %d: %+v", len(crumbs), crumbs)
+	back, items, level := nodeCrumbs(d)
+	if back == nil || back.Label != "backstage · Vorhaben" {
+		t.Fatalf("der Zurück-Chip muss auf den Elternteil zeigen: %+v", back)
 	}
-	if crumbs[0].Label != "RTL Extern" || crumbs[1].Label != "backstage · Vorhaben" {
-		t.Fatalf("SpineCrumbs must be root→leaf: %+v", crumbs)
+	if level != string(domain.KindRepo) {
+		t.Errorf("die Ebenen-Marke nennt die Ebene des Knotens, got %q", level)
 	}
-
-	out := renderToBuf(t, context.Background(), CockpitHead(d))
-	if !strings.Contains(out, ">RTL Extern<") || !strings.Contains(out, ">backstage · Vorhaben<") {
-		t.Fatalf("spine .up must render the ancestor crumbs:\n%s", out)
+	var labels []string
+	for _, c := range items {
+		labels = append(labels, c.Label)
 	}
-	if strings.Contains(out, `href="/nodes/n3"`) {
-		t.Fatalf("spine .up must not link to self:\n%s", out)
+	if len(items) != 2 || items[0].Label != "RTL Extern" || items[1].Label != "backstage" {
+		t.Fatalf("die Spur läuft Wurzel→Blatt und endet beim Knoten: %v", labels)
+	}
+	if items[1].Href != "" {
+		t.Errorf("der Knoten selbst ist die Überschrift, kein Link: %+v", items[1])
+	}
+	if items[0].Level != string(domain.KindEngagement) {
+		t.Errorf("jedes Segment trägt seine Ebene als Punktfarbe: %+v", items[0])
 	}
 }
 

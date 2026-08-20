@@ -188,10 +188,10 @@ func TestAppShell_RailNoTopbarNav(t *testing.T) {
 }
 
 func TestBreadcrumbLastIsCurrent(t *testing.T) {
-	out := render(t, components.Breadcrumb([]components.Crumb{
+	out := render(t, components.Breadcrumb(nil, []components.Crumb{
 		{Href: "/wissen", Label: "Wissen"},
 		{Label: "Dokument"},
-	}))
+	}, "bereich"))
 	if !strings.Contains(out, `href="/wissen"`) || !strings.Contains(out, "Dokument") {
 		t.Errorf("Breadcrumb missing items: %s", out)
 	}

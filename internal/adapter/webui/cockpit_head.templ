@@ -15,12 +15,10 @@ import (
 // page wiring (id="cockpit-head" + SSE hx-attrs, reload on node.updated/
 // node.moved only) is Task 7's job; this component is pure content.
 templ CockpitHead(d NodeCockpit) {
+	// Die "up"-Krumen der Spine sind entfallen: seit der K3Crumb (Zurück-Chip,
+	// Spur mit Ebenen-Punkten, Ebenen-Marke) stand der Aufstieg zweimal
+	// untereinander auf derselben Seite. Eine Identitätsstelle, eine Spur.
 	<div class="spine">
-		<div class="up">
-			for _, c := range SpineCrumbs(d) {
-				<a href={ templ.SafeURL(c.Href) }>{ c.Label }</a><span class="sep">/</span>
-			}
-		</div>
 		<div class="spine-main">
 			@cockpitIdentity(d)
 			<div class="spine-title">

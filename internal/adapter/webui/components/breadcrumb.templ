@@ -1,25 +1,90 @@
 package components
 
 // Crumb is one breadcrumb segment. A Crumb with empty Href is the current
-// page (rendered as text, aria-current).
+// page (rendered as text, aria-current). Level is a domain.NodeColors-family
+// name ("engagement"|"vorhaben"|"repo"|"" = no dot) — K3Crumb's per-segment
+// Ebene marker (Katalog 3.4).
 type Crumb struct {
-	Href, Label string
+	Href, Label, Level string
 }
 
-// Breadcrumb renders a "/"-separated trail; the last/empty-Href crumb is current.
-templ Breadcrumb(items []Crumb) {
-	<nav class="mb-4 text-[.82rem] text-muted" aria-label="Breadcrumb">
-		<ol class="flex items-center gap-1.5 flex-wrap">
-			for i, c := range items {
-				<li class="inline-flex items-center gap-1.5">
-					if c.Href != "" && i < len(items)-1 {
-						<a href={ templ.SafeURL(c.Href) } class="hover:text-ink transition-colors">{ c.Label }</a>
+// crumbLevelInfo is the label+tone shown for a breadcrumb Level and for the
+// right-aligned level badge — mirrors K3Crumb.dc.html's lookup table L, which
+// covers five levels: the three register Ebenen plus "karte" (a document) and
+// "bereich" (the registerless surfaces — Bibliothek, Zeit, Einstellungen).
+// BadgeClass pairs the type's flat wash token with its hue.
+type crumbLevelInfo struct {
+	LabelKey, DotClass, BadgeClass string
+}
+
+func crumbLevel(level string) crumbLevelInfo {
+	switch level {
+	case "engagement":
+		return crumbLevelInfo{"node.kind.engagement", "bg-amber", "bg-amber-wash text-amber"}
+	case "vorhaben":
+		return crumbLevelInfo{"node.kind.vorhaben", "bg-violet", "bg-violet-wash text-violet"}
+	case "repo":
+		return crumbLevelInfo{"node.kind.repo", "bg-steel", "bg-steel-wash text-steel"}
+	case "karte":
+		return crumbLevelInfo{"crumb.level.karte", "bg-purple", "bg-purple-wash text-purple"}
+	case "bereich":
+		return crumbLevelInfo{"crumb.level.bereich", "bg-muted", "bg-line text-body2"}
+	case "zeitverlauf":
+		return crumbLevelInfo{"crumb.level.zeitverlauf", "bg-accent", "bg-accent-wash text-accent"}
+	default:
+		return crumbLevelInfo{"", "", ""}
+	}
+}
+
+// Breadcrumb renders the K3Crumb trail: an optional "‹ back" chip, a
+// "›"-separated middle trail (each segment carrying its own Ebene dot when
+// Level is set), the current page in bold, and — when level is set — a
+// right-aligned uppercase level badge. back and level are both optional
+// (nil / "") for non-node breadcrumbs that have no natural "one level back"
+// or Ebene concept.
+// crumbTrail drops a parent segment the back chip already carries — K3Crumb's
+// own rule ("Elternteil nicht doppelt zeigen, wenn er schon als Zurück-
+// Schalter dasteht"). The last item is the page the viewer is on and always
+// survives, even when it happens to share the back chip's label.
+func crumbTrail(back *Crumb, items []Crumb) []Crumb {
+	if back == nil || len(items) < 2 {
+		return items
+	}
+	out := make([]Crumb, 0, len(items))
+	for i, c := range items {
+		if i < len(items)-1 && c.Label == back.Label {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+templ Breadcrumb(back *Crumb, items []Crumb, level string) {
+	<nav class="mb-4 flex flex-wrap items-center gap-2 border-b border-line2 pb-3.5 text-[.8rem]" aria-label="Breadcrumb">
+		if back != nil {
+			<a href={ templ.SafeURL(back.Href) } class="inline-flex items-center gap-1.5 border border-hair2 bg-sheet px-2.5 py-1 font-semibold text-body2 hover:border-accent hover:text-accent">‹ { back.Label }</a>
+		}
+		<ol class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+			{{ trail := crumbTrail(back, items) }}
+			for i, c := range trail {
+				<li class="inline-flex items-center gap-2">
+					if c.Href != "" && i < len(trail)-1 {
+						<a href={ templ.SafeURL(c.Href) } class="inline-flex items-center gap-1.5 text-muted hover:text-ink transition-colors">
+							if dot := crumbLevel(c.Level).DotClass; dot != "" {
+								<span class={ "h-[7px] w-[7px]", dot } aria-hidden="true"></span>
+							}
+							{ c.Label }
+						</a>
 						<span class="text-faint" aria-hidden="true">›</span>
 					} else {
-						<span class="text-ink font-medium" aria-current="page">{ c.Label }</span>
+						<span class="font-semibold text-ink truncate max-w-[340px]" aria-current="page">{ c.Label }</span>
 					}
 				</li>
 			}
 		</ol>
+		if lvl := crumbLevel(level); lvl.LabelKey != "" {
+			<span class={ "shrink-0 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-[.1em]", lvl.BadgeClass }>{ T(ctx, lvl.LabelKey) }</span>
+		}
 	</nav>
 }

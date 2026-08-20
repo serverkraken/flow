@@ -256,24 +256,36 @@ func orDefault(v, def string) string {
 	return v
 }
 
-// nodeCrumbs builds breadcrumb segments root→leaf from the leaf→root Ancestors
-// chain returned by NodeStore.Ancestors. The current node (last in output) has
-// no Href so it renders as "current page".
-func nodeCrumbs(d NodeCockpit) []components.Crumb {
-	var crumbs []components.Crumb
-	for i := len(d.Ancestors) - 1; i >= 0; i-- {
-		a := d.Ancestors[i]
-		if a.ID == d.N.ID {
-			crumbs = append(crumbs, components.Crumb{Label: a.Name})
-		} else {
-			crumbs = append(crumbs, components.Crumb{Href: "/nodes/" + a.ID, Label: a.Name})
+// nodeCrumbs baut die K3Crumb-Spur aus der Ahnenkette: einen "‹ zurück"-Chip
+// für den unmittelbaren Elternteil (nil bei einem Wurzel-Engagement), die
+// übrigen Ahnen plus den aktuellen Knoten als Segmente — jedes mit seiner
+// Ebene als Punktfarbe —, und die Ebene des aktuellen Knotens als
+// rechtsbündige Marke. Der Elternteil steht nie doppelt: er ist schon der
+// Zurück-Chip.
+func nodeCrumbs(d NodeCockpit) (*components.Crumb, []components.Crumb, string) {
+	n := len(d.Ancestors)
+	chain := make([]domain.Node, 0, n)
+	for i := n - 1; i >= 0; i-- { // Ancestors ist Blatt→Wurzel; wir laufen Wurzel→Blatt.
+		chain = append(chain, d.Ancestors[i])
+	}
+	if len(chain) == 0 {
+		chain = []domain.Node{d.N} // ohne geladene Kette: wenigstens der Knoten selbst
+	}
+	var back *components.Crumb
+	items := make([]components.Crumb, 0, len(chain))
+	for i, a := range chain {
+		isCurrent := a.ID == d.N.ID
+		if !isCurrent && i == len(chain)-2 {
+			back = &components.Crumb{Href: "/nodes/" + a.ID, Label: a.Name}
+			continue
 		}
+		c := components.Crumb{Label: a.Name, Level: string(a.Kind)}
+		if !isCurrent {
+			c.Href = "/nodes/" + a.ID
+		}
+		items = append(items, c)
 	}
-	if len(crumbs) == 0 {
-		// Ancestors empty (leaf node with no parent, or defensive fallback).
-		crumbs = append(crumbs, components.Crumb{Label: d.N.Name})
-	}
-	return crumbs
+	return back, items, string(d.N.Kind)
 }
 
 // SubtreeDocTotals zählt Dokumente je Knoten EINSCHLIESSLICH seines Teilbaums
