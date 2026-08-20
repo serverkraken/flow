@@ -367,9 +367,23 @@ type DocumentLibraryQuery struct {
 	// status and pagination.
 	Search    string
 	Embedding []float32
+	// Sort ist die bewusste Sortierwahl der Liste. Leer = zuletzt geändert.
+	// Der Store bildet sie über eine Whitelist auf ORDER BY ab; der Wert
+	// wandert nie in SQL.
+	Sort      DocumentLibrarySort
 	Limit     int
 	Offset    int
 }
+
+// DocumentLibrarySort sind die Sortierungen, die die Bibliothek anbietet.
+type DocumentLibrarySort string
+
+const (
+	DocumentLibrarySortChanged DocumentLibrarySort = ""
+	DocumentLibrarySortCreated DocumentLibrarySort = "created"
+	DocumentLibrarySortTitle   DocumentLibrarySort = "title"
+	DocumentLibrarySortType    DocumentLibrarySort = "type"
+)
 
 // DocumentSearchQuery is the complete bounded filter contract shared by the
 // keyword and semantic search arms. Type must be applied before Limit so rare

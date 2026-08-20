@@ -1,0 +1,50 @@
+package components
+
+// SortHeadOption ist eine Wahl im Sortiermenü.
+type SortHeadOption struct {
+	LabelKey string
+	Href     string
+	Active   bool
+}
+
+// SortHeadVM treibt den Sortierkopf: das Wort, das die Spaltenüberschrift
+// gerade trägt, und die Wahlmöglichkeiten dahinter.
+type SortHeadVM struct {
+	HeadKey string
+	Options []SortHeadOption
+}
+
+// SortHead ist die Spaltenüberschrift als Schalter (Katalog 3.10): "Die
+// Spaltenüberschrift ist der Schalter. Ein Pfeil zeigt die Richtung, Grau
+// heißt unsortiert. Keine zweite Werkzeugleiste."
+//
+// Als <details>, nicht als JS-Menü: das Aufklappen ist reines Anzeigen, es
+// braucht keinen Zustand auf dem Server und keine Tastaturarbeit von Hand —
+// <summary> ist von sich aus fokussierbar und mit Enter bedienbar. Das Repo
+// führt htmx mit allowScriptTags = false, ein Menü mit eigenem Skript wäre
+// hier ohnehin der teurere Weg.
+//
+// Eckig, ohne Radius (R5).
+templ SortHead(vm SortHeadVM) {
+	<details class="sorthead relative inline-block">
+		<summary class="inline-flex cursor-pointer list-none items-baseline gap-1 text-[10.5px] font-bold uppercase tracking-[.14em] text-body2 hover:text-accent">
+			{ T(ctx, vm.HeadKey) }
+			<span class="font-mono text-[9px] text-accent" aria-hidden="true">▾</span>
+		</summary>
+		<div class="absolute right-0 z-20 mt-1.5 min-w-[190px] border border-hair2 bg-sheet py-1 text-left shadow-lift">
+			for _, o := range vm.Options {
+				<a href={ templ.SafeURL(o.Href) }
+					class={ "flex items-baseline gap-2 px-3 py-1.5 text-[12.5px] hover:bg-sunken",
+						templ.KV("font-semibold text-ink", o.Active),
+						templ.KV("text-body2", !o.Active) }>
+					<span class="w-3 shrink-0 font-mono text-[10px] text-accent" aria-hidden="true">
+						if o.Active {
+							✓
+						}
+					</span>
+					{ T(ctx, o.LabelKey) }
+				</a>
+			}
+		</div>
+	</details>
+}

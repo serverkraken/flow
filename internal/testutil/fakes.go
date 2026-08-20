@@ -898,7 +898,30 @@ func (s *FakeDocumentStore) ListLibraryPage(_ context.Context, ownerID string, q
 	}
 	setDocumentLibraryFacets(&page, matching)
 
+	// Dieselbe Ordnung wie im echten Store (pgstore.libraryOrderBy), sonst
+	// beweisen Tests gegen den Fake eine Reihenfolge, die es nicht gibt.
 	sort.SliceStable(matching, func(i, j int) bool {
+		switch query.Sort {
+		case ports.DocumentLibrarySortCreated:
+			if !matching[i].CreatedAt.Equal(matching[j].CreatedAt) {
+				return matching[i].CreatedAt.After(matching[j].CreatedAt)
+			}
+			return matching[i].ID < matching[j].ID
+		case ports.DocumentLibrarySortTitle:
+			li, lj := strings.ToLower(matching[i].Title), strings.ToLower(matching[j].Title)
+			if li != lj {
+				return li < lj
+			}
+			return matching[i].ID < matching[j].ID
+		case ports.DocumentLibrarySortType:
+			if matching[i].Type != matching[j].Type {
+				return matching[i].Type < matching[j].Type
+			}
+			if !matching[i].UpdatedAt.Equal(matching[j].UpdatedAt) {
+				return matching[i].UpdatedAt.After(matching[j].UpdatedAt)
+			}
+			return matching[i].ID < matching[j].ID
+		}
 		if query.Status == ports.DocumentLibraryArchived {
 			left, right := matching[i].ArchivedAt, matching[j].ArchivedAt
 			if left != nil && right != nil && !left.Equal(*right) {

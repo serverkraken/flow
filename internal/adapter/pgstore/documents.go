@@ -266,10 +266,7 @@ func (s *DocumentStore) ListLibraryPage(ctx context.Context, ownerID string, que
 	}
 
 	pageArgs := append(append([]any(nil), args...), limit, offset)
-	order := `d.updated_at DESC, d.id ASC`
-	if query.Status == ports.DocumentLibraryArchived {
-		order = `d.archived_at DESC NULLS LAST, d.id ASC`
-	}
+	order := libraryOrderBy(query.Sort, query.Status)
 	listSQL := `SELECT ` + prefixedDocCols + ` FROM documents d` + statusWhere +
 		fmt.Sprintf(` ORDER BY %s LIMIT $%d OFFSET $%d`, order, len(pageArgs)-1, len(pageArgs))
 	rows, err := tx.Query(ctx, listSQL, pageArgs...)
@@ -1141,4 +1138,24 @@ func scanDocuments(rows pgx.Rows) ([]domain.Document, error) {
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+
+// libraryOrderBy bildet die Sortierwahl auf eine ORDER-BY-Klausel ab. Reine
+// Whitelist: der Wert aus der URL erreicht das SQL nie, unbekanntes fällt auf
+// den Standard. d.id ASC hängt überall hinten dran, damit die Seitenkanten
+// bei gleichen Werten stabil bleiben — sonst wandern Zeilen zwischen Seiten.
+func libraryOrderBy(sort ports.DocumentLibrarySort, status ports.DocumentLibraryStatus) string {
+	switch sort {
+	case ports.DocumentLibrarySortCreated:
+		return `d.created_at DESC, d.id ASC`
+	case ports.DocumentLibrarySortTitle:
+		return `lower(d.title) ASC, d.id ASC`
+	case ports.DocumentLibrarySortType:
+		return `d.type ASC, d.updated_at DESC, d.id ASC`
+	}
+	if status == ports.DocumentLibraryArchived {
+		return `d.archived_at DESC NULLS LAST, d.id ASC`
+	}
+	return `d.updated_at DESC, d.id ASC`
 }

@@ -155,7 +155,20 @@ templ wissenShelvesSection(shelves []WissenShelf) {
 templ wissenRecentSection(vm WissenOverviewVM) {
 	<div class="sect">
 		<div class="sect-h">
-			<span class="eyebrow">{ components.T(ctx, "wissen.recent") }</span>
+			// Trägt die Liste einen Sortierschalter, heißt sie neutral
+			// "Karten" — sonst behauptete die Überschrift "Zuletzt
+			// aktualisiert", während nach Titel sortiert ist.
+			if vm.SortSupported {
+				<span class="eyebrow">{ components.T(ctx, "wissen.cards") }</span>
+			} else {
+				<span class="eyebrow">{ components.T(ctx, "wissen.recent") }</span>
+			}
+			// Der Sortierkopf sitzt in der Kopfzeile, die es schon gibt —
+			// keine zweite Werkzeugleiste (Katalog 3.10). Er erscheint nur,
+			// wo er auch die ganze Liste sortiert.
+			if vm.SortSupported {
+				@components.SortHead(vm.SortHead)
+			}
 			if !vm.RecentAll && vm.RecentTotal > len(vm.Recent) {
 				<a class="more" href={ templ.SafeURL(wissenRecentAllHref(vm, false)) }
 					hx-get={ wissenRecentAllHref(vm, true) } hx-target="#content" hx-swap="innerHTML">

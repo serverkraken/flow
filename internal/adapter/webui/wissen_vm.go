@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"github.com/serverkraken/flow/internal/ports"
 	"context"
 	"fmt"
 	"net/url"
@@ -146,6 +147,16 @@ type WissenOverviewVM struct {
 	TotalCount            int
 	PinnedCount           int
 	Shelves               []WissenShelf
+	// Sort ist die bewusste Sortierwahl der Liste, SortHead ihr sichtbarer
+	// Schalter in der Abschnittsüberschrift (Katalog 3.10).
+	Sort                  DocSort
+	SortHead              components.SortHeadVM
+	// SortSupported sagt, ob der Schalter die GANZE Liste sortiert. Auf dem
+	// seitenweisen Store-Pfad liegt die Reihenfolge in der Abfrage (bei Suche
+	// sogar auf Relevanz); ein Schalter würde dort nur die sichtbare Seite
+	// umordnen und dem Leser eine Sortierung vorspielen, die es nicht gibt.
+	// Dann bleibt er weg, bis die Abfrage selbst sortieren kann.
+	SortSupported         bool
 	Recent                []WissenRowVM
 	RecentTotal           int
 	RecentAll             bool
@@ -163,15 +174,24 @@ func WissenSummary(ctx context.Context, vm WissenOverviewVM) string {
 // the cap (the "Alle N ›" expand-in-place, mirrors the cockpit Wissen
 // section's ?wissen=all).
 func BuildWissenOverview(docs []domain.Document, now time.Time, recentAll bool) WissenOverviewVM {
+	return BuildWissenOverviewSorted(docs, now, recentAll, SortChanged)
+}
+
+// BuildWissenOverviewSorted ist dieselbe Sicht mit ausdrücklicher
+// Sortierwahl. BuildWissenOverview bleibt als Standard-Einstieg bestehen,
+// damit die vorhandenen Aufrufer unverändert weiterlaufen.
+func BuildWissenOverviewSorted(docs []domain.Document, now time.Time, recentAll bool, mode DocSort) WissenOverviewVM {
 	typeTotals := make(map[domain.DocumentType]int)
 	for _, d := range docs {
 		typeTotals[d.Type]++
 	}
-	sorted := SortedDocuments(docs)
+	sorted := SortDocuments(docs, mode)
 	if !recentAll && len(sorted) > wissenRecentCap {
 		sorted = sorted[:wissenRecentCap]
 	}
 	vm := BuildWissenOverviewPage(sorted, len(docs), typeTotals, now, recentAll)
+	vm.Sort = mode
+	vm.SortSupported = true
 	for _, d := range docs {
 		if d.Pinned {
 			vm.PinnedCount++
@@ -222,6 +242,8 @@ func BuildWissenType(shelf WissenShelf, pageDocs []domain.Document, now time.Tim
 // WissenVM is the view model for the Wissen bigsearch/tag-filter machinery,
 // shared by the overview page and the type-shelf page.
 type WissenVM struct {
+	// LibrarySort reicht die Sortierwahl bis in die Store-Abfrage durch.
+	LibrarySort ports.DocumentLibrarySort
 	User               string
 	AllTags            []TagChip
 	ActiveTags         []string

@@ -56,6 +56,8 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 		base.Query = wissenQueryStringFull("", active, q, base.Status, base.NodeParam, "scope", base.Scope, "page", strconv.Itoa(pageNumber))
 		return webui.WissenOverviewVM{WissenVM: base, TotalCount: library.ActiveTotal + library.ArchivedTotal}, nil
 	}
+	mode := webui.NormalizeDocSort(r.URL.Query().Get("sort"))
+	base.LibrarySort = webui.LibrarySort(mode)
 	if s.ListDocumentLibrary.Docs != nil {
 		recentAll := r.URL.Query().Get("recent") == "all"
 		pageNumber, limit := 1, wissenOverviewRecentLimit
@@ -79,6 +81,12 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 			base.Query = wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope, "recent", "all", "page", strconv.Itoa(pageNumber))
 		}
 		vm := webui.BuildWissenOverviewPage(library.Documents, library.Total, library.TypeTotals, s.Clock.Now(), recentAll)
+		// Auf diesem Pfad sortiert die ABFRAGE, nicht der Speicher — der
+		// Schalter darf also erscheinen, weil er die ganze Liste ordnet und
+		// nicht nur die sichtbare Seite.
+		vm.Sort = mode
+		vm.SortSupported = true
+		vm.SortHead = webui.BuildSortHead(mode, "/wissen"+wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope))
 		vm.WissenVM = base
 		vm.TotalCount = library.ActiveTotal + library.ArchivedTotal
 		for i := range vm.Shelves {
@@ -104,7 +112,8 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 	base = withWissenStatusHrefs(base, "")
 	docs := wissenDocumentsForStatus(base.Status, activeDocs, archivedDocs)
 	recentAll := r.URL.Query().Get("recent") == "all"
-	vm := webui.BuildWissenOverview(docs, s.Clock.Now(), recentAll)
+	vm := webui.BuildWissenOverviewSorted(docs, s.Clock.Now(), recentAll, mode)
+	vm.SortHead = webui.BuildSortHead(mode, "/wissen"+wissenQueryStringFull("", active, "", base.Status, base.NodeParam, "scope", base.Scope))
 	vm.WissenVM = base
 	vm.TotalCount = len(activeDocs) + len(archivedDocs)
 	for i := range vm.Shelves {
@@ -212,6 +221,7 @@ func (s *Server) wissenLibraryQuery(ctx context.Context, ownerID string, vm webu
 	query := ports.DocumentLibraryQuery{
 		Types:  types,
 		Tags:   tags,
+		Sort:   vm.LibrarySort,
 		Limit:  limit,
 		Offset: offset,
 	}
