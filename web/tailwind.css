@@ -777,18 +777,19 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 @layer components {
   .prose {
     @apply text-body leading-relaxed;
-    /* Lesesaal L3 (Mockup Z.180–181): eigene Lesespalten-Maße statt der
-       generischen text-body/leading-relaxed-Werte. */
+    /* Karteikasten-Typo-Leiter (TOKENS.md): Lesetext 16,5px auf 1,82 —
+       "Lesbarkeit gewinnt" (R6). Die Satzbreite bleibt bei 680px und damit
+       im Korridor 660–720px; kein Element darf die Spalte verbreitern. */
     max-width: 680px;
-    font-size: 15.5px;
-    line-height: 1.72;
+    font-size: 16.5px;
+    line-height: 1.82;
     overflow-wrap: break-word;
     min-width: 0;
   }
   .prose > * + * { margin-top: 1.05em; }
   .prose h1 { @apply font-display text-2xl mt-8 mb-3 text-ink; }
-  .prose h2 { font-size: 21px; font-weight: 700; letter-spacing: -.015em; margin-top: 2.1em; padding-top: 1.1em; border-top: 1px solid rgb(var(--hair)); color: rgb(var(--ink)); }
-  .prose h3 { font-size: 16.5px; font-weight: 600; margin-top: 1.7em; color: rgb(var(--ink)); }
+  .prose h2 { font-size: 20px; font-weight: 750; letter-spacing: -.015em; margin-top: 2.1em; padding-top: 1.1em; border-top: 1px solid rgb(var(--hair)); color: rgb(var(--ink)); }
+  .prose h3 { font-size: 19px; font-weight: 750; margin-top: 1.7em; color: rgb(var(--ink)); }
   /* Lesesaal L6 Task 4: hover-¶ deep-link anchor, server-rendered as the
      last child of every h1-h6 (headAnchorHTMLRenderer). Hidden until the
      heading is hovered/focused so the prose stays clean; always visible

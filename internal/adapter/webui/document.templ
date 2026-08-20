@@ -118,7 +118,10 @@ templ DocumentFragment(vm DocumentVM) {
 					</button>
 				}
 			</div>
-			if vm.Embed != nil {
+			// Nur ein FEHLGESCHLAGENER Einbettungszustand verlangt etwas vom
+			// Leser (Katalog 3.6, Rot-Reserve). "Eingebettet" stand vorher
+			// direkt unter dem Titel und war reine Maschinerie im Artikelkopf.
+			if vm.Embed != nil && vm.Embed.ShowRetry {
 				@DocumentEmbedBadge(vm.ID, *vm.Embed)
 			}
 		</div>
