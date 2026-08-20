@@ -449,7 +449,14 @@ func (s *Server) handleWebNodeArtifacts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.CockpitArtifacts(d).Render(r.Context(), w)
+	// htmx swaps the bare fragment into #cockpit-artifacts; a browser
+	// navigation gets the whole page. Answering a navigation with the
+	// fragment left the browser with no stylesheet at all.
+	if r.Header.Get("HX-Request") != "" {
+		_ = webui.CockpitArtifacts(d).Render(r.Context(), w)
+		return
+	}
+	_ = webui.CockpitArtifactsPage(d).Render(r.Context(), w)
 }
 
 // renderNodeArtifacts re-renders #cockpit-artifacts with an optional inline

@@ -14,6 +14,23 @@ import (
 // and re-rendered wholesale by every upload/rename/delete mutation — the
 // gallery is small enough that a full re-render (rather than an OOB swap of
 // one card) is the simplest correct thing.
+// CockpitArtifactsPage is the NAVIGABLE page at GET /nodes/{id}/artifacts.
+// CockpitArtifacts below is a fragment — it is the #cockpit-artifacts swap
+// target and carries no shell. Serving that fragment to a browser navigation
+// produced a bare, stylesheet-less document: every artifact rendered at its
+// natural pixel size and the rename/delete dialogs stood open inline
+// (Soenne, 2026-08-20). The Bibliothek already keeps these apart
+// (/wissen/artefakte vs /ui/wissen/artefakte); the node gallery now does too.
+templ CockpitArtifactsPage(d NodeCockpit) {
+	@components.Base("projekte", cockpitArtifactsBody(d))
+}
+
+templ cockpitArtifactsBody(d NodeCockpit) {
+	// Same shell and same trail the node's own page uses (cockpit.templ) —
+	// the gallery is a view OF the node, not a place of its own.
+	@components.AppShell("projekte", nodeBreadcrumb(d), nil, CockpitArtifacts(d))
+}
+
 templ CockpitArtifacts(d NodeCockpit) {
 	<div class="sect">
 		<div class="sect-h">
