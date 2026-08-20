@@ -101,3 +101,24 @@ func renderDoc(t *testing.T, vm DocumentVM) string {
 	t.Helper()
 	return renderToBuf(t, context.Background(), DocumentFragment(vm))
 }
+
+// R5 des Karteikastens: "Alles eckig. Kein Radius — nicht an Flächen,
+// Knöpfen, Feldern, Dialogen. Rund ist nur der Live-Punkt."
+// Geprüft werden hier genau die vier, die die Regel beim Namen nennt.
+func TestR5_NamedSurfacesAreSquare(t *testing.T) {
+	b, err := os.ReadFile("../../../web/tailwind.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(b)
+	for _, sel := range []string{".panel {", ".field {", ".btn {", ".panelrow {", ".instr {"} {
+		i := strings.Index(src, sel)
+		if i < 0 {
+			continue
+		}
+		rule := src[i : i+strings.Index(src[i:], "}")]
+		if strings.Contains(rule, "border-radius") && !strings.Contains(rule, "border-radius: 0") {
+			t.Errorf("%s trägt noch einen Radius (R5): %s", sel, rule)
+		}
+	}
+}

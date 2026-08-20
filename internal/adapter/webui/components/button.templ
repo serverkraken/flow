@@ -11,7 +11,7 @@ const (
 )
 
 func btnClass(v ButtonVariant) string {
-	base := "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-[.92rem] font-semibold transition active:scale-[.99] "
+	base := "inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition active:scale-[.99] "
 	switch v {
 	case BtnPrimary:
 		return base + "bg-gradient-to-r from-green to-cyan text-oncolor font-bold"
@@ -40,7 +40,7 @@ templ Button(variant ButtonVariant, label, glyph string, attrs templ.Attributes)
 // IconButton is a square, icon-only button; ariaLabel is required for a11y.
 templ IconButton(glyph, ariaLabel string, attrs templ.Attributes) {
 	<button
-		class="grid place-items-center h-9 w-9 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+		class="grid place-items-center h-9 w-9 border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
 		aria-label={ ariaLabel }
 		{ attrs... }
 	>

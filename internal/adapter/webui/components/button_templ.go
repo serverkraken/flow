@@ -19,7 +19,7 @@ const (
 )
 
 func btnClass(v ButtonVariant) string {
-	base := "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-[.92rem] font-semibold transition active:scale-[.99] "
+	base := "inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition active:scale-[.99] "
 	switch v {
 	case BtnPrimary:
 		return base + "bg-gradient-to-r from-green to-cyan text-oncolor font-bold"
@@ -145,7 +145,7 @@ func IconButton(glyph, ariaLabel string, attrs templ.Attributes) templ.Component
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button class=\"grid place-items-center h-9 w-9 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button class=\"grid place-items-center h-9 w-9 border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

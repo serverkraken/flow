@@ -172,8 +172,16 @@ templ editorOuter(vm EditorVM) {
 				@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
 			</div>
 		</form>
-		<section class="panel p-5">
-			<h2 class="mb-4 text-lg font-semibold text-ink">{ components.T(ctx, "wissen.preview") }</h2>
+		// Die Vorschau liegt auf der LESEFLÄCHE, nicht in einem Kasten: sie
+		// verspricht "so wird es aussehen", und dieses Versprechen bricht
+		// schon an der Fläche, wenn sie auf Kastenfarbe in einer gerundeten
+		// Box sitzt, während der Artikel auf dem Lesesaal-Papier steht
+		// (Soenne, Punkt g). Renderer und Maße sind ohnehin dieselben —
+		// components.MarkdownProse für beide.
+		<section class="bg-canvas">
+			<div class="mb-4 border-b border-line2 pb-2.5">
+				<span class="eyebrow">{ components.T(ctx, "wissen.preview") }</span>
+			</div>
 			<div id="preview">
 				@MarkdownPreview(vm.PreviewHTML)
 			</div>
