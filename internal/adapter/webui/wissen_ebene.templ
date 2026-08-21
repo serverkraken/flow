@@ -17,7 +17,7 @@ templ nodeWissenShell(d NodeCockpit, vm WissenEbeneVM) {
 }
 
 templ nodeWissenBody(vm WissenEbeneVM) {
-	<div class="mx-auto w-full max-w-[820px] px-6 py-7">
+	<div class="mx-auto w-full max-w-[820px] px-6 py-7" data-context-node={ vm.NodeID }>
 		<a href={ templ.SafeURL("/nodes/" + vm.NodeID) }
 			class="mb-4 inline-flex items-baseline gap-1.5 text-[12.5px] font-semibold text-accent hover:underline">
 			<span aria-hidden="true">‹</span>

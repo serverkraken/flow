@@ -25,6 +25,7 @@ type DocumentVM struct {
 	// färbt den 3px-Streifen über der Fläche.
 	EbeneColor string
 	ID     string
+	NodeID string // das Register der Karte — Vorauswahl für ⌘N
 	Title  string
 	Path   string
 	Crumbs []DocCrumb

@@ -74,6 +74,7 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 
 	vm := webui.DocumentVM{
 		ID:            doc.ID,
+		NodeID:        nodeID,
 		Title:         doc.Title,
 		Path:          doc.Path,
 		HTML:          rendered,

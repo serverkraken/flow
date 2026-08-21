@@ -62,7 +62,7 @@ templ documentOuter(vm DocumentVM) {
 // + Anpinnen) and the same L2 doctrine already applied to nodes ("Move/
 // Status/Delete auf der Edit-Seite").
 templ DocumentFragment(vm DocumentVM) {
-	<article id="document-fragment" data-document-archived={ fmt.Sprintf("%t", vm.Archived) }>
+	<article id="document-fragment" data-document-archived={ fmt.Sprintf("%t", vm.Archived) } data-context-node={ vm.NodeID }>
 		<div class="spine">
 			<div class="up">
 				for _, c := range vm.Crumbs {

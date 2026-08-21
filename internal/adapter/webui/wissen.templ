@@ -49,7 +49,7 @@ templ WissenFragment(vm WissenOverviewVM) {
 		<button type="button" class="btn btn-q" data-wissen-select-toggle
 			data-label-select={ components.T(ctx, "wissen.bulk.select") }
 			data-label-done={ components.T(ctx, "wissen.bulk.done") }>{ components.T(ctx, "wissen.bulk.select") }</button>
-		<a href={ templ.SafeURL(WissenNewDocumentHref("", vm.NodeParam)) } class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
+		<a href={ templ.SafeURL(WissenNewDocumentHref("", vm.NodeParam)) } class="btn btn-q" hx-boost="false" data-neue-karte>{ components.T(ctx, "common.new") } <kbd class="ml-1 font-mono text-[11px] text-faint">N</kbd></a>
 			</div>
 			@wissenManagementFilters(vm.WissenVM)
 			@wissenBigsearch(vm.WissenVM)

@@ -28,7 +28,7 @@ templ nodeTabShell(d NodeCockpit, tab string) {
 }
 
 templ nodeTabBody(d NodeCockpit, tab string) {
-	<div class="mx-auto w-full max-w-[820px] px-6 py-7">
+	<div class="mx-auto w-full max-w-[820px] px-6 py-7" data-context-node={ d.N.ID }>
 		// The way back belongs at the top, before anything scrollable — a
 		// surface you can reach but not leave is a trap.
 		<a href={ templ.SafeURL("/nodes/" + d.N.ID) }

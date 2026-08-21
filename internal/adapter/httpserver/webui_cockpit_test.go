@@ -72,6 +72,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		BindNode:          usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
 		UnbindNode:        usecase.UnbindNode{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
+		CreateDocument:    usecase.CreateDocument{Docs: ds, Nodes: ps, Tags: tags, IDs: ids, Clock: clk},
 		ListArchived:      usecase.ListArchived{Docs: ds},
 		GetDocument:       usecase.GetDocument{Docs: ds},
 		SetPinned:         usecase.SetPinned{Docs: ds},

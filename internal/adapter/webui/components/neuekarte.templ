@@ -1,0 +1,21 @@
+package components
+
+// NeueKarteDialog ist der Überbau der Taste N (Screen 12; ⌘N im Mockup —
+// der Browser behält es), in der AppShell gemountet:
+// ein leerer Rahmen, dessen Formular neuekarte.js beim Öffnen per htmx aus
+// /ui/wissen/neu holt — mit dem Register, auf dem man gerade steht. Statisch
+// ohne VM; das Formular (NeueKarteForm) lebt im Paket webui.
+templ NeueKarteDialog() {
+	<dialog id="neue-karte" aria-modal="true" aria-labelledby="neue-karte-title"
+		class="m-auto w-[min(92vw,480px)] border border-hair2 bg-surface p-0 text-ink shadow-lift backdrop:bg-ink/40">
+		<div class="flex items-center justify-between border-b border-line2 px-6 pb-3 pt-5">
+			<h2 id="neue-karte-title" class="font-display text-[20px] font-[750] tracking-[-.015em]">{ T(ctx, "neuekarte.title") }</h2>
+			<span class="flex items-center gap-3">
+				<kbd class="font-mono text-[11px] text-faint">esc</kbd>
+				@IconButton("✕", T(ctx, "common.close"), templ.Attributes{"data-dialog-close": true, "type": "button"})
+			</span>
+		</div>
+		<div id="neue-karte-body" class="px-6 py-5" data-src="/ui/wissen/neu"></div>
+	</dialog>
+	<script src={ AssetURL("js/neuekarte.js") } defer></script>
+}

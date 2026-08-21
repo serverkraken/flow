@@ -337,6 +337,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /wissen/frei", s.webAuth(s.handleWebWissenRedirect("/wissen/typ?type=free")))
 	mux.Handle("GET /wissen/system", s.webAuth(s.handleWebWissenRedirect("/wissen")))
 	mux.Handle("GET /wissen/neu", s.webAuth(http.HandlerFunc(s.handleWebEditorNew)))
+	mux.Handle("GET /ui/wissen/neu", s.webAuth(http.HandlerFunc(s.handleWebNeueKarteForm)))
+	mux.Handle("POST /wissen/schnell", s.webAuth(http.HandlerFunc(s.handleWebNeueKarteCreate)))
 	mux.Handle("POST /wissen/preview", s.webAuth(http.HandlerFunc(s.handleWebEditorPreview)))
 	// L6 Task 6: editor toolbar insert-pickers (Artefakt-Embed / Seiten-Wikilink).
 	mux.Handle("GET /ui/editor/artefakte", s.webAuth(http.HandlerFunc(s.handleWebEditorArtefaktePicker)))

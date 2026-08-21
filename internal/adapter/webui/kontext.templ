@@ -29,7 +29,7 @@ templ kontextBody(vm KontextVM) {
 // auf document.updated selbst neu, damit ein Moduswechsel ihren Stand
 // mitzieht. Beide Links tragen die Wahl (?doc=).
 templ kontextOuter(vm KontextVM) {
-	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]" data-context-node={ vm.NodeID }>
 		<div
 			id="content"
 			class="k3-panel flex flex-col bg-panel border-b border-hairp lg:border-b-0 lg:border-r lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto scroll-thin"
