@@ -78,6 +78,8 @@ var (
 	ErrNodeSlugTaken = errors.New("node slug already taken under this parent")
 	// ErrNodeLogoNotFound signals a node without an uploaded logo.
 	ErrNodeLogoNotFound = errors.New("node logo not found")
+	// ErrNodeBannerNotFound signals a node without an uploaded banner.
+	ErrNodeBannerNotFound = errors.New("node banner not found")
 	// ErrArtifactNotFound signals a missing (or owner-foreign) artifact.
 	ErrArtifactNotFound = errors.New("artifact not found")
 	// ErrArtifactQuotaExceeded signals that an atomic create or replace would
@@ -151,6 +153,17 @@ type NodeLogoStore interface {
 	// Get returns the node's logo. Owner-scoped; ErrNodeLogoNotFound when absent.
 	Get(ctx context.Context, ownerID, nodeID string) (domain.NodeLogo, error)
 	// Delete removes the node's logo; absent is a no-op, not an error.
+	Delete(ctx context.Context, ownerID, nodeID string) error
+}
+
+// NodeBannerStore persists at most one uploaded banner image per node.
+// Mirrors NodeLogoStore.
+type NodeBannerStore interface {
+	// Put upserts the node's banner (replace-on-upload).
+	Put(ctx context.Context, b domain.NodeBanner) error
+	// Get returns the node's banner. Owner-scoped; ErrNodeBannerNotFound when absent.
+	Get(ctx context.Context, ownerID, nodeID string) (domain.NodeBanner, error)
+	// Delete removes the node's banner; absent is a no-op, not an error.
 	Delete(ctx context.Context, ownerID, nodeID string) error
 }
 
@@ -370,9 +383,9 @@ type DocumentLibraryQuery struct {
 	// Sort ist die bewusste Sortierwahl der Liste. Leer = zuletzt geändert.
 	// Der Store bildet sie über eine Whitelist auf ORDER BY ab; der Wert
 	// wandert nie in SQL.
-	Sort      DocumentLibrarySort
-	Limit     int
-	Offset    int
+	Sort   DocumentLibrarySort
+	Limit  int
+	Offset int
 }
 
 // DocumentLibrarySort sind die Sortierungen, die die Bibliothek anbietet.
