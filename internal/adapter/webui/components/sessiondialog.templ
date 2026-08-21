@@ -35,41 +35,55 @@ templ SessionDialog(vm SessionDialogVM) {
 		}
 	}}
 	@Dialog(vm.DialogID, titleKey, sessionDialogBody(vm), vm.Open)
+	<script src={ AssetURL("js/sessiondialog.js") } defer></script>
 }
 
 templ sessionDialogBody(vm SessionDialogVM) {
-	<form hx-post={ vm.Action } hx-target={ vm.Target } hx-swap="innerHTML" data-dialog-close-on-success class="space-y-4">
+	<form hx-post={ vm.Action } hx-target={ vm.Target } hx-swap="innerHTML" data-dialog-close-on-success data-session-form class="space-y-4">
 		if vm.SessionID != "" {
 			<input type="hidden" name="sessionId" value={ vm.SessionID }/>
 		}
 		<!-- Date field -->
 		<label class="block">
-			<span class="block text-[13px] font-medium text-body mb-1">{ T(ctx, "session.dialog.date") }</span>
+			<span class="mb-1 block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ T(ctx, "session.dialog.date") }</span>
 			<input type="date" name="date" value={ vm.Date }
-				class="w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors" />
+				class="field" />
 		</label>
 
 		<!-- Time fields (From/To) -->
 		<div class="grid grid-cols-2 gap-3">
 			<label class="block">
-				<span class="block text-[13px] font-medium text-body mb-1">{ T(ctx, "session.dialog.from") }</span>
+				<span class="mb-1 block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ T(ctx, "session.dialog.from") }</span>
 				<input type="time" name="from" value={ vm.From }
-					class="w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors" />
+					class="field" />
 			</label>
 			<label class="block">
-				<span class="block text-[13px] font-medium text-body mb-1">{ T(ctx, "session.dialog.to") }</span>
+				<span class="mb-1 block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ T(ctx, "session.dialog.to") }</span>
 				<input type="time" name="to" value={ vm.To }
-					class="w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors" />
+					class="field" />
 			</label>
 		</div>
+
+		// Dauer und die drei Handgriffe (Screen 26): ±15 Minuten am Ende,
+		// auf die Viertelstunde runden. Nachbarbuchungen verschieben sich
+		// nicht — es ändert sich nur diese.
+		<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12.5px]">
+			<span class="text-muted">{ T(ctx, "session.dialog.duration") }</span>
+			<span class="font-mono font-semibold tnum text-ink" data-session-duration>—</span>
+			<span class="flex-1"></span>
+			<button type="button" class="btn btn-q btn-s" data-session-shift="-15">−15 min</button>
+			<button type="button" class="btn btn-q btn-s" data-session-shift="15">+15 min</button>
+			<button type="button" class="btn btn-q btn-s" data-session-round>{ T(ctx, "session.dialog.round") }</button>
+		</div>
+		<p class="-mt-2 text-[11px] text-faint">{ T(ctx, "session.dialog.neighbours") }</p>
 
 		<!-- Node select (only when Nodes not empty); when hidden but NodeID is
 		     known, carry it as a hidden field so the booked node survives an
 		     edit untouched (containment: Spec §4). -->
 		if len(vm.Nodes) > 0 {
 			<label class="block">
-				<span class="block text-[13px] font-medium text-body mb-1">{ T(ctx, "session.dialog.node") }</span>
-				<select name="node" class="w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors">
+				<span class="mb-1 block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ T(ctx, "session.dialog.node") }</span>
+				<select name="node" class="field">
 					<option value="" selected?={ vm.NodeID == "" }>{ T(ctx, "historie.unassigned") }</option>
 					for _, node := range vm.Nodes {
 						if node.ID == vm.NodeID {
@@ -86,16 +100,16 @@ templ sessionDialogBody(vm SessionDialogVM) {
 
 		<!-- Tags field -->
 		<label class="block">
-			<span class="block text-[13px] font-medium text-body mb-1">{ T(ctx, "session.dialog.tags") }</span>
+			<span class="mb-1 block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ T(ctx, "session.dialog.tags") }</span>
 			<input type="text" name="tag" value={ vm.Tag }
-				class="w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors" />
+				class="field" />
 		</label>
 
 		<!-- Note field -->
 		<label class="block">
-			<span class="block text-[13px] font-medium text-body mb-1">{ T(ctx, "session.dialog.note") }</span>
+			<span class="mb-1 block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ T(ctx, "session.dialog.note") }</span>
 			<textarea name="note" rows="2"
-				class="w-full resize-none border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors">{ vm.Note }</textarea>
+				class="field resize-none">{ vm.Note }</textarea>
 		</label>
 
 		<!-- Action buttons -->
