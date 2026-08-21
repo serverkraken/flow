@@ -126,7 +126,11 @@ templ editorOuter(vm EditorVM) {
 				// (Task 6: Preview-Node-Kontext, Spec §13 Pflicht-Testfall).
 				<input type="hidden" name="node" value={ vm.NodeID }/>
 			}
-			<label class="mt-4 block">
+			// Kein <label> um Werkzeugleiste und Stift: ein Klick irgendwo in ein
+			// Label aktiviert dessen erstes bedienbares Kind — hier wäre das der
+			// Knopf „Artefakt einfügen …", und jeder Klick in den Editor öffnete
+			// die Artefakt-Auswahl. Die Beschriftung bleibt, als <span>.
+			<div class="mt-4 block" data-editor-field>
 				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
 				<div class="editor-toolbar">
 					<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
@@ -179,7 +183,7 @@ templ editorOuter(vm EditorVM) {
 					hx-trigger="keyup changed delay:400ms, load"
 					hx-target="#preview"
 					hx-swap="innerHTML">{ vm.Body }</textarea>
-			</label>
+			</div>
 			<div class="mt-5 flex justify-end">
 				@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
 			</div>

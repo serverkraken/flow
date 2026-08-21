@@ -77,3 +77,23 @@ func TestEditorPreview_CanBeFolded(t *testing.T) {
 		t.Errorf("der Vorschau-Schalter muss im Seitenkopf stehen, nicht in der Vorschau")
 	}
 }
+
+// Ein Klick in den Stift darf nichts anderes auslösen: Werkzeugleiste und
+// Editor dürfen deshalb in keinem <label> stehen — ein Label reicht jeden
+// Klick an sein erstes bedienbares Kind weiter, den Artefakt-Knopf.
+func TestEditorBody_IsNotWrappedInALabel(t *testing.T) {
+	out := renderToBuf(t, context.Background(), EditorPage(EditorVM{ID: "d1", Title: "T"}))
+	i := strings.Index(out, `data-editor-field`)
+	j := strings.Index(out, `id="editor-body"`)
+	if i < 0 || j < 0 || j < i {
+		t.Fatalf("Editor-Feld fehlt: %d %d", i, j)
+	}
+	between := out[i:j]
+	if strings.Contains(between, "<label") {
+		t.Errorf("zwischen Feldkopf und Stift darf kein <label> liegen:\n%s", between)
+	}
+	// … und das Feld selbst ist kein Label.
+	if strings.Contains(out[maxI(0, i-40):i], "<label") {
+		t.Errorf("das Editor-Feld ist ein <label>: %s", out[maxI(0, i-40):i+20])
+	}
+}
