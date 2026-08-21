@@ -290,6 +290,14 @@ func init() {
 			"context.mode.immerHint": "Always in agent context",
 			"context.mode.nieHint":   "Never in agent context (still in Wissen)",
 			"context.curate.hidden":  "Hidden (never)",
+			"context.screen.free": "%s free",
+			"context.screen.inContext": "In context",
+			"context.screen.orderHint": "order with up and down",
+			"context.cutline.hint": "dropped from here on",
+			"context.screen.budgetReached": "Budget reached",
+			"context.screen.open": "Open ↗",
+			"context.screen.share": "%s tokens = %d %% of the budget",
+			"context.screen.lese.empty": "Pick a card on the left — it shows up here to read and edit.",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)

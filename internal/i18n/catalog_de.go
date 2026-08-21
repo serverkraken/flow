@@ -296,6 +296,14 @@ func init() {
 			"context.mode.immerHint": "Immer im Agenten-Kontext",
 			"context.mode.nieHint":   "Nie im Agenten-Kontext (in Wissen sichtbar)",
 			"context.curate.hidden":  "Ausgeblendet (nie)",
+			"context.screen.free": "%s frei",
+			"context.screen.inContext": "Im Kontext",
+			"context.screen.orderHint": "Höher und Tiefer ordnen",
+			"context.cutline.hint": "ab hier verworfen",
+			"context.screen.budgetReached": "Budget erreicht",
+			"context.screen.open": "Öffnen ↗",
+			"context.screen.share": "%s Token = %d %% des Budgets",
+			"context.screen.lese.empty": "Links eine Karte wählen — sie erscheint hier zum Lesen und Bearbeiten.",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)

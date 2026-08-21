@@ -7,38 +7,52 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 )
 
-// KontextPage is the Kuratieren page (Soenne-Entscheid OE #1: schlichte
-// Reorder-Liste, kein Mockup) — a .narrow page belonging to the project
-// context ("projekte" tab), reachable from the cockpit rail's context
-// instrument panel ("Kuratieren — sortieren & pinnen ›").
+// KontextPage ist Screen 07 — „kuratieren links, lesen und bearbeiten
+// rechts": die Kuratieren-Liste als 372px-Kasten-Spalte, daneben die
+// gewählte Karte auf der Lesefläche. Dieselbe Anatomie wie der Register-
+// Einstieg und die Kartenfläche (AppShellFlush + k3-cols).
 templ KontextPage(vm KontextVM) {
 	@components.Base("projekte", kontextBody(vm))
 }
 
-// kontextBody wires the Lesesaal AppShell around the Kuratieren fragment,
-// mirroring document.templ's Base→Body→AppShell layering (KontextPage must
-// not call AppShell directly — that skips the shared HTML hull, shipping
-// kopfloses HTML with no app.css).
 templ kontextBody(vm KontextVM) {
-	@components.AppShell("projekte", nil, nil, kontextOuter(vm))
+	@components.AppShellFlush("projekte", vm.EbeneColor, kontextOuter(vm))
+	// Die Lesespalte rendert eine Karte — also dieselben Skripte wie jede
+	// Dokumentfläche (Mermaid, Bild-Lupe), EINMAL und außerhalb der
+	// getauschten Spalten.
+	@DocRenderScripts()
 }
 
-// kontextOuter mirrors document.templ's fragment-safe SSE pattern
-// (documentOuter): #content wraps #kontext-fragment and reloads it via
-// hx-get + hx-select on every document.* mutation (a pin/reorder anywhere —
-// including this page's own actions on other clients — refreshes the
-// ranking). hx-select extracts ONLY #kontext-fragment from the full page
-// response, so the AppShell never nests inside itself.
+// kontextOuter: #content ist die Kasten-Spalte und lädt #kontext-fragment
+// bei jeder Karten-Mutation nach (hx-select holt nur das Fragment aus der
+// Seite, die Hülle nistet nie in sich selbst); die Lesespalte lädt sich
+// auf document.updated selbst neu, damit ein Moduswechsel ihren Stand
+// mitzieht. Beide Links tragen die Wahl (?doc=).
 templ kontextOuter(vm KontextVM) {
-	<div
-		id="content"
-		hx-get={ "/kontext/" + vm.NodeID }
-		hx-trigger="sse:document.updated, sse:document.created, sse:document.deleted"
-		hx-select="#kontext-fragment"
-		hx-target="#kontext-fragment"
-		hx-swap="outerHTML"
-	>
-		@KontextFragment(vm)
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+		<div
+			id="content"
+			class="k3-panel flex flex-col bg-panel border-b border-hairp lg:border-b-0 lg:border-r lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto scroll-thin"
+			hx-get={ "/kontext/" + vm.NodeID + vm.SelQuery }
+			hx-trigger="sse:document.updated, sse:document.created, sse:document.deleted"
+			hx-select="#kontext-fragment"
+			hx-target="#kontext-fragment"
+			hx-swap="outerHTML"
+		>
+			@KontextFragment(vm)
+		</div>
+		<div class="min-w-0 bg-canvas px-6 py-7 lg:px-14">
+			@components.PanelToggle("context.curate.eyebrow", "mb-4")
+			<div
+				id="kontext-lese"
+				class="max-w-[820px]"
+				hx-get={ "/kontext/" + vm.NodeID + "/lese" + vm.SelQuery }
+				hx-trigger="sse:document.updated"
+				hx-swap="innerHTML"
+			>
+				@KontextLese(vm)
+			</div>
+		</div>
 	</div>
 }
 
@@ -48,191 +62,245 @@ templ kontextOuter(vm KontextVM) {
 // both mutation handlers (reorder/pin) — never the full page — so those
 // POSTs can safely target #kontext-fragment with hx-swap="outerHTML".
 templ KontextFragment(vm KontextVM) {
-	<div id="kontext-fragment" class="narrow">
+	<div id="kontext-fragment" class="flex flex-col pb-6">
 		if vm.Err != "" {
-			<p class="alert-err" role="alert">{ vm.Err }</p>
+			<p class="alert-err mx-6 mt-4" role="alert">{ vm.Err }</p>
 		}
-		<div class="pagehead">
+		<div class="px-6 pt-6">
 			<span class="eyebrow">{ components.T(ctx, "context.curate.eyebrow") }</span>
-			<h1>{ vm.Title }</h1>
-			<p class="sub">{ fmt.Sprintf(components.T(ctx, "context.curate.sub"), vm.Title, vm.IncludedN, vm.DroppedN) }</p>
-		</div>
-		<div class="sect">
-			<section class="panel p-5">
-				<div class={ "meter", templ.KV("full", vm.Full) } role="img" aria-label={ fmt.Sprintf(components.T(ctx, "context.meterAria"), vm.Pct) }>
-					<i style={ "width:" + strconv.Itoa(vm.Pct) + "%" }></i>
-				</div>
-				<div class="meter-l">
-					<span>{ vm.UsedStr } tk</span>
-					if vm.Full {
-						<span class="warn">{ components.T(ctx, "context.budgetFull") } · { vm.CapStr }</span>
-					} else {
-						<span>{ vm.CapStr }</span>
-					}
-				</div>
-			</section>
-		</div>
-		if len(vm.Always) > 0 {
-			<div class="sect">
-				<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.curate.always") }</span></div>
-				for _, a := range vm.Always {
-					@kontextAlwaysRow(vm.NodeID, a)
-				}
+			<div class="mt-1 flex items-baseline gap-3">
+				<h2 class="min-w-0 flex-1 truncate font-display text-xl font-bold tracking-tight">{ vm.Title }</h2>
+				<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } class="text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "nodetab.back") } ›</a>
 			</div>
-		}
-		<div class="sect">
-			<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.rail.title") }</span></div>
-			if len(vm.Rows) == 0 {
-				<p class="text-sm text-faint" style="margin-top:16px">{ components.T(ctx, "context.curate.empty") }</p>
-			} else {
-				for _, row := range vm.Rows {
-					if row.FirstDropped {
-						<div class="cutline">{ components.T(ctx, "context.cutline") }</div>
-					}
-					@kontextRow(vm.NodeID, row)
+			<div class="mt-2.5 font-mono text-[12px] tnum text-muted">
+				<b class="font-semibold text-ink">{ vm.UsedStr }</b> / { vm.CapStr } Token · { fmt.Sprintf(components.T(ctx, "context.screen.free"), vm.FreeStr) }
+			</div>
+			<div class={ "meter mt-2", templ.KV("full", vm.Full) } role="img" aria-label={ fmt.Sprintf(components.T(ctx, "context.meterAria"), vm.Pct) }>
+				<i style={ "width:" + strconv.Itoa(vm.Pct) + "%" }></i>
+			</div>
+			<p class="mt-1.5 text-[11px] text-faint">{ fmt.Sprintf(components.T(ctx, "context.curate.sub"), vm.Title, vm.IncludedN, vm.DroppedN) }</p>
+		</div>
+		if len(vm.Always) == 0 && len(vm.Rows) == 0 && len(vm.Hidden) == 0 {
+			<p class="mx-6 mt-6 text-sm text-faint">{ components.T(ctx, "context.curate.empty") }</p>
+		} else {
+			if len(vm.Always) > 0 {
+				@kontextSectionKopf(components.T(ctx, "context.curate.always"), "")
+				for _, a := range vm.Always {
+					@kontextAlwaysRow(vm, a)
 				}
 			}
-		</div>
-		if len(vm.Hidden) > 0 {
-			<div class="sect">
-				<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.curate.hidden") }</span></div>
+			if len(vm.Rows) > 0 {
+				@kontextSectionKopf(components.T(ctx, "context.screen.inContext"), components.T(ctx, "context.screen.orderHint"))
+				for _, row := range vm.Rows {
+					if row.FirstDropped {
+						@kontextSectionKopf(components.T(ctx, "context.screen.budgetReached"), components.T(ctx, "context.cutline.hint"))
+					}
+					@kontextRow(vm, row)
+				}
+			}
+			if len(vm.Hidden) > 0 {
+				@kontextSectionKopf(components.T(ctx, "context.curate.hidden"), "")
 				for _, h := range vm.Hidden {
-					@kontextHiddenRow(vm.NodeID, h)
+					@kontextHiddenRow(vm, h)
+				}
+			}
+		}
+	</div>
+}
+
+// kontextSectionKopf ist der Abschnittskopf der Kasten-Spalte — dieselbe
+// Anatomie wie im Register-Einstieg.
+templ kontextSectionKopf(label, hint string) {
+	<div class="mx-6 mt-[18px] flex items-baseline gap-2.5 border-b border-line2 pb-2.5">
+		<span class="text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ label }</span>
+		if hint != "" {
+			<span class="text-[10.5px] text-faint">{ hint }</span>
+		}
+	</div>
+}
+
+// kontextZeile ist die gemeinsame Hülle einer Kuratieren-Zeile: wählbar
+// (Link auf die Seite mit ?doc=), die gewählte trägt den Ebenen-Ton
+// (data-tint-on). Zwei Zeilen: Rang · Titel · Modus, darunter Typ · Token
+// und die Aktionen der Zeile.
+templ kontextZeile(selected, dim bool, docID string) {
+	<div
+		class={ "kontext-row border-b border-line border-l-[3px] border-l-transparent px-6 py-[9px] pl-[21px]", templ.KV("dim", dim) }
+		data-tint
+		data-tint-on?={ selected }
+		data-kontext-row={ docID }
+		aria-current?={ selected }
+	>
+		{ children... }
+	</div>
+}
+
+// kontextRow ist eine Rang-Zeile: Rang, Titel (wählt die Karte), Modus-
+// Schalter; darunter Typ · Token und Anpinnen/Höher/Tiefer. Verworfene
+// Zeilen (Included=false) dimmen. Alle Aktionen zielen auf #kontext-fragment
+// und tragen die Wahl (?sel=), damit der Tausch sie nicht verliert.
+templ kontextRow(vm KontextVM, row KontextRowVM) {
+	@kontextZeile(row.Selected, !row.Included, row.DocID) {
+		<div class="flex items-baseline gap-2.5">
+			<span class="w-6 shrink-0 text-[11px] text-meta">
+				if row.Included {
+					<span class="num">{ fmt.Sprintf("%02d", row.Num) }</span>
+				} else {
+					<span class="num text-faint">—</span>
+				}
+			</span>
+			<a class="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink hover:underline" href={ templ.SafeURL(kontextWahlHref(vm.NodeID, row.DocID)) } title={ row.Title }>{ row.Title }</a>
+		</div>
+		<div class="mt-1 flex items-center gap-2.5 pl-[34px]">
+			<span class={ "typechip", row.ChipClass }>{ row.TypeLabel }</span>
+			<span class="min-w-0 flex-1 truncate text-[11px] text-meta">{ row.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), row.TokensStr) }</span>
+			@kontextZeilenWege(row.DocID)
+		</div>
+		<div class="mt-1.5 flex items-center gap-2 pl-[34px]">
+			@modeSeg("/kontext/"+vm.NodeID+"/mode"+vm.ActQuery, "#kontext-fragment", row.DocID, row.Mode)
+			<span class="flex-1"></span>
+			<span class="kontext-actions flex shrink-0 items-center gap-1">
+				<button
+					type="button"
+					class="btn btn-q btn-s"
+					hx-post={ "/kontext/" + vm.NodeID + "/pin" + vm.ActQuery }
+					hx-target="#kontext-fragment"
+					hx-swap="outerHTML"
+					hx-vals={ fmt.Sprintf(`{"doc":"%s"}`, row.DocID) }
+					aria-label={ components.T(ctx, pinLabelKey(row.Pinned)) }
+					title={ components.T(ctx, pinLabelKey(row.Pinned)) }
+					aria-pressed={ ariaBoolAttr(row.Pinned) }
+				>
+					{ components.T(ctx, pinLabelKey(row.Pinned)) }
+				</button>
+				<button
+					type="button"
+					class="btn btn-q btn-s"
+					hx-post={ "/kontext/" + vm.NodeID + "/reorder" + vm.ActQuery }
+					hx-target="#kontext-fragment"
+					hx-swap="outerHTML"
+					hx-vals={ fmt.Sprintf(`{"doc":"%s","dir":"up"}`, row.DocID) }
+					aria-label={ components.T(ctx, "context.moveUp") }
+					title={ components.T(ctx, "context.moveUp") }
+					disabled?={ row.IsFirst }
+				>
+					↑
+				</button>
+				<button
+					type="button"
+					class="btn btn-q btn-s"
+					hx-post={ "/kontext/" + vm.NodeID + "/reorder" + vm.ActQuery }
+					hx-target="#kontext-fragment"
+					hx-swap="outerHTML"
+					hx-vals={ fmt.Sprintf(`{"doc":"%s","dir":"down"}`, row.DocID) }
+					aria-label={ components.T(ctx, "context.moveDown") }
+					title={ components.T(ctx, "context.moveDown") }
+					disabled?={ row.IsLast }
+				>
+					↓
+				</button>
+			</span>
+		</div>
+	}
+}
+
+// kontextAlwaysRow ist eine Zeile des Immer-Tiers (Instruction, Active
+// Context, immer-Memory): kein Rang, kein Anpinnen/Höher/Tiefer — nur der
+// Modus-Schalter, mit dem sie auf „nie" gesetzt werden kann.
+templ kontextAlwaysRow(vm KontextVM, a KontextAlwaysVM) {
+	@kontextZeile(a.Selected, false, a.DocID) {
+		<div class="flex items-baseline gap-2.5">
+			<span class="w-6 shrink-0 text-[11px] text-accent">●</span>
+			<a class="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink hover:underline" href={ templ.SafeURL(kontextWahlHref(vm.NodeID, a.DocID)) } title={ a.Title }>{ a.Title }</a>
+		</div>
+		<div class="mt-1 flex items-center gap-2.5 pl-[34px]">
+			<span class={ "typechip", a.ChipClass }>{ a.TypeLabel }</span>
+			<span class="min-w-0 flex-1 truncate text-[11px] text-meta">{ a.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), a.TokensStr) }</span>
+			@kontextZeilenWege(a.DocID)
+		</div>
+		<div class="mt-1.5 flex items-center gap-2 pl-[34px]">
+			@modeSeg("/kontext/"+vm.NodeID+"/mode"+vm.ActQuery, "#kontext-fragment", a.DocID, a.Mode)
+			<span class="flex-1"></span>
+			<span class="shrink-0 text-[11px] text-faint">{ components.T(ctx, "document.context.always") }</span>
+		</div>
+	}
+}
+
+// kontextHiddenRow ist eine ausgeblendete Karte (nie): gedimmt, nur der
+// Modus-Schalter als Rückweg in den Kontext.
+templ kontextHiddenRow(vm KontextVM, h KontextHiddenVM) {
+	@kontextZeile(h.Selected, true, h.DocID) {
+		<div class="flex items-baseline gap-2.5">
+			<span class="w-6 shrink-0 text-[11px] text-faint">○</span>
+			<a class="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink hover:underline" href={ templ.SafeURL(kontextWahlHref(vm.NodeID, h.DocID)) } title={ h.Title }>{ h.Title }</a>
+		</div>
+		<div class="mt-1 flex items-center gap-2.5 pl-[34px]">
+			<span class={ "typechip", h.ChipClass }>{ h.TypeLabel }</span>
+			<span class="min-w-0 flex-1 truncate text-[11px] text-meta">{ h.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), h.TokensStr) }</span>
+			@kontextZeilenWege(h.DocID)
+		</div>
+		<div class="mt-1.5 flex items-center gap-2 pl-[34px]">
+			@modeSeg("/kontext/"+vm.NodeID+"/mode"+vm.ActQuery, "#kontext-fragment", h.DocID, h.Mode)
+		</div>
+	}
+}
+
+// kontextZeilenWege sind die zwei leisen Wege jeder Zeile (Bestand, Mini-
+// Task 7c): die Karte öffnen, die Karte bearbeiten — ohne erst zu wählen.
+templ kontextZeilenWege(docID string) {
+	<span class="flex shrink-0 items-center gap-2 text-[11px]">
+		<a class="text-muted hover:text-ink" href={ templ.SafeURL("/wissen/" + docID) } title={ components.T(ctx, "context.screen.open") }>↗</a>
+		<a class="text-muted hover:text-ink" href={ templ.SafeURL("/wissen/" + docID + "/bearbeiten") } hx-boost="false">{ components.T(ctx, "wissen.edit") }</a>
+	</span>
+}
+
+// kontextWahlHref ist die Seite mit dieser Karte in der Lesespalte.
+func kontextWahlHref(nodeID, docID string) string {
+	return "/kontext/" + nodeID + "?doc=" + docID
+}
+
+// KontextLese ist die Lesespalte: Stand im Kontext, Titel, Herkunftszeile,
+// die Wege (Bearbeiten, Öffnen, Modus) und die gerenderte Karte. Ohne Wahl
+// sagt sie, dass links gewählt wird.
+templ KontextLese(vm KontextVM) {
+	if vm.Lese == nil {
+		<p class="text-sm text-faint">{ components.T(ctx, "context.screen.lese.empty") }</p>
+	} else {
+		{{ l := vm.Lese }}
+		<article data-kontext-lese={ l.DocID }>
+			<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[11px] uppercase tracking-[.1em] text-meta">
+				<span class={ "typechip", l.ChipClass }>{ l.TypeLabel }</span>
+				<span class="font-mono normal-case tracking-normal">{ l.Path }</span>
+				<span class="font-semibold text-accent">
+					{ components.T(ctx, l.StatusKey) }
+					if l.StatusKey == "document.context.in" {
+						· { fmt.Sprintf("%02d/%02d", l.Rank, l.Total) }
+					}
+				</span>
+			</div>
+			<h1 class="mt-2 font-display text-[26px] font-bold leading-[1.15] tracking-[-.02em] text-ink">{ l.Title }</h1>
+			<div class="mt-2 text-[12.5px] text-muted">
+				if l.Actor != "" {
+					{ l.Actor } ·
+				}
+				{ l.When } · { fmt.Sprintf(components.T(ctx, "context.screen.share"), l.TokensStr, l.SharePct) }
+				if l.ReadMinutes > 0 {
+					· { itoa(l.ReadMinutes) } { components.T(ctx, "document.readtime") }
 				}
 			</div>
-		}
-	</div>
-}
-
-// kontextRow is one rang-list row: rang badge, type chip, title+scope+tokens,
-// and the pin/reorder actions. Dropped rows (Included=false) dim via
-// templ.KV("dim", ...) so the cutline visually separates them without a
-// second list. All actions target #kontext-fragment (Codex-Fund #3) and send
-// their document id via hx-vals (the frei.templ/heute.templ precedent for
-// parameterized mutation buttons outside a <form>).
-templ kontextRow(nodeID string, row KontextRowVM) {
-	<div class={ "row", templ.KV("dim", !row.Included) }>
-		if row.Included {
-			<span class="num">{ fmt.Sprintf("%02d", row.Num) }</span>
-		} else {
-			<span class="num text-faint">—</span>
-		}
-		<span class={ "typechip", row.ChipClass }>{ row.TypeLabel }</span>
-		<div class="grow">
-			<a class="t" href={ templ.SafeURL("/wissen/" + row.DocID) } title={ row.Title }>{ row.Title }</a>
-			<div class="s">{ row.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), row.TokensStr) }</div>
-		</div>
-		<div class="right kontext-actions">
-			<button
-				type="button"
-				class="btn btn-q btn-s"
-				hx-post={ "/kontext/" + nodeID + "/pin" }
-				hx-target="#kontext-fragment"
-				hx-swap="outerHTML"
-				hx-vals={ fmt.Sprintf(`{"doc":"%s"}`, row.DocID) }
-				aria-label={ components.T(ctx, pinLabelKey(row.Pinned)) }
-				title={ components.T(ctx, pinLabelKey(row.Pinned)) }
-			>
-				{ components.T(ctx, pinLabelKey(row.Pinned)) }
-			</button>
-			<button
-				type="button"
-				class="btn btn-q btn-s"
-				hx-post={ "/kontext/" + nodeID + "/reorder" }
-				hx-target="#kontext-fragment"
-				hx-swap="outerHTML"
-				hx-vals={ fmt.Sprintf(`{"doc":"%s","dir":"up"}`, row.DocID) }
-				aria-label={ components.T(ctx, "context.moveUp") }
-				title={ components.T(ctx, "context.moveUp") }
-				disabled?={ row.IsFirst }
-			>
-				↑
-			</button>
-			<button
-				type="button"
-				class="btn btn-q btn-s"
-				hx-post={ "/kontext/" + nodeID + "/reorder" }
-				hx-target="#kontext-fragment"
-				hx-swap="outerHTML"
-				hx-vals={ fmt.Sprintf(`{"doc":"%s","dir":"down"}`, row.DocID) }
-				aria-label={ components.T(ctx, "context.moveDown") }
-				title={ components.T(ctx, "context.moveDown") }
-				disabled?={ row.IsLast }
-			>
-				↓
-			</button>
-			@modeSeg("/kontext/"+nodeID+"/mode", "#kontext-fragment", row.DocID, row.Mode)
-			<a
-				class="btn btn-q btn-s"
-				href={ templ.SafeURL("/wissen/" + row.DocID + "/bearbeiten") }
-				hx-boost="false"
-				aria-label={ components.T(ctx, "wissen.edit") }
-				title={ components.T(ctx, "wissen.edit") }
-			>
-				{ components.T(ctx, "wissen.edit") }
-			</a>
-		</div>
-	</div>
-}
-
-// kontextAlwaysRow is one Always-Tier row (Instruction/ActiveContext/immer
-// memory, Mini-Task 6b + Task 4): same .row shell + type chip + title/scope/
-// tokens as kontextRow, but no rank badge and no pin/↑/↓ buttons (Always-Tier
-// is not curatable that way) — a dim "immer" label (document.context.always,
-// reused from the document page's context-standing line) stands in their
-// place. The mode switcher (Task 4) lets even an Instruction/ActiveContext be
-// demoted to "nie" (OE #4/#5). Mini-Task 7c adds the same direct
-// Bearbeiten-link as kontextRow — the row's remaining action.
-templ kontextAlwaysRow(nodeID string, a KontextAlwaysVM) {
-	<div class="row">
-		<span class={ "typechip", a.ChipClass }>{ a.TypeLabel }</span>
-		<div class="grow">
-			<a class="t" href={ templ.SafeURL("/wissen/" + a.DocID) } title={ a.Title }>{ a.Title }</a>
-			<div class="s">{ a.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), a.TokensStr) }</div>
-		</div>
-		<div class="right kontext-actions">
-			<span class="dim text-sm">{ components.T(ctx, "document.context.always") }</span>
-			@modeSeg("/kontext/"+nodeID+"/mode", "#kontext-fragment", a.DocID, a.Mode)
-			<a
-				class="btn btn-q btn-s"
-				href={ templ.SafeURL("/wissen/" + a.DocID + "/bearbeiten") }
-				hx-boost="false"
-				aria-label={ components.T(ctx, "wissen.edit") }
-				title={ components.T(ctx, "wissen.edit") }
-			>
-				{ components.T(ctx, "wissen.edit") }
-			</a>
-		</div>
-	</div>
-}
-
-// kontextHiddenRow is one row of the new "Ausgeblendet (nie)" section (Task
-// 4): a nie-mode doc, dimmed via the static `dim` class (mirrors the dropped
-// rang-row's Included=false treatment), with only the mode switcher (the
-// in-place restore path — flipping to auto/immer moves it back into the
-// composed context) and the same Bearbeiten-link as the other sections. No
-// pin/↑/↓ (not curatable there either — this section only exists to make
-// "nie" reversible without leaving Kuratieren).
-templ kontextHiddenRow(nodeID string, h KontextHiddenVM) {
-	<div class="row dim">
-		<span class={ "typechip", h.ChipClass }>{ h.TypeLabel }</span>
-		<div class="grow">
-			<a class="t" href={ templ.SafeURL("/wissen/" + h.DocID) } title={ h.Title }>{ h.Title }</a>
-			<div class="s">{ h.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), h.TokensStr) }</div>
-		</div>
-		<div class="right kontext-actions">
-			@modeSeg("/kontext/"+nodeID+"/mode", "#kontext-fragment", h.DocID, h.Mode)
-			<a
-				class="btn btn-q btn-s"
-				href={ templ.SafeURL("/wissen/" + h.DocID + "/bearbeiten") }
-				hx-boost="false"
-				aria-label={ components.T(ctx, "wissen.edit") }
-				title={ components.T(ctx, "wissen.edit") }
-			>
-				{ components.T(ctx, "wissen.edit") }
-			</a>
-		</div>
-	</div>
+			<div class="mt-4 flex flex-wrap items-center gap-3 border-b border-line2 pb-4">
+				<a class="btn btn-q btn-s" href={ templ.SafeURL(l.EditHref) } hx-boost="false">{ components.T(ctx, "wissen.edit") }</a>
+				<a class="btn btn-q btn-s" href={ templ.SafeURL(l.OpenHref) }>{ components.T(ctx, "context.screen.open") }</a>
+				<span class="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-[.1em] text-faint">
+					{ components.T(ctx, "context.mode.label") }
+					@modeSeg("/kontext/"+vm.NodeID+"/mode"+vm.ActQuery, "#kontext-fragment", l.DocID, l.Mode)
+				</span>
+			</div>
+			<div class="mt-6">
+				@components.MarkdownProse(l.HTML)
+			</div>
+		</article>
+	}
 }
 
 // pinLabelKey reuses the document page's Anpinnen/Angepinnt i18n keys

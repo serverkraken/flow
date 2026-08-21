@@ -524,7 +524,7 @@ templ einstiegWege(d NodeEinstieg) {
 		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/artifacts") } class="text-body2 hover:text-ink">
 			{ components.T(ctx, "einstieg.artefakte") }
 		</a>
-		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=kontext") } class="text-body2 hover:text-ink">
+		<a href={ templ.SafeURL("/kontext/" + d.N.ID) } class="text-body2 hover:text-ink">
 			{ components.T(ctx, "einstieg.kontext") }
 		</a>
 		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=struktur") } class="text-body2 hover:text-ink">

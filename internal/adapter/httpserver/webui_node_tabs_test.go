@@ -127,7 +127,7 @@ func TestNodeTab_KontextSurfaceIsReachable(t *testing.T) {
 	// And the entry point must lead there — an instrument nobody can reach is
 	// the state this decision was made to end.
 	entry := c.do(t, "GET", "/nodes/n1", nil)
-	if !strings.Contains(entry.Body.String(), `/nodes/n1?tab=kontext`) {
+	if !strings.Contains(entry.Body.String(), `href="/kontext/n1"`) {
 		t.Errorf("entry point must link to the context surface; body=%.900s", entry.Body.String())
 	}
 }

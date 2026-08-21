@@ -1,6 +1,9 @@
 package webui
 
 import (
+	"html/template"
+	"time"
+
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -25,6 +28,9 @@ type KontextRowVM struct {
 	// entirely, Task 2 Compose semantics), but the mode switcher still reads
 	// it to render its pressed segment and to promote/demote the doc.
 	Mode domain.ContextMode
+	// Screen 07: jede Zeile ist wählbar — die Lesespalte zeigt die gewählte
+	// Karte; Selected markiert die Zeile.
+	Selected bool
 }
 
 // KontextAlwaysVM is one row of the Always-Tier section (Instructions +
@@ -41,6 +47,7 @@ type KontextAlwaysVM struct {
 	ScopeLabel string // Item.ScopeLabel
 	TokensStr  string // fmtThousandsDE(Item.EstTokens)
 	Mode       domain.ContextMode
+	Selected   bool
 }
 
 // KontextHiddenVM is one row of the new "Ausgeblendet (nie)" section (Task
@@ -57,6 +64,24 @@ type KontextHiddenVM struct {
 	ScopeLabel string
 	TokensStr  string
 	Mode       domain.ContextMode
+	Selected   bool
+}
+
+// KontextLeseVM ist die Lesespalte von Screen 07: die gewählte Karte mit
+// ihrem Stand im Kontext, ihrer Herkunft und ihrem gerenderten Inhalt —
+// lesen und bearbeiten rechts, kuratieren links.
+type KontextLeseVM struct {
+	DocID, Title, Path   string
+	ChipClass, TypeLabel string
+	StatusKey            string // document.context.{in,always,dropped,hidden}
+	Rank, Total          int    // nur bei StatusKey = document.context.in
+	Actor, When          string
+	TokensStr            string
+	SharePct             int // Anteil am Budget, gerundet
+	ReadMinutes          int
+	Mode                 domain.ContextMode
+	HTML                 template.HTML
+	EditHref, OpenHref   string
 }
 
 // KontextVM is the Kuratieren page's view model: the pagehead counters, the
@@ -72,27 +97,40 @@ type KontextVM struct {
 	DroppedN  int
 	UsedStr   string
 	CapStr    string
+	FreeStr   string // Cap − Used, nie negativ
 	Pct       int
 	Full      bool
 	Always    []KontextAlwaysVM // Instructions + ActiveContext + immer memories — empty section must not render
 	Rows      []KontextRowVM
 	Hidden    []KontextHiddenVM // nie-mode docs (cc.Hidden) — empty section must not render
 	Err       string            // set by the handler (not BuildKontextVM) on a Compose failure — .alert-err line
+	// Screen 07 — kuratieren links, lesen und bearbeiten rechts.
+	EbeneColor string         // Ton des Registers, der 3px-Streifen
+	Selected   string         // gewählte Karte (Select); "" = nichts wählbar
+	SelQuery   string         // "?doc=<id>" für Seiten- und Fragment-Links, "" ohne Wahl
+	ActQuery   string         // "?sel=<id>" für die Aktions-POSTs, damit die Wahl den Tausch überlebt
+	Lese       *KontextLeseVM // die Lesespalte; nil = nichts gewählt
 }
 
 // BuildKontextVM reduces a composed context (usecase.Compose's output for
 // n's chain) to the Kuratieren page's display VM. Pure: domain-/store-free.
 func BuildKontextVM(n domain.Node, cc usecase.ComposedContext) KontextVM {
 	meter := BuildCockpitContext(cc, n.ID)
+	free := cc.Budget.Cap - cc.Budget.Used
+	if free < 0 {
+		free = 0
+	}
 	vm := KontextVM{
-		NodeID:    n.ID,
-		Title:     ShortName(n.Name),
-		IncludedN: meter.IncludedN,
-		DroppedN:  meter.DroppedN,
-		UsedStr:   meter.UsedStr,
-		CapStr:    meter.CapStr,
-		Pct:       meter.Pct,
-		Full:      meter.Full,
+		NodeID:     n.ID,
+		Title:      ShortName(n.Name),
+		IncludedN:  meter.IncludedN,
+		DroppedN:   meter.DroppedN,
+		UsedStr:    meter.UsedStr,
+		CapStr:     meter.CapStr,
+		FreeStr:    fmtThousandsDE(free),
+		Pct:        meter.Pct,
+		Full:       meter.Full,
+		EbeneColor: EbeneAccentColor(n.Kind),
 	}
 
 	for _, it := range cc.Instructions {
@@ -160,4 +198,136 @@ func kontextHiddenOf(item usecase.ContextItem) KontextHiddenVM {
 		TokensStr:  fmtThousandsDE(item.EstTokens),
 		Mode:       item.ContextMode,
 	}
+}
+
+// Select wählt die Karte der Lesespalte: docID, wenn sie in einer der drei
+// Listen steht, sonst die erste — Immer-Tier vor Rang vor Ausgeblendet. Es
+// markiert die Zeile und hängt die Wahl an Seiten- und Aktionslinks, damit
+// Aktionen und SSE-Neuladen sie nicht verlieren.
+func (vm *KontextVM) Select(docID string) {
+	has := func(id string) bool {
+		for _, a := range vm.Always {
+			if a.DocID == id {
+				return true
+			}
+		}
+		for _, r := range vm.Rows {
+			if r.DocID == id {
+				return true
+			}
+		}
+		for _, h := range vm.Hidden {
+			if h.DocID == id {
+				return true
+			}
+		}
+		return false
+	}
+	if docID == "" || !has(docID) {
+		docID = ""
+		switch {
+		case len(vm.Always) > 0:
+			docID = vm.Always[0].DocID
+		case len(vm.Rows) > 0:
+			docID = vm.Rows[0].DocID
+		case len(vm.Hidden) > 0:
+			docID = vm.Hidden[0].DocID
+		}
+	}
+	vm.Selected = docID
+	vm.SelQuery, vm.ActQuery = "", ""
+	if docID != "" {
+		vm.SelQuery = "?doc=" + docID
+		vm.ActQuery = "?sel=" + docID
+	}
+	for i := range vm.Always {
+		vm.Always[i].Selected = vm.Always[i].DocID == docID
+	}
+	for i := range vm.Rows {
+		vm.Rows[i].Selected = vm.Rows[i].DocID == docID
+	}
+	for i := range vm.Hidden {
+		vm.Hidden[i].Selected = vm.Hidden[i].DocID == docID
+	}
+}
+
+// BuildKontextLese baut die Lesespalte für doc aus dem komponierten Kontext:
+// Stand (immer / Rang n von N / Budget erreicht / ausgeblendet), Anteil am
+// Budget und die gerenderte Karte. html kommt vom Aufrufer (RenderDocument
+// mit den Auflösern des Registers), damit der Builder rein bleibt.
+func BuildKontextLese(cc usecase.ComposedContext, doc domain.Document, html template.HTML, now time.Time) *KontextLeseVM {
+	l := &KontextLeseVM{
+		DocID:       doc.ID,
+		Title:       doc.Title,
+		Path:        doc.Path,
+		ChipClass:   DocTypeChipClass(doc.Type),
+		TypeLabel:   DocTypeLabel(doc.Type),
+		StatusKey:   "document.context.hidden",
+		Actor:       doc.UpdatedByRef,
+		When:        FmtRelTime(doc.UpdatedAt, now),
+		ReadMinutes: ReadingTime(doc.Body),
+		Mode:        doc.ContextMode.OrAuto(),
+		HTML:        html,
+		EditHref:    "/wissen/" + doc.ID + "/bearbeiten",
+		OpenHref:    "/wissen/" + doc.ID,
+	}
+	tokens := 0
+	found := false
+	mark := func(it usecase.ContextItem, key string) bool {
+		if it.ID != doc.ID {
+			return false
+		}
+		tokens, l.StatusKey, found = it.EstTokens, key, true
+		return true
+	}
+	for _, it := range cc.Instructions {
+		if mark(it, "document.context.always") {
+			break
+		}
+	}
+	if !found && cc.ActiveContext != nil {
+		mark(*cc.ActiveContext, "document.context.always")
+	}
+	if !found {
+		for _, it := range cc.AlwaysMemories {
+			if mark(it, "document.context.always") {
+				break
+			}
+		}
+	}
+	if !found {
+		total := 0
+		for _, r := range cc.Ranked {
+			if r.Included {
+				total++
+			}
+		}
+		for _, r := range cc.Ranked {
+			if r.Item.ID != doc.ID {
+				continue
+			}
+			if r.Included {
+				mark(r.Item, "document.context.in")
+				l.Rank, l.Total = r.Rank, total
+			} else {
+				mark(r.Item, "document.context.dropped")
+			}
+			break
+		}
+	}
+	if !found {
+		for _, it := range cc.Hidden {
+			if mark(it, "document.context.hidden") {
+				break
+			}
+		}
+	}
+	if !found {
+		tokens = (len(doc.Body) + 3) / 4 // dieselbe Schätzung wie Compose: vier Bytes je Token
+	}
+	l.TokensStr = fmtThousandsDE(tokens)
+	if cc.Budget.Cap > 0 {
+		l.SharePct = (tokens*100 + cc.Budget.Cap/2) / cc.Budget.Cap
+	}
+	return l
 }

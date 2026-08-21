@@ -810,6 +810,12 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .wmark:hover { color: rgb(var(--ink)); }
   .wmark-immer { color: rgb(var(--accent)); }
   .wmark-nie { color: rgb(var(--faint)); text-decoration: line-through; }
+  /* Screen 07: in der 372px-Kasten-Spalte sind Modus-Schalter und Aktionen
+     dichter gesetzt — dieselben Bausteine, nur weniger Luft. */
+  .kontext-row .seg button { padding: 2px 8px; font-size: 11px; }
+  .kontext-row .kontext-actions .btn { padding: 2px 7px; font-size: 11px; line-height: 1.4; }
+  .kontext-row .kontext-actions .btn[aria-pressed="true"] { color: rgb(var(--accent)); border-color: rgb(var(--accent)); }
+  .kontext-row.dim { opacity: .62; }
 
 @media (max-width: 620px) {
   .projrow .right .k { display: none; }               /* §12 nur Hauptwert */

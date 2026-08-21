@@ -519,3 +519,70 @@ func TestKontextFragment_RowModeSegment_ShowsCurrentModePressed(t *testing.T) {
 		}
 	}
 }
+
+// Screen 07: Select wählt — explizit, sonst Immer-Tier vor Rang vor
+// Ausgeblendet — und hängt die Wahl an jeden Link.
+func TestKontextVM_Select(t *testing.T) {
+	vm := KontextVM{NodeID: "n1",
+		Always: []KontextAlwaysVM{{DocID: "i1"}},
+		Rows:   []KontextRowVM{{DocID: "r1"}, {DocID: "r2"}},
+		Hidden: []KontextHiddenVM{{DocID: "h1"}},
+	}
+	vm.Select("")
+	if vm.Selected != "i1" || vm.SelQuery != "?doc=i1" || vm.ActQuery != "?sel=i1" || !vm.Always[0].Selected || vm.Rows[0].Selected {
+		t.Errorf("Standardwahl = %+v", vm)
+	}
+	vm.Select("r2")
+	if vm.Selected != "r2" || !vm.Rows[1].Selected || vm.Always[0].Selected {
+		t.Errorf("explizite Wahl = %+v", vm.Rows)
+	}
+	vm.Select("fremd")
+	if vm.Selected != "i1" {
+		t.Errorf("unbekannte Wahl fällt auf den Standard: %q", vm.Selected)
+	}
+	leer := KontextVM{NodeID: "n1"}
+	leer.Select("x")
+	if leer.Selected != "" || leer.SelQuery != "" || leer.ActQuery != "" {
+		t.Errorf("ohne Zeilen keine Wahl: %+v", leer)
+	}
+}
+
+func TestBuildKontextLese_Standing(t *testing.T) {
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	cc := usecase.ComposedContext{
+		Instructions: []usecase.ContextItem{{ID: "i1", EstTokens: 600}},
+		Ranked: []usecase.RankedItem{
+			{Item: usecase.ContextItem{ID: "r1", EstTokens: 300}, Included: true, Rank: 1},
+			{Item: usecase.ContextItem{ID: "r2", EstTokens: 300}, Included: true, Rank: 2},
+			{Item: usecase.ContextItem{ID: "r3", EstTokens: 300}, Included: false},
+		},
+		Hidden: []usecase.ContextItem{{ID: "h1", EstTokens: 100}},
+		Budget: usecase.ContextBudget{Used: 1200, Cap: 12000},
+	}
+	mk := func(id string) domain.Document {
+		return domain.Document{ID: id, Title: "T " + id, Path: id, Type: domain.DocMemory, Body: "abcd efgh", UpdatedAt: now.Add(-time.Hour), UpdatedByRef: "claude"}
+	}
+	cases := []struct {
+		id, key  string
+		rank     int
+		share    int
+		tokens   string
+	}{
+		{"i1", "document.context.always", 0, 5, "600"},
+		{"r2", "document.context.in", 2, 3, "300"},
+		{"r3", "document.context.dropped", 0, 3, "300"},
+		{"h1", "document.context.hidden", 0, 1, "100"},
+	}
+	for _, tc := range cases {
+		l := BuildKontextLese(cc, mk(tc.id), "<p>x</p>", now)
+		if l.StatusKey != tc.key || l.Rank != tc.rank || l.SharePct != tc.share || l.TokensStr != tc.tokens {
+			t.Errorf("%s: Status=%s Rank=%d Share=%d Tokens=%s", tc.id, l.StatusKey, l.Rank, l.SharePct, l.TokensStr)
+		}
+		if l.EditHref != "/wissen/"+tc.id+"/bearbeiten" || l.OpenHref != "/wissen/"+tc.id || l.Actor != "claude" || l.Mode != domain.ContextModeAuto {
+			t.Errorf("%s: Wege/Herkunft = %+v", tc.id, l)
+		}
+	}
+	if l := BuildKontextLese(cc, mk("r2"), "", now); l.Total != 2 {
+		t.Errorf("Total zählt die enthaltenen Rang-Karten: %d", l.Total)
+	}
+}

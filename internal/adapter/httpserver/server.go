@@ -360,6 +360,7 @@ func (s *Server) Routes() http.Handler {
 	// Tiefer + Anpinnen, owner-scoped per Knoten-ID. Task 4 adds the
 	// Auto/Immer/Nie mode switcher (rang list, Always-Tier, Ausgeblendet).
 	mux.Handle("GET /kontext/{id}", s.webAuth(http.HandlerFunc(s.handleWebKontextView)))
+	mux.Handle("GET /kontext/{id}/lese", s.webAuth(http.HandlerFunc(s.handleWebKontextLese)))
 	mux.Handle("POST /kontext/{id}/reorder", s.webAuth(http.HandlerFunc(s.handleWebKontextReorder)))
 	mux.Handle("POST /kontext/{id}/pin", s.webAuth(http.HandlerFunc(s.handleWebKontextPin)))
 	mux.Handle("POST /kontext/{id}/mode", s.webAuth(http.HandlerFunc(s.handleWebKontextMode)))

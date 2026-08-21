@@ -371,6 +371,12 @@ func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 		s.handleWebNodeWissen(w, r)
 		return
 	}
+	if tab == "kontext" {
+		// Screen 07 ist die Kontext-Fläche des Registers; der alte Tab
+		// bleibt als Adresse gültig und landet dort.
+		s.handleWebKontextView(w, r)
+		return
+	}
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)

@@ -65,12 +65,6 @@ templ nodeTabBody(d NodeCockpit, tab string) {
 					@cockpitBuchungenSection(d)
 				case "struktur":
 					@cockpitEnthaeltSection(d)
-				case "kontext":
-					// Das Kontext-Instrument stand nach der Umlegung ohne Weg da
-					// (Soenne, 21.08.). Kette und Beiträger laufen im selben
-					// Baustein mit; zusammenführen lohnt erst, wenn Screen 07
-					// zeigt, was die Kuratieren-Seite selbst trägt.
-					@CockpitRailBlocks(d)
 			}
 		</div>
 		if tab == "worktime" {

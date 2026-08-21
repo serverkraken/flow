@@ -2,6 +2,8 @@ package httpserver
 
 import (
 	"errors"
+	"html/template"
+	"log/slog"
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
@@ -40,7 +42,74 @@ func (s *Server) kontextDataFor(r *http.Request, ownerID, nodeID string) (webui.
 	if err != nil {
 		return webui.KontextVM{}, err
 	}
-	return webui.BuildKontextVM(n, cc), nil
+	vm := webui.BuildKontextVM(n, cc)
+	// Screen 07: die Wahl der Lesespalte kommt als ?doc= von der Seite, als
+	// ?sel= von den Aktions-POSTs (deren Formularfeld "doc" ist die Ziel-
+	// karte der Aktion, nicht die Wahl).
+	sel := r.URL.Query().Get("doc")
+	if sel == "" {
+		sel = r.URL.Query().Get("sel")
+	}
+	vm.Select(sel)
+	if vm.Selected != "" {
+		if doc, derr := s.GetDocument.Execute(ctx, ownerID, vm.Selected); derr == nil {
+			vm.Lese = webui.BuildKontextLese(cc, doc, s.renderKontextDoc(r, ownerID, doc), s.Clock.Now())
+		} else {
+			slog.WarnContext(ctx, "kontext: selected doc failed", "docID", vm.Selected, "err", derr)
+		}
+	}
+	return vm, nil
+}
+
+// renderKontextDoc rendert die gewählte Karte für die Lesespalte — mit den
+// Auflösern der Kartenfläche (Wikilinks über den Bestand des Besitzers,
+// Artefakte über die Kette des Registers), aber ohne deren Rückverweise und
+// Embedding-Stand. Jeder Auflöser ist abgesichert: fehlt ein Store, bleibt
+// der Link unaufgelöst, die Karte erscheint trotzdem.
+func (s *Server) renderKontextDoc(r *http.Request, ownerID string, doc domain.Document) template.HTML {
+	ctx := r.Context()
+	var all []domain.Document
+	if s.ListDocuments.Docs != nil {
+		all, _ = s.ListDocuments.Execute(ctx, ownerID, nil, nil)
+	}
+	resolve := func(target string) (string, string, bool) {
+		if t, ok := domain.ResolveWikilink(doc, target, all); ok {
+			return "/wissen/" + t.ID, t.Title, true
+		}
+		return "", "", false
+	}
+	var resolveArtifact webui.ArtifactResolver
+	if s.ListArtifacts.Artifacts != nil {
+		nodeID := ""
+		var chain []domain.Node
+		if doc.NodeID != nil {
+			nodeID = *doc.NodeID
+			chain, _ = s.NodeAncestors.Execute(ctx, ownerID, nodeID)
+		}
+		if arts, aerr := s.ListArtifacts.Execute(ctx, ownerID, nodeID); aerr == nil {
+			resolveArtifact = buildArtifactResolver(chain, arts)
+		}
+	}
+	html, _ := webui.RenderDocument(ctx, doc.Body, resolve, resolveArtifact)
+	return html
+}
+
+// handleWebKontextLese serves GET /kontext/{id}/lese: the reading column's
+// own SSE fragment (#kontext-lese) — reloaded on document.updated so a mode
+// change or an edit elsewhere moves its standing line along.
+func (s *Server) handleWebKontextLese(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	vm, err := s.kontextDataFor(r, u.ID, r.PathValue("id"))
+	if errors.Is(err, ports.ErrNodeNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.KontextLese(vm).Render(r.Context(), w)
 }
 
 // handleWebKontextView serves GET /kontext/{id}: the full Kuratieren page.
