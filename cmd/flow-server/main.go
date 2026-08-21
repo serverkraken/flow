@@ -180,7 +180,6 @@ func run() error {
 		SetNodeRate:            usecase.SetNodeRate{Nodes: nodeStore},
 		SetCountsTowardTarget:  usecase.SetCountsTowardTarget{Nodes: nodeStore, Aggregate: nodeAggregateStore, Clock: clock},
 		UploadNodeLogo:         usecase.UploadNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Aggregate: nodeAggregateStore, Clock: clock},
-		DeleteNodeLogo:         usecase.DeleteNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Aggregate: nodeAggregateStore, Clock: clock},
 		GetNodeLogo:            usecase.GetNodeLogo{Logos: nodeLogoStore},
 		UploadNodeBanner:       usecase.UploadNodeBanner{Nodes: nodeStore, Banners: nodeBannerStore, Aggregate: nodeAggregateStore, Clock: clock},
 		GetNodeBanner:          usecase.GetNodeBanner{Banners: nodeBannerStore},

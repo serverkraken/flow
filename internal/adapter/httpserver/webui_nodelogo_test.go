@@ -67,7 +67,6 @@ func newWebNodeLogoServer(t *testing.T) (*httpserver.Server, *httptest.Server, *
 		ListNodes:      usecase.ListNodes{Nodes: ns},
 		GetNode:        usecase.GetNode{Nodes: ns},
 		UploadNodeLogo: usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
-		DeleteNodeLogo: usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
 		GetNodeLogo:    usecase.GetNodeLogo{Logos: ls},
 	}
 	ts := httptest.NewServer(srv.Routes())

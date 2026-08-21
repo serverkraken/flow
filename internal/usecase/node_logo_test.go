@@ -24,6 +24,13 @@ func pngPixel(t *testing.T) []byte {
 	return b
 }
 
+// DeleteNodeLogo ist mit dem Karteikasten-Umbau entfallen: die Oberfläche
+// rendert Logos nicht mehr (Identität ist überall Monogramm und Farbe), das
+// Formular bot das Entfernen nicht mehr an, und damit hatte der Usecase
+// keinen Aufrufer mehr. Gesetzt werden Logos weiterhin über MCP und REST —
+// die Spec lässt diesen Weg ausdrücklich unangetastet. Wer das Löschen
+// zurückholen will, findet es in der Geschichte.
+
 func TestUploadNodeLogo(t *testing.T) {
 	ctx := context.Background()
 	ns := testutil.NewFakeNodeStore()
@@ -61,35 +68,6 @@ func TestUploadNodeLogo(t *testing.T) {
 	}
 }
 
-func TestDeleteNodeLogo(t *testing.T) {
-	ctx := context.Background()
-	ns := testutil.NewFakeNodeStore()
-	ls := testutil.NewFakeNodeLogoStore()
-	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.Local)}
-	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
-	n.Kind = domain.KindEngagement
-	_, _ = ns.Create(ctx, n)
-	up := usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Clock: clk}
-	if _, err := up.Execute(ctx, "u1", "n1", pngPixel(t)); err != nil {
-		t.Fatal(err)
-	}
-	del := usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Clock: clk}
-	got, err := del.Execute(ctx, "u1", "n1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.LogoRef != "" {
-		t.Errorf("LogoRef = %q after delete, want empty", got.LogoRef)
-	}
-	if _, err := ls.Get(ctx, "u1", "n1"); !errors.Is(err, ports.ErrNodeLogoNotFound) {
-		t.Errorf("blob still present after delete: %v", err)
-	}
-	// Deleting again is a no-op, not an error.
-	if _, err := del.Execute(ctx, "u1", "n1"); err != nil {
-		t.Errorf("second delete errored: %v", err)
-	}
-}
-
 func TestUploadNodeLogo_RollsBackBlobWhenNodeWriteFails(t *testing.T) {
 	ctx := context.Background()
 	ns := testutil.NewFakeNodeStore()
@@ -115,63 +93,6 @@ func TestUploadNodeLogo_RollsBackBlobWhenNodeWriteFails(t *testing.T) {
 	}
 	if _, err := ls.Get(ctx, "u1", "n1"); !errors.Is(err, ports.ErrNodeLogoNotFound) {
 		t.Fatalf("logo blob persisted after rollback: %v", err)
-	}
-}
-
-func TestDeleteNodeLogo_RollsBackRefWhenBlobDeleteFails(t *testing.T) {
-	ctx := context.Background()
-	ns := testutil.NewFakeNodeStore()
-	ls := testutil.NewFakeNodeLogoStore()
-	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
-	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
-	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
-	n.Kind = domain.KindEngagement
-	_, _ = ns.Create(ctx, n)
-	upload := usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk}
-	before, err := upload.Execute(ctx, "u1", "n1", pngPixel(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	agg.FailStage = testutil.NodeAggregateFailLogo
-
-	del := usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk}
-	if _, err := del.Execute(ctx, "u1", "n1"); err == nil {
-		t.Fatal("delete succeeded despite injected blob failure")
-	}
-	got, err := ns.Get(ctx, "u1", "n1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.LogoRef != before.LogoRef {
-		t.Fatalf("logo ref changed after rollback: got %q want %q", got.LogoRef, before.LogoRef)
-	}
-	logo, err := ls.Get(ctx, "u1", "n1")
-	if err != nil || logo.Ref != before.LogoRef {
-		t.Fatalf("logo blob changed after rollback: logo=%+v err=%v", logo, err)
-	}
-}
-
-func TestDeleteNodeLogo_RemovesOrphanBlobWhenRefIsAlreadyEmpty(t *testing.T) {
-	ctx := context.Background()
-	ns := testutil.NewFakeNodeStore()
-	ls := testutil.NewFakeNodeLogoStore()
-	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
-	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
-	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
-	n.Kind = domain.KindEngagement
-	_, _ = ns.Create(ctx, n)
-	if err := ls.Put(ctx, domain.NodeLogo{NodeID: n.ID, OwnerID: n.OwnerID, Ref: "orphan", Bytes: pngPixel(t)}); err != nil {
-		t.Fatal(err)
-	}
-
-	del := usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk}
-	if _, err := del.Execute(ctx, "u1", n.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ls.Get(ctx, "u1", n.ID); !errors.Is(err, ports.ErrNodeLogoNotFound) {
-		t.Fatalf("orphan blob survived delete: %v", err)
 	}
 }
 

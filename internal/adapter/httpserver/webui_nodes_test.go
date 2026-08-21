@@ -86,7 +86,6 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 		SetNodeRate:           usecase.SetNodeRate{Nodes: ns},
 		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: ns, Aggregate: agg, Clock: clk},
 		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
-		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
 		GetNodeLogo:           usecase.GetNodeLogo{Logos: ls},
 		MoveNode:              usecase.MoveNode{Nodes: ns},
 		NodeAncestors:         usecase.NodeAncestors{Nodes: ns},

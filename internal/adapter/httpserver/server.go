@@ -73,7 +73,6 @@ type Server struct {
 
 	// cockpit-story slice 2 (node logos)
 	UploadNodeLogo         usecase.UploadNodeLogo
-	DeleteNodeLogo         usecase.DeleteNodeLogo
 	GetNodeLogo            usecase.GetNodeLogo
 	GetNodeBanner          usecase.GetNodeBanner
 	UploadNodeBanner       usecase.UploadNodeBanner
