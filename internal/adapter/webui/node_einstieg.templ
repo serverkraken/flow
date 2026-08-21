@@ -143,7 +143,11 @@ templ einstiegBanner(d NodeEinstieg) {
 // in the subtree there is nothing to plot, so the line drops entirely.
 templ einstiegZeitverlaufLink(d NodeEinstieg) {
 	if d.SinceMonth != "" {
-		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/zeitverlauf") }
+		// Screen 28 (Zeitverlauf Monat für Monat) ist bewusst zurückgestellt
+		// (Soennes Umfangsentscheidung). Bis es ihn gibt, führt die Zeile auf
+		// die Zeitfläche des Registers — ein Link auf eine 404 ist schlimmer
+		// als ein Link auf das Nächstbeste.
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=worktime") }
 			class="mx-6 mt-2.5 flex items-baseline gap-2 text-[12.5px] font-semibold text-accent hover:underline">
 			{ components.T(ctx, "einstieg.zeitverlauf") }
 			<span class="text-[11px] font-normal text-faint">{ components.T(ctx, "einstieg.zeitverlauf.since") } { d.SinceMonth }</span>
