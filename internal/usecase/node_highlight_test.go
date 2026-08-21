@@ -89,3 +89,38 @@ func TestRemoveAndListDocumentHighlights(t *testing.T) {
 		t.Errorf("after remove: %+v, want empty", got)
 	}
 }
+
+// TestListNewestHighlights_ForNodes pins the subtree promise: a quiet
+// register's marks survive a busy neighbour's fresher ones, and a miswired
+// limit cannot pull the table.
+func TestListNewestHighlights_ForNodes(t *testing.T) {
+	ctx := context.Background()
+	hs := testutil.NewFakeNodeHighlightStore()
+	base := time.Date(2026, 8, 21, 12, 0, 0, 0, time.Local)
+	mk := func(id, nodeID string, at time.Time) {
+		if _, err := hs.Create(ctx, domain.NodeHighlight{
+			ID: id, OwnerID: "u1", DocumentID: "d1", NodeID: nodeID,
+			Quote: "Stelle " + id, CreatedAt: at,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("mine", "still", base.Add(-48*time.Hour))
+	mk("loud1", "laut", base.Add(-2*time.Hour))
+	mk("loud2", "laut", base.Add(-time.Hour))
+
+	uc := usecase.ListNewestHighlights{Highlights: hs}
+	got, err := uc.ForNodes(ctx, "u1", []string{"still"}, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "mine" {
+		t.Errorf("got %+v, want the quiet register's own mark", got)
+	}
+	if l, err := uc.ForNodes(ctx, "u1", []string{"still", "laut"}, 0); err != nil || len(l) != 1 {
+		t.Errorf("limit 0 must normalise to 1, got %d rows err=%v", len(l), err)
+	}
+	if l, err := uc.ForNodes(ctx, "u-fremd", []string{"still"}, 5); err != nil || len(l) != 0 {
+		t.Errorf("foreign owner = %+v err=%v, want empty", l, err)
+	}
+}

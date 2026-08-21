@@ -65,3 +65,13 @@ func (uc ListNewestHighlights) Execute(ctx context.Context, ownerID string, limi
 	}
 	return uc.Highlights.ListRecent(ctx, ownerID, limit)
 }
+
+// ForNodes lists the newest highlights of a node set, newest first, capped by
+// limit — the register entry point's "Woran zuletzt gearbeitet". limit <= 0 is
+// normalised to 1 so a miswired caller cannot pull the whole table.
+func (uc ListNewestHighlights) ForNodes(ctx context.Context, ownerID string, nodeIDs []string, limit int) ([]domain.NodeHighlight, error) {
+	if limit <= 0 {
+		limit = 1
+	}
+	return uc.Highlights.ListRecentForNodes(ctx, ownerID, nodeIDs, limit)
+}
