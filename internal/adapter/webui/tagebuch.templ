@@ -231,21 +231,5 @@ templ tagebuchMarkierenMain(vm TagebuchMarkierenVM) {
 			}
 		</div>
 	</div>
-	<script>
-		(function () {
-			var content = document.getElementById('tagebuch-mark-body');
-			var form = document.getElementById('tagebuch-mark-form');
-			var quoteField = document.getElementById('tagebuch-mark-quote');
-			var quoteDisplay = document.getElementById('tagebuch-mark-quote-display');
-			if (!content || !form) { return; }
-			content.addEventListener('mouseup', function () {
-				var sel = window.getSelection();
-				var text = sel ? sel.toString().trim() : '';
-				if (!text) { form.classList.add('hidden'); return; }
-				quoteField.value = text;
-				quoteDisplay.textContent = '„' + text + '“';
-				form.classList.remove('hidden');
-			});
-		})();
-	</script>
+	<script src={ AssetURL("js/tagebuch-mark.js") } defer></script>
 }

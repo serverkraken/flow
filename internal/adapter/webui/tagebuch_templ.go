@@ -1295,7 +1295,20 @@ func tagebuchMarkierenMain(vm TagebuchMarkierenVM) templ.Component {
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "</div></div><script>\n\t\t(function () {\n\t\t\tvar content = document.getElementById('tagebuch-mark-body');\n\t\t\tvar form = document.getElementById('tagebuch-mark-form');\n\t\t\tvar quoteField = document.getElementById('tagebuch-mark-quote');\n\t\t\tvar quoteDisplay = document.getElementById('tagebuch-mark-quote-display');\n\t\t\tif (!content || !form) { return; }\n\t\t\tcontent.addEventListener('mouseup', function () {\n\t\t\t\tvar sel = window.getSelection();\n\t\t\t\tvar text = sel ? sel.toString().trim() : '';\n\t\t\t\tif (!text) { form.classList.add('hidden'); return; }\n\t\t\t\tquoteField.value = text;\n\t\t\t\tquoteDisplay.textContent = '„' + text + '“';\n\t\t\t\tform.classList.remove('hidden');\n\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "</div></div><script src=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var77 string
+		templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(AssetURL("js/tagebuch-mark.js"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/tagebuch.templ`, Line: 234, Col: 46}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "\" defer></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
