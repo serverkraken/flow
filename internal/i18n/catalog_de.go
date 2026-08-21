@@ -178,6 +178,8 @@ func init() {
 			"einstieg.repo.noUpstream":            "kein Upstream",
 			"einstieg.wissen":                     "Wissen",
 			"einstieg.neuesWissen":                "Neues Wissen ›",
+			"einstieg.wissen.all":   "alle ›",
+			"einstieg.wissen.empty": "Noch keine Karte in diesem Register.",
 			"einstieg.zeitStarten":                "Zeit hier starten ›",
 			"einstieg.zeitNachtragen":             "Zeit nachtragen ›",
 			"einstieg.verwalten":                  "Verwalten ›",

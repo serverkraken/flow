@@ -172,6 +172,8 @@ func init() {
 			"einstieg.repo.noUpstream":            "no upstream",
 			"einstieg.wissen":                     "Knowledge",
 			"einstieg.neuesWissen":                "New knowledge ›",
+			"einstieg.wissen.all":   "all ›",
+			"einstieg.wissen.empty": "No card in this register yet.",
 			"einstieg.zeitStarten":                "Start time here ›",
 			"einstieg.zeitNachtragen":             "Log time ›",
 			"einstieg.verwalten":                  "Manage ›",

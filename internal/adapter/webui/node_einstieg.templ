@@ -59,6 +59,9 @@ templ EinstiegKasten(d NodeEinstieg) {
 	@einstiegKopf(d)
 	@einstiegWege(d)
 	@einstiegBanner(d)
+	// Wissen vor Zahlen (Soenne, 21.08.): was das Register weiß, steht
+	// über dem, was es gekostet hat.
+	@einstiegWissen(d)
 	@einstiegKennzahlen(d)
 	@einstiegZeitverlaufLink(d)
 	@einstiegEckdaten(d)
@@ -95,6 +98,56 @@ templ einstiegKopf(d NodeEinstieg) {
 			</div>
 		</div>
 	</div>
+}
+
+// einstiegWissen ist der Wissen-Block des Kastens: Typ-Zähler als Wege in
+// den Überblick je Ebene (jeder Zähler filtert ihn) und die fünf frischesten
+// Karten des Teilbaums mit ihrer Herkunft. Ohne Karten sagt der Block, was
+// hier hineinkäme, und führt zum Editor.
+templ einstiegWissen(d NodeEinstieg) {
+	<div data-einstieg-wissen>
+		@einstiegSectionKopf(components.T(ctx, "einstieg.wissen"), components.Tn(ctx, "einstieg.cards", d.CardsTotal)) {
+			<a href={ templ.SafeURL(d.WissenHref) } class="text-[10.5px] font-bold uppercase tracking-[.14em] text-accent hover:underline">
+				{ components.T(ctx, "einstieg.wissen.all") }
+			</a>
+		}
+		if len(d.WissenTypes) > 0 {
+			<div class="mx-6 mt-2.5">
+				@wissenTypZaehlerLinks(d.WissenTypes)
+			</div>
+		}
+		if len(d.WissenRecent) == 0 {
+			<p class="mx-6 mt-3 text-[12.5px] text-faint">
+				{ components.T(ctx, "einstieg.wissen.empty") }
+				<a href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false" class="font-semibold text-accent hover:underline">{ components.T(ctx, "einstieg.neuesWissen") }</a>
+			</p>
+		}
+		for _, r := range d.WissenRecent {
+			<a href={ templ.SafeURL("/wissen/" + r.ID) }
+				class="flex items-baseline gap-2.5 border-b border-line px-6 py-[9px]">
+				<span class={ "typechip", r.ChipClass }>{ r.ChipLabel }</span>
+				<span class="min-w-0 flex-1">
+					<span class="block truncate text-[13px] font-medium text-ink">{ r.Title }</span>
+					if r.Where != "" {
+						<span class="block truncate text-[10.5px] text-muted">{ r.Where }</span>
+					}
+				</span>
+				<span class="shrink-0 font-mono text-[11px] text-meta">{ r.When }</span>
+			</a>
+		}
+	</div>
+}
+
+// wissenTypZaehlerLinks sind die Typ-Zähler als reine Seitenlinks — im
+// Kasten gibt es kein #wissen-ebene, in das ein Fragment getauscht würde.
+templ wissenTypZaehlerLinks(zs []WissenTypZaehler) {
+	<span class="wtypes">
+		for _, z := range zs {
+			<a href={ templ.SafeURL(z.Href) } class="wtype">
+				<span class="tnum">{ itoa(z.Count) }</span> { z.Label }
+			</a>
+		}
+	</span>
 }
 
 // einstiegKennzahlen is the three-cell hairline grid: week (decimal, in the

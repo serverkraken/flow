@@ -92,6 +92,13 @@ type NodeEinstieg struct {
 	// Kopf's "Wissen N ›" way (Spur A4).
 	CardsTotal int
 
+	// Wissen vor Zahlen (Soenne, 21.08.): der Kasten zeigt zuerst, was das
+	// Register weiß — Typ-Zähler als Wege in den Überblick je Ebene und die
+	// frischesten Karten des Teilbaums —, dann erst die Stunden.
+	WissenHref   string             // der Überblick je Ebene
+	WissenTypes  []WissenTypZaehler // Typen im Teilbaum, häufigster zuerst; Links filtern den Überblick
+	WissenRecent []EinstiegWissenRow
+
 	Buchungen     []EinstiegBuchungRow
 	BuchungenSpan string // "01.–16.08." — the month window, once in the section head (F14/M7)
 
@@ -103,6 +110,19 @@ type NodeEinstieg struct {
 	Highlights []EinstiegHighlightRow
 	Feed       []EinstiegFeedRow
 }
+
+// EinstiegWissenRow ist eine der frischesten Karten im Kasten: Typ, Titel,
+// Herkunft (leer an der Ebene selbst) und Datumsstaffel.
+type EinstiegWissenRow struct {
+	ID, Title            string
+	ChipClass, ChipLabel string
+	Where                string // ShortName des Registers, das die Karte trägt; "" = die Ebene selbst
+	When                 string
+}
+
+// einstiegWissenCap ist die Zahl der Karten, die der Kasten zeigt — ein
+// Blick, kein Regal. Das Regal ist der Überblick je Ebene.
+const einstiegWissenCap = 5
 
 // EinstiegFact is one Eckdaten row: label, value, optional quiet right column.
 type EinstiegFact struct {
@@ -232,6 +252,33 @@ func BuildNodeEinstieg(ctx context.Context, in EinstiegInput) NodeEinstieg {
 	lastChange := SubtreeLastChange(in.Subtree, in.Docs, in.Sessions, in.Now)
 	docTotals := SubtreeDocTotals(in.Subtree, in.Docs)
 	out.CardsTotal = docTotals[in.N.ID]
+
+	// --- Wissen vor Zahlen ---
+	out.WissenHref = WissenEbenePageHref(in.N.ID, WissenEbeneQuery{})
+	var subtreeDocs []domain.Document
+	for _, d := range in.Docs {
+		if d.Archived || d.NodeID == nil || !subtreeIDs[*d.NodeID] {
+			continue
+		}
+		subtreeDocs = append(subtreeDocs, d)
+	}
+	out.WissenTypes = buildTypZaehler(in.N.ID, subtreeDocs, WissenEbeneQuery{}, "")
+	for _, d := range SortDocuments(subtreeDocs, SortChanged) {
+		row := EinstiegWissenRow{
+			ID:        d.ID,
+			Title:     d.Title,
+			ChipClass: DocTypeChipClass(d.Type),
+			ChipLabel: DocTypeLabel(d.Type),
+			When:      FmtStaffel(ctx, d.UpdatedAt, in.Now),
+		}
+		if *d.NodeID != in.N.ID {
+			row.Where = ShortName(nameByID[*d.NodeID])
+		}
+		out.WissenRecent = append(out.WissenRecent, row)
+		if len(out.WissenRecent) == einstiegWissenCap {
+			break
+		}
+	}
 	since, hasSince := FirstBookingStart(in.Sessions, subtreeIDs)
 
 	var facts []EinstiegFact
