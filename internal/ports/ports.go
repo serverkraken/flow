@@ -80,6 +80,9 @@ var (
 	ErrNodeLogoNotFound = errors.New("node logo not found")
 	// ErrNodeBannerNotFound signals a node without an uploaded banner.
 	ErrNodeBannerNotFound = errors.New("node banner not found")
+	// ErrNodeHighlightNotFound signals a highlight that does not exist or does
+	// not belong to the caller.
+	ErrNodeHighlightNotFound = errors.New("node highlight not found")
 	// ErrArtifactNotFound signals a missing (or owner-foreign) artifact.
 	ErrArtifactNotFound = errors.New("artifact not found")
 	// ErrArtifactQuotaExceeded signals that an atomic create or replace would
@@ -154,6 +157,25 @@ type NodeLogoStore interface {
 	Get(ctx context.Context, ownerID, nodeID string) (domain.NodeLogo, error)
 	// Delete removes the node's logo; absent is a no-op, not an error.
 	Delete(ctx context.Context, ownerID, nodeID string) error
+}
+
+// NodeHighlightStore persists Screen-27 "Stellen markieren" assignments: a
+// marked passage of one document, assigned to one register.
+type NodeHighlightStore interface {
+	// Create persists a new highlight (id/createdAt already stamped by the caller).
+	Create(ctx context.Context, h domain.NodeHighlight) (domain.NodeHighlight, error)
+	// Delete removes a highlight. Owner-scoped; ErrNodeHighlightNotFound if absent or foreign.
+	Delete(ctx context.Context, ownerID, id string) error
+	// ListForDocument returns a document's highlights, oldest first (reading order).
+	ListForDocument(ctx context.Context, ownerID, documentID string) ([]domain.NodeHighlight, error)
+	// ListSince returns every highlight created at or after since, newest first —
+	// the source for per-register "this month" tallies (aggregated in-memory).
+	ListSince(ctx context.Context, ownerID string, since time.Time) ([]domain.NodeHighlight, error)
+	// ListRecent returns the owner's newest highlights, newest first, capped by
+	// limit (a SQL LIMIT — the register entry point only ever shows a handful).
+	// Subtree filtering happens in the adapter against the already-loaded node
+	// set; no SQL join across the tree.
+	ListRecent(ctx context.Context, ownerID string, limit int) ([]domain.NodeHighlight, error)
 }
 
 // NodeBannerStore persists at most one uploaded banner image per node.

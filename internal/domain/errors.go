@@ -21,4 +21,6 @@ var (
 	ErrInvalidDocument = errors.New("invalid document")
 	ErrInvalidUpstream = errors.New("invalid upstream git url")
 	ErrInvalidArtifact = errors.New("invalid artifact")
+	// ErrInvalidHighlight rejects a marked passage without text (Screen 27).
+	ErrInvalidHighlight = errors.New("invalid highlight")
 )

@@ -2043,6 +2043,84 @@ func (s *FakeNodeLogoStore) Delete(_ context.Context, ownerID, nodeID string) er
 	return nil
 }
 
+// FakeNodeHighlightStore is an in-memory ports.NodeHighlightStore.
+type FakeNodeHighlightStore struct {
+	mu sync.Mutex
+	m  map[string]domain.NodeHighlight
+}
+
+// NewFakeNodeHighlightStore builds an empty in-memory highlight store.
+func NewFakeNodeHighlightStore() *FakeNodeHighlightStore {
+	return &FakeNodeHighlightStore{m: map[string]domain.NodeHighlight{}}
+}
+
+func (s *FakeNodeHighlightStore) Create(_ context.Context, h domain.NodeHighlight) (domain.NodeHighlight, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m[h.ID] = h
+	return h, nil
+}
+
+func (s *FakeNodeHighlightStore) Delete(_ context.Context, ownerID, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	h, ok := s.m[id]
+	if !ok || h.OwnerID != ownerID {
+		return ports.ErrNodeHighlightNotFound
+	}
+	delete(s.m, id)
+	return nil
+}
+
+func (s *FakeNodeHighlightStore) ListForDocument(_ context.Context, ownerID, documentID string) ([]domain.NodeHighlight, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.NodeHighlight
+	for _, h := range s.m {
+		if h.OwnerID == ownerID && h.DocumentID == documentID {
+			out = append(out, h)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (s *FakeNodeHighlightStore) ListSince(_ context.Context, ownerID string, since time.Time) ([]domain.NodeHighlight, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.NodeHighlight
+	for _, h := range s.m {
+		if h.OwnerID == ownerID && !h.CreatedAt.Before(since) {
+			out = append(out, h)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+// ListRecent returns the owner's newest highlights, newest first, capped by
+// limit — mirrors pgstore's ORDER BY created_at DESC, id DESC LIMIT $2.
+func (s *FakeNodeHighlightStore) ListRecent(_ context.Context, ownerID string, limit int) ([]domain.NodeHighlight, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.NodeHighlight
+	for _, h := range s.m {
+		if h.OwnerID == ownerID {
+			out = append(out, h)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if limit >= 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 // FakeNodeBannerStore is an in-memory ports.NodeBannerStore (keyed by node ID).
 // Mirrors FakeNodeLogoStore, including its owner scoping: a foreign owner
 // neither reads nor deletes.
