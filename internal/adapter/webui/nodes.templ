@@ -152,137 +152,216 @@ templ nodeFormBody(d NodeFormData, editing *domain.Node) {
 }
 
 templ nodeFormInner(d NodeFormData, editing *domain.Node) {
-	<h1 class="mb-4 font-display text-[26px] font-semibold">
-		if editing != nil {
-			{ components.T(ctx, "node.edit.title") }
-		} else {
-			{ components.T(ctx, "node.create.title") }
-		}
-	</h1>
-	if d.Error != "" {
-		<div class="mb-4 bg-red/10 px-4 py-2 text-sm font-medium text-red" role="alert">{ d.Error }</div>
-	}
-	<form method="post" action={ nodeFormAction(editing) } enctype="multipart/form-data" hx-boost="false" class="max-w-2xl space-y-4 text-sm">
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.name") }</label>
-			<input name="name" value={ d.Vals.Name } required class="field"/>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.slug") }</label>
-			<input name="slug" value={ d.Vals.Slug } class="field font-mono"/>
-		</div>
-		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-			<div>
-				<label class="block text-muted">{ components.T(ctx, "node.kind") }</label>
-				<select name="kind" id="node-kind" class="field">
-					@nodeKindOption("engagement", "node.kind.engagement", d.Vals.Kind)
-					@nodeKindOption("vorhaben", "node.kind.vorhaben", d.Vals.Kind)
-					@nodeKindOption("repo", "node.kind.repo", d.Vals.Kind)
-				</select>
-			</div>
-			<div>
-				<label class="block text-muted">{ components.T(ctx, "node.parent") }</label>
+	<div class="mx-auto w-full max-w-[640px]">
+		<div class="pagehead">
+			<span class="eyebrow">{ components.T(ctx, "node.register") }</span>
+			<h1>
 				if editing != nil {
-					<select name="parentId" id="node-parent" class="field opacity-50 cursor-not-allowed" disabled>
-						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
-						for _, p := range d.Parents {
-							if d.Vals.ParentID == p.ID {
-								<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
-							} else {
-								<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
-							}
-						}
-					</select>
-					<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
-					@nodeMoveForm(d, editing)
+					{ components.T(ctx, "node.edit.title") }
 				} else {
-					<select name="parentId" id="node-parent" class="field">
-						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
-						for _, p := range d.Parents {
-							if d.Vals.ParentID == p.ID {
-								<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
-							} else {
-								<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
-							}
+					{ components.T(ctx, "node.create.title") }
+				}
+			</h1>
+		</div>
+		if d.Error != "" {
+			<p class="alert-err mb-4" role="alert">{ d.Error }</p>
+		}
+		<form method="post" action={ nodeFormAction(editing) } enctype="multipart/form-data" hx-boost="false" class="space-y-8 text-[13px]" data-node-form data-editing?={ editing != nil }>
+			// ── Art und Ort ──
+			<section>
+				@nodeFormKopf("node.sect.art", "")
+				<div class="grid gap-4 sm:grid-cols-2">
+					<div>
+						<label class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint" for="node-kind">{ components.T(ctx, "node.kind") }</label>
+						<select name="kind" id="node-kind" class="field mt-1"
+							data-desc-engagement={ components.T(ctx, "node.kind.engagement.desc") }
+							data-desc-vorhaben={ components.T(ctx, "node.kind.vorhaben.desc") }
+							data-desc-repo={ components.T(ctx, "node.kind.repo.desc") }>
+							@nodeKindOption("engagement", "node.kind.engagement", d.Vals.Kind)
+							@nodeKindOption("vorhaben", "node.kind.vorhaben", d.Vals.Kind)
+							@nodeKindOption("repo", "node.kind.repo", d.Vals.Kind)
+						</select>
+						<p class="mt-1 text-[11px] leading-[1.4] text-muted" data-kind-desc></p>
+					</div>
+					<div data-parent-field>
+						<label class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint" for="node-parent">{ components.T(ctx, "node.parent") }</label>
+						if editing != nil {
+							<select name="parentId" id="node-parent" class="field mt-1 cursor-not-allowed opacity-50" disabled>
+								<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+								for _, p := range d.Parents {
+									if d.Vals.ParentID == p.ID {
+										<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
+									} else {
+										<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
+									}
+								}
+							</select>
+							<p class="mt-1 text-[11px] text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
+							@nodeMoveForm(d, editing)
+						} else {
+							<select name="parentId" id="node-parent" class="field mt-1">
+								<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+								for _, p := range d.Parents {
+									if d.Vals.ParentID == p.ID {
+										<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
+									} else {
+										<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
+									}
+								}
+							</select>
 						}
-					</select>
-				}
-			</div>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.description") }</label>
-			<textarea name="description" rows="6" class="field font-mono">{ d.Vals.Description }</textarea>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.upstream") }</label>
-			<input name="upstreamGit" value={ d.Vals.UpstreamGit } placeholder="git@github.com:org/repo.git" class="field font-mono"/>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.status") }</label>
-			<select name="status" class="field">
-				@nodeStatusOption("active", "node.status.active", d.Vals.Status)
-				@nodeStatusOption("paused", "node.status.paused", d.Vals.Status)
-				@nodeStatusOption("archived", "node.status.archived", d.Vals.Status)
-			</select>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.counts.label") }</label>
-			<select name="countsMode" class="field">
-				@nodeCountsOption("inherit", "node.counts.inherit", d.Vals.CountsMode)
-				@nodeCountsOption("work", "node.counts.work", d.Vals.CountsMode)
-				@nodeCountsOption("privat", "node.counts.privat", d.Vals.CountsMode)
-			</select>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.color") }</label>
-			<div class="flex flex-wrap gap-2">
-				@nodeColorRadio("", d.Vals.Color)
-				for _, name := range domain.NodeColors {
-					@nodeColorRadio(name, d.Vals.Color)
-				}
-			</div>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.banner") }</label>
-			if editing != nil && editing.BannerRef != "" {
-				<div class="mb-2 flex items-center gap-3">
-					<img src={ "/nodes/" + editing.ID + "/banner?v=" + editing.BannerRef } alt="" class="h-[38px] w-full max-w-[240px] object-cover"/>
-					<label class="flex items-center gap-2 text-[12.5px]">
-						<input type="checkbox" name="bannerRemove" value="1"/> { components.T(ctx, "node.banner.remove") }
+					</div>
+				</div>
+			</section>
+			// ── Name und Kürzel ──
+			<section>
+				@nodeFormKopf("node.sect.name", "")
+				<label class="block">
+					<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.name") }</span>
+					<input name="name" value={ d.Vals.Name } required class="field mt-1" autocomplete="off" data-node-name/>
+				</label>
+				<p class="mt-2 text-[12px] text-muted">
+					{ components.T(ctx, "node.slug") }
+					<code class="ml-1 font-mono text-[12px] text-ink" data-slug-preview>{ d.Vals.Slug }</code>
+					if editing == nil {
+						<span class="ml-1 text-faint">· { components.T(ctx, "node.slug.auto") }</span>
+						<button type="button" class="ml-2 text-accent hover:underline" data-slug-adjust>{ components.T(ctx, "neuekarte.adjust") }</button>
+					}
+				</p>
+				<label class={ "mt-2 block", templ.KV("hidden", editing == nil && d.Vals.Slug == "") } data-slug-field>
+					<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.slug") }</span>
+					<input name="slug" value={ d.Vals.Slug } class="field mt-1 font-mono" autocomplete="off" data-node-slug/>
+				</label>
+				<label class="mt-4 block">
+					<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.description") } <span class="font-normal normal-case tracking-normal">· { components.T(ctx, "common.optional") }</span></span>
+					<textarea name="description" rows="3" class="field mt-1 font-mono">{ d.Vals.Description }</textarea>
+				</label>
+			</section>
+			// ── Monogramm und Farbe ──
+			<section>
+				@nodeFormKopf("node.sect.mono", "node.sect.mono.hint")
+				<div class="flex flex-wrap items-center gap-5">
+					<div class="flex items-center gap-3">
+						<span class="grid h-11 w-11 place-items-center bg-sunken font-mono text-[15px] font-bold text-oncolor" data-mono-preview style={ "background-color:" + orDefault(ColorHex(d.Vals.Color), "rgb(var(--meta))") }>{ Initials(d.Vals.Name) }</span>
+						<span class="text-[11px] text-faint">{ components.T(ctx, "node.mono.preview") }</span>
+					</div>
+					<div class="flex flex-wrap gap-2" data-color-swatches>
+						@nodeColorRadio("", d.Vals.Color)
+						for _, name := range domain.NodeColors {
+							@nodeColorRadio(name, d.Vals.Color)
+						}
+					</div>
+				</div>
+				<div class="mt-4">
+					<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.banner") } <span class="font-normal normal-case tracking-normal">· { components.T(ctx, "common.optional") }</span></span>
+					if editing != nil && editing.BannerRef != "" {
+						<div class="mb-2 mt-1 flex items-center gap-3">
+							<img src={ "/nodes/" + editing.ID + "/banner?v=" + editing.BannerRef } alt="" class="h-[38px] w-full max-w-[240px] object-cover"/>
+							<label class="flex items-center gap-2 text-[12.5px]">
+								<input type="checkbox" name="bannerRemove" value="1"/> { components.T(ctx, "node.banner.remove") }
+							</label>
+						</div>
+					}
+					<input type="file" name="banner" accept="image/png,image/jpeg,image/webp" class="field mt-1"/>
+					<p class="mt-1 text-[11px] text-faint">{ components.T(ctx, "node.banner.hint") }</p>
+				</div>
+			</section>
+			// ── Abrechnung und Umfang ──
+			<section>
+				@nodeFormKopf("node.sect.bill", "node.sect.bill.hint")
+				<div class="grid gap-4 sm:grid-cols-2">
+					<label class="block">
+						<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.counts.label") }</span>
+						<select name="countsMode" class="field mt-1">
+							@nodeCountsOption("inherit", "node.counts.inherit", d.Vals.CountsMode)
+							@nodeCountsOption("work", "node.counts.work", d.Vals.CountsMode)
+							@nodeCountsOption("privat", "node.counts.privat", d.Vals.CountsMode)
+						</select>
+					</label>
+					<div id="node-rate" class="flex flex-wrap items-end gap-3">
+						<label class="block">
+							<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.rate") }</span>
+							<input name="rateAmount" value={ d.Vals.RateAmount } placeholder="95.00" class="field mt-1 w-32 font-mono tnum"/>
+						</label>
+						<label class="block">
+							<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.rateCurrency") }</span>
+							<input name="rateCurrency" value={ orDefault(d.Vals.RateCurrency, "EUR") } class="field mt-1 w-20 font-mono"/>
+						</label>
+						<span class="pb-2.5 text-[11px] text-faint">{ components.T(ctx, "node.rateHint") }</span>
+					</div>
+				</div>
+				<p class="mt-2 text-[11px] leading-[1.5] text-faint">{ components.T(ctx, "node.rate.note") }</p>
+			</section>
+			// ── Repo, Tags, Status ──
+			<section>
+				@nodeFormKopf("node.sect.more", "")
+				<div class="grid gap-4 sm:grid-cols-2">
+					<label class="block sm:col-span-2" data-upstream-field>
+						<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.upstream") }</span>
+						<input name="upstreamGit" value={ d.Vals.UpstreamGit } placeholder="git@github.com:org/repo.git" class="field mt-1 font-mono"/>
+					</label>
+					<label class="block">
+						<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "wissen.tags") }</span>
+						<input name="tags" value={ d.Vals.TagsCSV } placeholder="tag1 tag2" class="field mt-1 font-mono"/>
+					</label>
+					<label class="block">
+						<span class="block text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "node.status") }</span>
+						<select name="status" class="field mt-1">
+							@nodeStatusOption("active", "node.status.active", d.Vals.Status)
+							@nodeStatusOption("paused", "node.status.paused", d.Vals.Status)
+							@nodeStatusOption("archived", "node.status.archived", d.Vals.Status)
+						</select>
 					</label>
 				</div>
+			</section>
+			// ── Beim Anlegen ──
+			if editing == nil {
+				<section>
+					@nodeFormKopf("node.sect.onCreate", "")
+					<label class="flex items-baseline gap-2.5 border-b border-line py-2.5">
+						<input type="checkbox" name="createReadme" value="1" checked class="accent-accent"/>
+						<span><span class="block text-[13px] font-semibold text-ink">{ components.T(ctx, "node.onCreate.readme") }</span><span class="block text-[11px] text-muted">{ components.T(ctx, "node.onCreate.readme.sub") }</span></span>
+					</label>
+					<label class="flex items-baseline gap-2.5 border-b border-line py-2.5">
+						<input type="checkbox" name="startTimer" value="1" class="accent-accent"/>
+						<span><span class="block text-[13px] font-semibold text-ink">{ components.T(ctx, "node.onCreate.timer") }</span><span class="block text-[11px] text-muted">{ components.T(ctx, "node.onCreate.timer.sub") }</span></span>
+					</label>
+				</section>
 			}
-			<input type="file" name="banner" accept="image/png,image/jpeg,image/webp" class="field"/>
-			<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.banner.hint") }</p>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "wissen.tags") }</label>
-			<input name="tags" value={ d.Vals.TagsCSV } placeholder="tag1 tag2"
-				class="field font-mono"/>
-		</div>
-		<div id="node-rate" class="flex flex-wrap items-end gap-3">
-			<div>
-				<label class="block text-muted">{ components.T(ctx, "node.rate") }</label>
-				<input name="rateAmount" value={ d.Vals.RateAmount } placeholder="95.00" class="field w-32"/>
+			<div class="flex flex-wrap items-center justify-between gap-3 border-t border-line2 pt-5">
+				<span class="text-[12px] text-muted" data-path-preview-line>
+					if editing == nil {
+						{ components.T(ctx, "node.createdAs") } <b class="font-semibold text-ink" data-path-preview></b>
+					}
+				</span>
+				<span class="flex items-center gap-3">
+					<a href="/nodes" class="btn btn-q">{ components.T(ctx, "common.cancel") }</a>
+					if editing != nil {
+						@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
+					} else {
+						@components.Button(components.BtnPrimary, components.T(ctx, "node.create.submit"), "", templ.Attributes{"type": "submit"})
+					}
+				</span>
 			</div>
-			<div>
-				<label class="block text-muted">{ components.T(ctx, "node.rateCurrency") }</label>
-				<input name="rateCurrency" value={ orDefault(d.Vals.RateCurrency, "EUR") } class="field w-20"/>
-			</div>
-			<span class="text-xs text-faint">{ components.T(ctx, "node.rateHint") }</span>
-		</div>
-		<div class="flex gap-2">
-			@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "✓", templ.Attributes{"type": "submit"})
-			<a href="/nodes" class="btn btn-q">{ components.T(ctx, "common.cancel") }</a>
-		</div>
-	</form>
-	if editing != nil {
-		<form id="node-move-form" method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/move") } hx-boost="false"></form>
-		<form method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/delete") } hx-boost="false" class="mt-3 max-w-2xl">
-			@components.Button(components.BtnDanger, components.T(ctx, "common.delete"), "✗", templ.Attributes{"type": "submit"})
 		</form>
-	}
+		if editing != nil {
+			<form id="node-move-form" method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/move") } hx-boost="false"></form>
+			<form method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/delete") } hx-boost="false" class="mt-6 border-t border-line2 pt-5">
+				@components.Button(components.BtnDanger, components.T(ctx, "common.delete"), "", templ.Attributes{"type": "submit"})
+			</form>
+		}
+	</div>
 	<script src={ AssetURL("js/nodeform.js") } defer></script>
+}
+
+// nodeFormKopf ist der Abschnittskopf des Register-Formulars.
+templ nodeFormKopf(titleKey, hintKey string) {
+	<div class="mb-3 border-b border-line2 pb-2">
+		<h2 class="font-display text-[15px] font-[750] tracking-[-.01em] text-ink">{ components.T(ctx, titleKey) }</h2>
+		if hintKey != "" {
+			<p class="mt-0.5 text-[11.5px] text-muted">{ components.T(ctx, hintKey) }</p>
+		}
+	</div>
 }
 
 // nodeMoveForm renders the reparent controls on the edit page (Task 7: moved
@@ -349,7 +428,7 @@ templ nodeColorRadio(name, current string) {
 		if name == "" {
 			<span class="inline-flex h-6 w-6 items-center justify-center border border-line text-xs text-faint peer-checked:outline peer-checked:outline-2 peer-checked:outline-offset-1 peer-checked:outline-ink">∅</span>
 		} else {
-			<span class="inline-block h-6 w-6 peer-checked:outline peer-checked:outline-2 peer-checked:outline-offset-1 peer-checked:outline-ink" style={ "background-color:" + ColorHex(name) }></span>
+			<span class="inline-block h-6 w-6 peer-checked:outline peer-checked:outline-2 peer-checked:outline-offset-1 peer-checked:outline-ink" style={ "background-color:" + ColorHex(name) } data-swatch={ ColorHex(name) }></span>
 		}
 	</label>
 }

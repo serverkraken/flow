@@ -66,7 +66,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		GetNode:           usecase.GetNode{Nodes: ps},
 		ListNodes:         usecase.ListNodes{Nodes: ps},
 		NodeAncestors:     usecase.NodeAncestors{Nodes: ps},
-		CreateNode:        usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		CreateNode:        usecase.CreateNode{Nodes: ps, Aggregate: testutil.NewFakeNodeAggregateStore(ps, testutil.NewFakeNodeLogoStore(), testutil.NewFakeNodeBannerStore(), tags), IDs: ids, Clock: clk},
 		UpdateNode:        usecase.UpdateNode{Nodes: ps, Clock: clk},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
 		BindNode:          usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},

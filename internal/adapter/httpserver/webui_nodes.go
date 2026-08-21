@@ -275,7 +275,34 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
+	s.nodeOnCreate(r, u, n)
 	http.Redirect(w, r, "/nodes/"+n.ID, http.StatusSeeOther)
+}
+
+// nodeOnCreate führt die „Beim Anlegen"-Haken aus (Screen 23): eine
+// README als Kopf der Registerseite, die Zeitmessung sofort auf dem neuen
+// Register. Beides abgesichert — ein fehlender Usecase oder ein Fehler
+// hindert das Register nicht, es steht schon.
+func (s *Server) nodeOnCreate(r *http.Request, u domain.User, n domain.Node) {
+	ctx := r.Context()
+	if r.FormValue("createReadme") == "1" && s.CreateDocument.Docs != nil {
+		nid := n.ID
+		if doc, err := s.CreateDocument.Execute(ctx, u.ID, usecase.CreateDocumentInput{
+			Type: domain.DocProject, NodeID: &nid, Path: "readme", Title: n.Name, Body: "# " + n.Name + "\n\n" + strings.TrimSpace(n.Description) + "\n",
+		}); err == nil {
+			s.emitEvent(ctx, domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID, "title": doc.Title}})
+		} else {
+			slog.WarnContext(ctx, "node create: readme failed", "nodeID", n.ID, "err", err)
+		}
+	}
+	if r.FormValue("startTimer") == "1" && s.StartSession.Sessions != nil && domain.IsBookable(n.Kind) {
+		nid := n.ID
+		if ws, err := s.StartSession.Execute(ctx, u.ID, &nid, nil, ""); err == nil {
+			s.emitEvent(ctx, domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": ws.ID, "nodeId": n.ID}})
+		} else {
+			slog.WarnContext(ctx, "node create: start timer failed", "nodeID", n.ID, "err", err)
+		}
+	}
 }
 
 func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
