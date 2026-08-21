@@ -16,17 +16,17 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 
 	vm, err := s.buildDocumentVM(r, u.ID, doc)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 
@@ -170,15 +170,15 @@ func (s *Server) handleWebDocArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.SetArchived.Execute(r.Context(), u.ID, id, archived); err != nil {
 		if errors.Is(err, ports.ErrDocumentNotFound) {
-			http.Error(w, "not found", http.StatusNotFound)
+			s.webNotFound(w, r)
 			return
 		}
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	action := "restore"
@@ -193,7 +193,7 @@ func (s *Server) handleWebDocArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	vm, err := s.buildDocumentVM(r, u.ID, doc)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -295,10 +295,10 @@ func (s *Server) handleWebDocReembed(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.RetryEmbedding.Execute(r.Context(), u.ID, id); err != nil {
 		if errors.Is(err, ports.ErrDocumentNotFound) {
-			http.Error(w, "not found", http.StatusNotFound)
+			s.webNotFound(w, r)
 			return
 		}
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	if r.Header.Get("HX-Request") == "" {
@@ -318,19 +318,19 @@ func (s *Server) handleWebDocPin(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	if err := s.SetPinned.Execute(r.Context(), u.ID, id, !doc.Pinned); err != nil {
 		if errors.Is(err, ports.ErrDocumentNotFound) {
-			http.Error(w, "not found", http.StatusNotFound)
+			s.webNotFound(w, r)
 			return
 		}
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	doc.Pinned = !doc.Pinned
@@ -338,7 +338,7 @@ func (s *Server) handleWebDocPin(w http.ResponseWriter, r *http.Request) {
 
 	vm, err := s.buildDocumentVM(r, u.ID, doc)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -361,11 +361,11 @@ func (s *Server) handleWebDocMode(w http.ResponseWriter, r *http.Request) {
 
 	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 
@@ -373,13 +373,13 @@ func (s *Server) handleWebDocMode(w http.ResponseWriter, r *http.Request) {
 		doc.ContextMode = domain.ContextMode(mode)
 		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "action": "context." + mode}})
 	} else if !contextModeErrKnown(err) {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 
 	vm, err := s.buildDocumentVM(r, u.ID, doc)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

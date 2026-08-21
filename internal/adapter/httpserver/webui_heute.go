@@ -18,7 +18,7 @@ func (s *Server) handleZeitHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.heuteDataFor(r.Context(), u, "")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -39,7 +39,7 @@ func (s *Server) handleHeuteFragment(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderHeuteFragment(w http.ResponseWriter, r *http.Request, u domain.User, errMsg string) {
 	vm, err := s.heuteDataFor(r.Context(), u, errMsg)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

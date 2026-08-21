@@ -36,7 +36,7 @@ func (s *Server) handleWebTagebuch(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	docs, err := s.dailyDocsFor(r.Context(), u.ID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	vm := webui.BuildTagebuchVM(r.Context(), docs, r.URL.Query().Get("selected"), s.Clock.Now())
@@ -52,7 +52,7 @@ func (s *Server) handleWebTagebuchToday(w http.ResponseWriter, r *http.Request) 
 	path := domain.DailyPath(now)
 	docs, err := s.dailyDocsFor(r.Context(), u.ID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	for _, d := range docs {
@@ -65,7 +65,7 @@ func (s *Server) handleWebTagebuchToday(w http.ResponseWriter, r *http.Request) 
 		Type: domain.DocDaily, Title: now.Format("2006-01-02"),
 	})
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/tagebuch?selected="+doc.ID, http.StatusSeeOther)
@@ -76,7 +76,7 @@ func (s *Server) handleWebTagebuchArchiv(w http.ResponseWriter, r *http.Request)
 	u, _ := userFrom(r.Context())
 	docs, err := s.dailyDocsFor(r.Context(), u.ID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	year, _ := strconv.Atoi(r.URL.Query().Get("year"))
@@ -106,21 +106,21 @@ func (s *Server) handleWebTagebuchMarkieren(w http.ResponseWriter, r *http.Reque
 	docID := r.PathValue("id")
 	doc, err := s.GetDocument.Execute(r.Context(), u.ID, docID)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	highlights, err := s.ListDocumentHighlights.Execute(r.Context(), u.ID, docID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	allNodes, err := s.ListNodes.Execute(r.Context(), u.ID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	nodesByID := make(map[string]domain.Node, len(allNodes))
@@ -131,7 +131,7 @@ func (s *Server) handleWebTagebuchMarkieren(w http.ResponseWriter, r *http.Reque
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	monthHighlights, err := s.ListRecentHighlights.Execute(r.Context(), u.ID, monthStart)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	vm := webui.BuildTagebuchMarkierenVM(r.Context(), doc, highlights, nodesByID, assignableTagebuchTargets(allNodes), monthHighlights)

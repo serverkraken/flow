@@ -24,7 +24,7 @@ func (s *Server) handleWebEditorPreview(w http.ResponseWriter, r *http.Request) 
 	}
 	all, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, nil)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	resolve := func(target string) (string, string, bool) {
@@ -103,7 +103,7 @@ func (s *Server) handleWebEditorNew(w http.ResponseWriter, r *http.Request) {
 		Path: r.URL.Query().Get("path"), Date: date,
 	})
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -115,11 +115,11 @@ func (s *Server) handleWebEditorEdit(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	nodeID := ""
@@ -132,7 +132,7 @@ func (s *Server) handleWebEditorEdit(w http.ResponseWriter, r *http.Request) {
 		Date: editorDate(doc.Date),
 	})
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -167,7 +167,7 @@ func (s *Server) handleWebEditorCreate(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ports.ErrDocumentExists):
 		s.renderEditorError(w, r, u, submitted, http.StatusConflict, components.T(r.Context(), "wissen.path.exists"))
 	case err != nil:
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 	default:
 		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID, "title": doc.Title}})
 		http.Redirect(w, r, "/wissen/"+doc.ID, http.StatusSeeOther)
@@ -198,13 +198,13 @@ func (s *Server) handleWebEditorUpdate(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		switch {
 		case errors.Is(err, ports.ErrDocumentNotFound), errors.Is(err, ports.ErrNodeNotFound):
-			http.Error(w, "not found", http.StatusNotFound)
+			s.webNotFound(w, r)
 		case errors.Is(err, domain.ErrInvalidDocument):
 			s.renderEditorError(w, r, u, submitted, http.StatusBadRequest, components.T(r.Context(), "wissen.metadata.invalid"))
 		case errors.Is(err, ports.ErrDocumentExists):
 			s.renderEditorError(w, r, u, submitted, http.StatusConflict, components.T(r.Context(), "wissen.path.exists"))
 		default:
-			http.Error(w, "server error", http.StatusInternalServerError)
+			s.webServerError(w, r, err)
 		}
 		return
 	}
@@ -214,11 +214,11 @@ func (s *Server) handleWebEditorUpdate(w http.ResponseWriter, r *http.Request) {
 		Tags:  &tags,
 	})
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": r.FormValue("title")}})
@@ -230,22 +230,22 @@ func (s *Server) handleWebEditorDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	categoryHref := wissenShelfHref(doc)
 
 	err = s.DeleteDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id, "title": doc.Title}})
@@ -257,7 +257,7 @@ func (s *Server) renderEditorError(w http.ResponseWriter, r *http.Request, u dom
 	vm.Err = msg
 	full, err := s.editorVM(r, u, vm)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

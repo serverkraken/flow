@@ -45,7 +45,7 @@ func (s *Server) handleWebEinstellungenHome(w http.ResponseWriter, r *http.Reque
 	u, _ := userFrom(r.Context())
 	set, _, err := s.GetSettings.Execute(r.Context(), u.ID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	vm := webui.EinstellungenVM{
@@ -75,14 +75,14 @@ func (s *Server) handleWebSetTargetEinst(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "invalid target", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
 	// Re-read settings to render the fragment with persisted data.
 	set, _, err := s.GetSettings.Execute(r.Context(), u.ID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	vm := webui.EinstellungenVM{

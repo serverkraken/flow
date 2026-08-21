@@ -22,7 +22,7 @@ type AuthVM struct {
 }
 
 // AuthPage renders inside components.BaseNoSSE — no sidebar, just the facets
-// canvas + a centered glass card. No SSE: these are pre-auth pages (logout
+// canvas + a centered Kasten card. No SSE: these are pre-auth pages (logout
 // landing, OIDC-callback errors) where /api/v1/events would 401 and retry
 // pointlessly (K5 A2).
 func AuthPage(vm AuthVM) templ.Component {
@@ -75,7 +75,7 @@ func authBody(vm AuthVM) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"grid place-items-center px-6 py-12\"><div class=\"glass p-6 max-w-sm w-full text-center\"><p class=\"eyebrow mb-2 text-[10.5px] font-semibold uppercase text-cyan\">flow</p><h1 class=\"font-display text-[26px] font-semibold text-ink mb-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"grid place-items-center px-6 py-12\"><div class=\"w-full max-w-sm border border-hairp bg-panel p-6 text-center\" data-auth-page><p class=\"eyebrow mb-2\">flow<span class=\"text-accent\">.</span></p><h1 class=\"font-display text-[26px] font-semibold text-ink mb-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

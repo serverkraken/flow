@@ -223,10 +223,33 @@ templ appShellHull(active string, ebeneColor string, flush bool, breadcrumb, sub
 		</ul>
 	</nav>
 	@PaletteDialog()
+	@ConnectionBanner()
 	<script src={ AssetURL("js/dialog.js") } defer></script>
+	<script src={ AssetURL("js/connection.js") } defer></script>
 	// railnav.js statt Inline-Skript im Fragment: htmx läuft hier mit
 	// allowScriptTags = false, ein Skript im nachgeladenen Baum würde nie
 	// ausgeführt (und die Schiene klappte lautlos nicht auf).
 	<script src={ AssetURL("js/railnav.js") } defer></script>
 	<script src={ AssetURL("js/shellnav.js") } defer></script>
+}
+
+
+// ConnectionBanner ist die Antwort auf Verbindungsverlust (Screen 20):
+// ein Band am unteren Rand, keine Seite, kein Schleier — die Arbeit geht
+// weiter, die Stempeluhr zählt serverseitig. connection.js schaltet es über
+// data-state (lost / retry / back) und liest die Texte von hier.
+templ ConnectionBanner() {
+	<div
+		id="conn-banner"
+		role="status"
+		aria-live="polite"
+		hidden
+		class="fixed bottom-4 left-1/2 z-50 flex max-w-[min(92vw,640px)] -translate-x-1/2 items-baseline gap-3 border border-warn-line bg-warn-wash px-4 py-2.5 text-[12.5px] text-ink"
+		data-msg-lost={ T(ctx, "conn.lost") }
+		data-msg-retry={ T(ctx, "conn.retry") }
+		data-msg-back={ T(ctx, "conn.back") }
+	>
+		<span data-conn-text></span>
+		<span class="font-mono text-[11px] text-meta" data-conn-hint></span>
+	</div>
 }

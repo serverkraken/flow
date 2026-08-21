@@ -16,7 +16,7 @@ func (s *Server) handleWocheHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.wocheDataFor(r.Context(), u, r.URL.Query().Get("week"))
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -29,7 +29,7 @@ func (s *Server) handleWocheFragment(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.wocheDataFor(r.Context(), u, r.URL.Query().Get("week"))
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

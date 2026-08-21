@@ -53,7 +53,7 @@ func (s *Server) handleWebEditorSeitenPicker(w http.ResponseWriter, r *http.Requ
 	q := r.URL.Query().Get("q")
 	docs, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, nil)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	rows := webui.BuildSeitenInsertRows(docs, q)

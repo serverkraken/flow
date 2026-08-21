@@ -282,7 +282,7 @@ func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	n, err := s.GetNode.Execute(r.Context(), u.ID, r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	vals := webui.NodeFormValues{
@@ -330,7 +330,7 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
 	cur, gerr := s.GetNode.Execute(r.Context(), u.ID, id)
 	if gerr != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	reRender := func(msg string) {
@@ -365,13 +365,13 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	})
 	switch {
 	case errors.Is(err, ports.ErrNodeNotFound):
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	case errors.Is(err, domain.ErrInvalidNode) || errors.Is(err, domain.ErrInvalidUpstream):
 		reRender(err.Error())
 		return
 	case err != nil:
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
@@ -385,7 +385,7 @@ func (s *Server) handleWebNodeStatus(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	cur, err := s.GetNode.Execute(r.Context(), u.ID, id)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	_, err = s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
@@ -418,7 +418,7 @@ func (s *Server) handleWebNodeDelete(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/nodes/"+id+"?err=documents", http.StatusSeeOther)
 			return
 		}
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
@@ -444,7 +444,7 @@ func (s *Server) handleWebNodeMove(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/nodes/"+id+"?err=move", http.StatusSeeOther)
 		return
 	case err != nil:
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeMoved, UserID: u.ID, Data: map[string]any{"id": id}})

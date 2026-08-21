@@ -110,7 +110,7 @@ func (s *Server) renderDayOffFragment(w http.ResponseWriter, r *http.Request, u 
 func (s *Server) renderDayOffFragmentError(w http.ResponseWriter, r *http.Request, u domain.User, errorKey string) {
 	vm, err := s.dayOffData(r.Context(), u)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	if errorKey != "" {
@@ -124,7 +124,7 @@ func (s *Server) handleWebDayOffHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.dayOffData(r.Context(), u)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -189,7 +189,7 @@ func (s *Server) handleWebSetBundesland(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "invalid bundesland", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	// Holidays are derived from the Bundesland → notify other tabs to reload.

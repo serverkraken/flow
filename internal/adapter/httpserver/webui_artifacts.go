@@ -91,7 +91,7 @@ func (s *Server) handleWebNodeArtifactUpload(w http.ResponseWriter, r *http.Requ
 	_, err := s.UploadArtifact.Execute(r.Context(), u.ID, id, name, declaredMime, data, replaceSlug, string(a.Kind), a.Ref)
 	switch {
 	case errors.Is(err, ports.ErrNodeNotFound):
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 	case err != nil:
 		s.renderNodeArtifacts(w, r, u, id, artifactErrMsg(r, err))
 	default:

@@ -24,7 +24,7 @@ func (s *Server) handleHomeHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.homeDataFor(r.Context(), u, "")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -43,7 +43,7 @@ func (s *Server) handleHomeFragment(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderHomeFragment(w http.ResponseWriter, r *http.Request, u domain.User, errMsg string) {
 	vm, err := s.homeDataFor(r.Context(), u, errMsg)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

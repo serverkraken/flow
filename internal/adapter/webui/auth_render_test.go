@@ -25,8 +25,8 @@ func TestAuthPage_LandingShowsLoginCTA(t *testing.T) {
 	if !strings.Contains(out, `href="/auth/login"`) {
 		t.Errorf("landing missing login CTA: %s", out)
 	}
-	if !strings.Contains(out, "glass") {
-		t.Errorf("auth page not on glass: %s", out)
+	if !strings.Contains(out, "data-auth-page") {
+		t.Errorf("auth page not on the Kasten card: %s", out)
 	}
 }
 

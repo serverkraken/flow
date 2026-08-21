@@ -216,8 +216,8 @@ func TestHandleCallback_ForbiddenRendersKristallPage(t *testing.T) {
 		t.Fatalf("want 403, got %d", res.StatusCode)
 	}
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), "glass") {
-		t.Error("forbidden not Kristall")
+	if !strings.Contains(string(body), "data-auth-page") {
+		t.Error("forbidden page must be the styled auth page")
 	}
 	if strings.Contains(string(body), `href="/auth/login"`) {
 		t.Error("forbidden page must not offer re-login")

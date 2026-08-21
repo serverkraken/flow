@@ -79,7 +79,7 @@ func (s *Server) handleWebExportHome(w http.ResponseWriter, r *http.Request) {
 	}
 	d, err := s.exportPageData(r.Context(), u, from, to)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -94,7 +94,7 @@ func (s *Server) handleWebExportPreview(w http.ResponseWriter, r *http.Request) 
 	}
 	d, err := s.exportPageData(r.Context(), u, from, to)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -260,6 +260,9 @@ func (s *Server) Routes() http.Handler {
 
 	// Home landing + timer-hero fragment + start/stop (Slice 4, Task 1)
 	mux.Handle("GET /{$}", s.webAuth(http.HandlerFunc(s.handleHomeHome)))
+	// Auffang für unbekannte Adressen (Screen 20): die Fehlerseite statt Gos
+	// Klartext. "GET /" steht hinter jedem spezifischeren Muster zurück.
+	mux.Handle("/", http.HandlerFunc(s.handleWebNotFound))
 	mux.Handle("GET /ui/home", s.webAuth(http.HandlerFunc(s.handleHomeFragment)))
 
 	// Global shell timer pill (Lesesaal Task 5) — the ONE global home for the

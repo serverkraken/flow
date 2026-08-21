@@ -379,11 +379,11 @@ func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 	}
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -393,7 +393,7 @@ func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 	}
 	ein, eerr := s.einstiegData(r, u, r.PathValue("id"))
 	if eerr != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	_ = webui.NodeEinstiegPage(ein).Render(r.Context(), w)
@@ -405,11 +405,11 @@ func (s *Server) handleWebNodeHead(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -423,11 +423,11 @@ func (s *Server) handleWebNodeMain(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -440,11 +440,11 @@ func (s *Server) handleWebNodeRail(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -458,11 +458,11 @@ func (s *Server) handleWebNodeArtifacts(w http.ResponseWriter, r *http.Request) 
 	u, _ := userFrom(r.Context())
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -482,7 +482,7 @@ func (s *Server) handleWebNodeArtifacts(w http.ResponseWriter, r *http.Request) 
 func (s *Server) renderNodeArtifacts(w http.ResponseWriter, r *http.Request, u domain.User, id, errMsg string) {
 	d, err := s.nodeCockpitData(r, u, id)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	d.PanelErr = errMsg
@@ -496,7 +496,7 @@ func (s *Server) renderNodeArtifacts(w http.ResponseWriter, r *http.Request, u d
 func (s *Server) renderCockpitMain(w http.ResponseWriter, r *http.Request, u domain.User, id, errMsg string) {
 	d, err := s.nodeCockpitData(r, u, id)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	d.PanelErr = errMsg
@@ -509,7 +509,7 @@ func (s *Server) renderCockpitMain(w http.ResponseWriter, r *http.Request, u dom
 func (s *Server) renderNodeRail(w http.ResponseWriter, r *http.Request, u domain.User, id, errMsg string) {
 	d, err := s.nodeCockpitData(r, u, id)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	d.PanelErr = errMsg

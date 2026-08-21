@@ -101,11 +101,11 @@ func (s *Server) handleWebKontextLese(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.kontextDataFor(r, u.ID, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -117,11 +117,11 @@ func (s *Server) handleWebKontextView(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.kontextDataFor(r, u.ID, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -158,11 +158,11 @@ func (s *Server) handleWebKontextReorder(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	n, err := s.GetNode.Execute(ctx, u.ID, nodeID)
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	budget := s.ContextBudget
@@ -193,7 +193,7 @@ func (s *Server) handleWebKontextReorder(w http.ResponseWriter, r *http.Request)
 			ids[k], ids[k+1] = ids[k+1], ids[k]
 		}
 		if err := s.ReorderContextDocs.Execute(ctx, u.ID, ids); err != nil && !errors.Is(err, ports.ErrDocumentNotFound) {
-			http.Error(w, "server error", http.StatusInternalServerError)
+			s.webServerError(w, r, err)
 			return
 		}
 		s.emitEvent(ctx, domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"reordered": true}})
@@ -201,7 +201,7 @@ func (s *Server) handleWebKontextReorder(w http.ResponseWriter, r *http.Request)
 
 	vm, err := s.kontextDataFor(r, u.ID, nodeID)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.renderKontext(w, r, vm)
@@ -223,17 +223,17 @@ func (s *Server) handleWebKontextPin(w http.ResponseWriter, r *http.Request) {
 	if err := s.SetPinned.Execute(r.Context(), u.ID, doc, !d.Pinned); err == nil {
 		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
 	} else if !errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 
 	vm, err := s.kontextDataFor(r, u.ID, nodeID)
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.renderKontext(w, r, vm)
@@ -255,17 +255,17 @@ func (s *Server) handleWebKontextMode(w http.ResponseWriter, r *http.Request) {
 	if err := s.SetContextMode.Execute(r.Context(), u.ID, doc, domain.ContextMode(mode)); err == nil {
 		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc, "action": "context." + mode}})
 	} else if !contextModeErrKnown(err) {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 
 	vm, err := s.kontextDataFor(r, u.ID, nodeID)
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	s.renderKontext(w, r, vm)

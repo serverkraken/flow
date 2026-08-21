@@ -62,7 +62,7 @@ func (s *Server) handleHistorieHome(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("view") == "list" {
 		vm, err := s.historieListData(r.Context(), u, r, "")
 		if err != nil {
-			http.Error(w, "server error", http.StatusInternalServerError)
+			s.webServerError(w, r, err)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -71,7 +71,7 @@ func (s *Server) handleHistorieHome(w http.ResponseWriter, r *http.Request) {
 	}
 	vm, err := s.historieCalData(r.Context(), u, r, "")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -83,7 +83,7 @@ func (s *Server) handleHistorieCalendarFragment(w http.ResponseWriter, r *http.R
 	u, _ := userFrom(r.Context())
 	vm, err := s.historieCalData(r.Context(), u, r, "")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -95,7 +95,7 @@ func (s *Server) handleHistorieListFragment(w http.ResponseWriter, r *http.Reque
 	u, _ := userFrom(r.Context())
 	vm, err := s.historieListData(r.Context(), u, r, "")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -108,7 +108,7 @@ func (s *Server) renderHistorieFragment(w http.ResponseWriter, r *http.Request, 
 	if r.FormValue("view") == "list" {
 		vm, err := s.historieListData(r.Context(), u, r, errMsg)
 		if err != nil {
-			http.Error(w, "server error", http.StatusInternalServerError)
+			s.webServerError(w, r, err)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -117,7 +117,7 @@ func (s *Server) renderHistorieFragment(w http.ResponseWriter, r *http.Request, 
 	}
 	vm, err := s.historieCalData(r.Context(), u, r, errMsg)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -12,7 +12,7 @@ func (s *Server) handleWebNodeLogo(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	logo, err := s.GetNodeLogo.Execute(r.Context(), u.ID, r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	etag := `"` + logo.Ref + `"`

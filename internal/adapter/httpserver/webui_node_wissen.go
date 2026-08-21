@@ -55,11 +55,11 @@ func (s *Server) handleWebNodeWissen(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	crumb, vm, err := s.nodeWissenData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -463,7 +463,7 @@ func (s *Server) handleWebWissenHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.wissenOverviewData(r, u)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -474,7 +474,7 @@ func (s *Server) handleWebWissenList(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.wissenOverviewData(r, u)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -490,7 +490,7 @@ func (s *Server) handleWebWissenType(w http.ResponseWriter, r *http.Request) {
 	}
 	vm, err := s.wissenTypeData(r, u, shelf)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -506,7 +506,7 @@ func (s *Server) handleWebWissenTypeList(w http.ResponseWriter, r *http.Request)
 	}
 	vm, err := s.wissenTypeData(r, u, shelf)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -540,7 +540,7 @@ func (s *Server) handleWebWissenBulk(w http.ResponseWriter, r *http.Request) {
 	}
 	changed, err := s.BulkCurateDocuments.Execute(r.Context(), u.ID, input)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	if errors.Is(err, domain.ErrInvalidDocument) {
@@ -548,7 +548,7 @@ func (s *Server) handleWebWissenBulk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	for _, doc := range changed {

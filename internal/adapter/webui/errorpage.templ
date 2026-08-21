@@ -1,0 +1,83 @@
+package webui
+
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// ErrorPage ist Screen 20 in der Hülle: die Schiene bleibt stehen (volle
+// Sichtbarkeit gewinnt — eine Fehlerseite ohne Weg zurück ist eine Falle),
+// die Fläche trägt Adresse, Marke, Satz und Wege.
+templ ErrorPage(vm ErrorVM) {
+	@components.Base("fehler", errorShell(vm))
+}
+
+// ErrorPageBare ist dieselbe Fläche ohne Schiene und ohne SSE — für
+// Aufrufe ohne Sitzung, die keine Hülle bekommen dürfen (sie würde nur
+// zeigen, was es zu sehen gäbe).
+templ ErrorPageBare(vm ErrorVM) {
+	@components.BaseNoSSE("fehler", errorBare(vm))
+}
+
+templ errorBare(vm ErrorVM) {
+	<main class="grid place-items-center px-6 py-12">
+		@ErrorBody(vm)
+	</main>
+}
+
+templ errorShell(vm ErrorVM) {
+	@components.AppShell("", nil, nil, ErrorBody(vm))
+}
+
+// ErrorBody ist die Fläche allein — auch die Antwort auf einen htmx-Aufruf,
+// damit ein Fragment-Ziel einen lesbaren Fehler bekommt statt einer ganzen
+// Seite in sich.
+templ ErrorBody(vm ErrorVM) {
+	<section class="mx-auto w-full max-w-[620px] px-6 py-16" data-error-page={ vm.Code }>
+		<div class="mb-8 flex items-baseline gap-3 font-mono text-[12px] text-meta">
+			<span class="font-semibold text-ink">flow<span class="text-accent">.</span></span>
+			if vm.Path != "" {
+				<span class="truncate">{ vm.Path }</span>
+			}
+		</div>
+		<div class="font-mono text-[30px] font-semibold tnum text-faint">{ vm.Code }</div>
+		<h1 class="mt-2 font-display text-[26px] font-[750] leading-[1.15] tracking-[-.02em] text-ink">{ components.T(ctx, vm.TitleKey) }</h1>
+		<p class="mt-3 text-[15px] leading-[1.6] text-body">{ components.T(ctx, vm.MsgKey) }</p>
+		if vm.ErrID != "" {
+			<p class="mt-4 flex items-baseline gap-3 text-[12.5px] text-meta">
+				{ components.T(ctx, "error.id") }
+				<span class="font-mono text-ink">{ vm.ErrID }</span>
+				<button type="button" class="text-accent hover:underline" data-copy={ vm.ErrID } data-copied-label={ components.T(ctx, "common.copied") }>{ components.T(ctx, "common.copy") }</button>
+			</p>
+		}
+		<div class="mt-8 flex flex-wrap items-center gap-3">
+			for _, w := range vm.Ways {
+				@errorWay(w)
+			}
+		</div>
+		if vm.User != "" {
+			<p class="mt-10 text-[12.5px] text-faint">
+				{ fmt.Sprintf(components.T(ctx, "error.signedin"), vm.User) }
+				<a href="/auth/logout" hx-boost="false" class="ml-2 text-accent hover:underline">{ components.T(ctx, "error.otherAccount") }</a>
+			</p>
+		}
+	</section>
+}
+
+templ errorWay(w ErrorWay) {
+	{{ cls := "btn btn-q" }}
+	{{
+		if w.Primary {
+			cls = "btn btn-pri"
+		}
+	}}
+	switch {
+		case w.Reload:
+			<a href="" class={ cls } hx-boost="false">{ components.T(ctx, w.LabelKey) }</a>
+		case w.Search:
+			<button type="button" class={ cls } data-palette-open>{ components.T(ctx, w.LabelKey) } <kbd class="ml-1 font-mono text-[11px] text-faint">⌘K</kbd></button>
+		default:
+			<a href={ templ.SafeURL(w.Href) } class={ cls }>{ components.T(ctx, w.LabelKey) }</a>
+	}
+}

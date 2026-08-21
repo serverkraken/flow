@@ -14,7 +14,7 @@ type AuthVM struct {
 }
 
 // AuthPage renders inside components.BaseNoSSE — no sidebar, just the facets
-// canvas + a centered glass card. No SSE: these are pre-auth pages (logout
+// canvas + a centered Kasten card. No SSE: these are pre-auth pages (logout
 // landing, OIDC-callback errors) where /api/v1/events would 401 and retry
 // pointlessly (K5 A2).
 templ AuthPage(vm AuthVM) {
@@ -23,8 +23,8 @@ templ AuthPage(vm AuthVM) {
 
 templ authBody(vm AuthVM) {
 	<main class="grid place-items-center px-6 py-12">
-		<div class="glass p-6 max-w-sm w-full text-center">
-			<p class="eyebrow mb-2 text-[10.5px] font-semibold uppercase text-cyan">flow</p>
+		<div class="w-full max-w-sm border border-hairp bg-panel p-6 text-center" data-auth-page>
+			<p class="eyebrow mb-2">flow<span class="text-accent">.</span></p>
 			<h1 class="font-display text-[26px] font-semibold text-ink mb-2">{ components.T(ctx, vm.TitleKey) }</h1>
 			<p class="text-[14px] text-muted mb-6">{ components.T(ctx, vm.MsgKey) }</p>
 			if vm.ShowLogin {

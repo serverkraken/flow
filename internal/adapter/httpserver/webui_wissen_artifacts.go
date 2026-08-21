@@ -29,7 +29,7 @@ func (s *Server) handleWebWissenArtifacts(w http.ResponseWriter, r *http.Request
 	u, _ := userFrom(r.Context())
 	vm, err := s.wissenArtifactsData(r, u.ID, "")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -54,7 +54,7 @@ func (s *Server) handleWebWissenArtifactsFragment(w http.ResponseWriter, r *http
 func (s *Server) renderFreeArtifacts(w http.ResponseWriter, r *http.Request, ownerID, errMsg string) {
 	vm, err := s.wissenArtifactsData(r, ownerID, errMsg)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		s.webServerError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

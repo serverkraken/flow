@@ -17,7 +17,7 @@ func (s *Server) handleWebNodeBanner(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	banner, err := s.GetNodeBanner.Execute(r.Context(), u.ID, r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		s.webNotFound(w, r)
 		return
 	}
 	etag := `"` + banner.Ref + `"`
