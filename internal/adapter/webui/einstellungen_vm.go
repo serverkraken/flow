@@ -43,4 +43,42 @@ type EinstellungenVM struct {
 	DefaultTarget string            // minutes as string for the form input
 	Weekdays      []WeekdayTargetVM // Mon–Fri override inputs
 	Err           string
+
+	// Screen 30 — Konto, Sollzeiten, Sprache, Zugänge, Daten. Das Konto
+	// kommt vom Anmeldedienst (OIDC) und ist hier nur lesbar.
+	Username, DisplayName, Email string
+	WeekSoll                     string // "40:00 h" — Summe Mo–Fr aus Standard und Abweichungen
+	Engagements                  int
+	FeedTokens                   int    // ICS-Abos; verwaltet unter /dayoffs
+	Bundesland                   string // Feiertagsgrundlage; verwaltet unter /dayoffs
+	Lang                         string // "de" | "en" | "" = Browservorgabe
+}
+
+// WeekSollMinutes summiert die Sollzeit Mo–Fr: die Abweichung, wo gesetzt,
+// sonst der Standard.
+func WeekSollMinutes(defaultMin int, weekday map[time.Weekday]int) int {
+	total := 0
+	for wd := time.Monday; wd <= time.Friday; wd++ {
+		if m, ok := weekday[wd]; ok {
+			total += m
+			continue
+		}
+		total += defaultMin
+	}
+	return total
+}
+
+// FmtMinutesClock schreibt Minuten als „40:00 h".
+func FmtMinutesClock(min int) string {
+	if min < 0 {
+		min = 0
+	}
+	return strconv.Itoa(min/60) + ":" + pad2(min%60) + " h"
+}
+
+func pad2(n int) string {
+	if n < 10 {
+		return "0" + strconv.Itoa(n)
+	}
+	return strconv.Itoa(n)
 }

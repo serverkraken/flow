@@ -73,6 +73,8 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		UnbindNode:        usecase.UnbindNode{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
 		CreateDocument:    usecase.CreateDocument{Docs: ds, Nodes: ps, Tags: tags, IDs: ids, Clock: clk},
+		GetSettings:       usecase.GetSettings{Settings: settings, Tokens: testutil.NewFakeFeedTokenStore()},
+		SetTarget:         usecase.SetTargetConfig{Settings: settings},
 		ListArchived:      usecase.ListArchived{Docs: ds},
 		GetDocument:       usecase.GetDocument{Docs: ds},
 		SetPinned:         usecase.SetPinned{Docs: ds},

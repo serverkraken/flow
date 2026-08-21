@@ -304,6 +304,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /einstellungen", s.webAuth(http.HandlerFunc(s.handleWebEinstellungenHome)))
 	mux.Handle("POST /ui/einstellungen/target", s.webAuth(http.HandlerFunc(s.handleWebSetTargetEinst)))
+	mux.Handle("POST /ui/einstellungen/sprache", s.webAuth(http.HandlerFunc(s.handleWebSetLanguage)))
 
 	mux.Handle("GET /export", s.webAuth(http.HandlerFunc(s.handleWebExportHome)))
 	mux.Handle("GET /ui/export/preview", s.webAuth(http.HandlerFunc(s.handleWebExportPreview)))

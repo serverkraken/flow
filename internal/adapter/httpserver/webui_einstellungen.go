@@ -43,17 +43,59 @@ func parseWeekdayTargets(form url.Values) (map[time.Weekday]int, error) {
 
 func (s *Server) handleWebEinstellungenHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	set, _, err := s.GetSettings.Execute(r.Context(), u.ID)
+	set, toks, err := s.GetSettings.Execute(r.Context(), u.ID)
 	if err != nil {
 		s.webServerError(w, r, err)
 		return
 	}
+	vm := s.einstellungenVM(r, u, set, toks)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.EinstellungenPage(vm).Render(r.Context(), w)
+}
+
+// einstellungenVM füllt Screen 30: Konto vom Anmeldedienst, Sollzeit der
+// Woche, Engagements, ICS-Abos, Bundesland, Sprache aus dem Cookie.
+func (s *Server) einstellungenVM(r *http.Request, u domain.User, set domain.Settings, toks []domain.FeedToken) webui.EinstellungenVM {
 	vm := webui.EinstellungenVM{
 		DefaultTarget: strconv.Itoa(set.DefaultTargetMin),
 		Weekdays:      webui.StatsWeekdayVMs(set.WeekdayTargetMin),
+		Username:      u.Username,
+		DisplayName:   u.DisplayName,
+		Email:         u.Email,
+		WeekSoll:      webui.FmtMinutesClock(webui.WeekSollMinutes(set.DefaultTargetMin, set.WeekdayTargetMin)),
+		FeedTokens:    len(toks),
+		Bundesland:    set.Bundesland,
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.EinstellungenPage(vm).Render(r.Context(), w)
+	if c, err := r.Cookie("flow_lang"); err == nil && (c.Value == "de" || c.Value == "en") {
+		vm.Lang = c.Value
+	}
+	if s.ListNodes.Nodes != nil {
+		if nodes, err := s.ListNodes.Execute(r.Context(), u.ID); err == nil {
+			for _, n := range nodes {
+				if n.Kind == domain.KindEngagement {
+					vm.Engagements++
+				}
+			}
+		}
+	}
+	return vm
+}
+
+// handleWebSetLanguage serves POST /ui/einstellungen/sprache: setzt oder
+// löscht das Sprach-Cookie, das i18n.Resolve vor Accept-Language liest.
+func (s *Server) handleWebSetLanguage(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	lang := r.FormValue("lang")
+	c := &http.Cookie{Name: "flow_lang", Path: "/", HttpOnly: true, Secure: !s.Dev, SameSite: http.SameSiteLaxMode}
+	switch lang {
+	case "de", "en":
+		c.Value = lang
+		c.MaxAge = int((365 * 24 * time.Hour).Seconds())
+	default:
+		c.MaxAge = -1
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, "/einstellungen#sprache", http.StatusSeeOther)
 }
 
 // handleWebSetTargetEinst handles POST /ui/einstellungen/target.
@@ -80,15 +122,12 @@ func (s *Server) handleWebSetTargetEinst(w http.ResponseWriter, r *http.Request)
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
 	// Re-read settings to render the fragment with persisted data.
-	set, _, err := s.GetSettings.Execute(r.Context(), u.ID)
+	set, toks, err := s.GetSettings.Execute(r.Context(), u.ID)
 	if err != nil {
 		s.webServerError(w, r, err)
 		return
 	}
-	vm := webui.EinstellungenVM{
-		DefaultTarget: strconv.Itoa(set.DefaultTargetMin),
-		Weekdays:      webui.StatsWeekdayVMs(set.WeekdayTargetMin),
-	}
+	vm := s.einstellungenVM(r, u, set, toks)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.EinstellungenTargetFragment(vm).Render(r.Context(), w)
 }
