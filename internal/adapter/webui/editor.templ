@@ -23,39 +23,22 @@ templ editorBody(vm EditorVM) {
 	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
 	<script src={ AssetURL("js/editor-insert.js") } defer data-v={ AssetVersion() }></script>
 	<script src={ AssetURL("js/editor-metadata.js") } defer data-v={ AssetVersion() }></script>
-	// Die Vorschau lässt sich einklappen; die Wahl merkt sich der Browser
-	// (localStorage), damit sie den nächsten Editor-Aufruf überlebt.
-	<script src={ AssetURL("js/editor-preview.js") } defer data-v={ AssetVersion() }></script>
+	// Modus und Werkzeug-Band: Rich Text ist Standard (eine Fläche), Markdown
+	// ist der Umschalter — erst dort Quelle und Vorschau nebeneinander. Die
+	// Wahl merkt sich der Browser.
+	<script src={ AssetURL("js/editor-mode.js") } defer data-v={ AssetVersion() }></script>
 	// Der Stift: Milkdown ersetzt die Textarea, sobald es geladen ist, und
-	// schreibt bei jeder Änderung Markdown hinein — die htmx-Vorschau daneben
-	// bleibt die Wahrheit (RenderDocument). Fällt das Bundle aus, bleibt die
-	// Textarea bedienbar. type="module": das Bundle ist ESM, und ein
-	// src-Skript braucht unter der erzwingenden CSP keine Nonce.
+	// schreibt bei jeder Änderung Markdown hinein. Fällt das Bundle aus,
+	// bleibt die Textarea bedienbar. type="module": das Bundle ist ESM, und
+	// ein src-Skript braucht unter der erzwingenden CSP keine Nonce.
 	<script type="module" src={ AssetURL("vendor/milkdown/editor.min.js") } data-v={ AssetVersion() }></script>
 }
 
+// editorOuter ist die Karte beim Schreiben (Screens 11/16): Titel als
+// Überschrift, darunter eine Zeile Typ · Register · Pfad · Tags, dann das
+// Werkzeug-Band mit dem Umschalter Rich Text | Markdown, dann der Stift.
+// Kein Formular-Stapel — das Formular ist die Karte.
 templ editorOuter(vm EditorVM) {
-	<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">
-		<div style="flex:1;min-width:0">
-			<span class="eyebrow">{ components.T(ctx, "nav.knowledge") }</span>
-			<h1>{ components.T(ctx, vm.HeadingKey()) }</h1>
-		</div>
-		<div class="flex items-center gap-3">
-			@editorPreviewToggle()
-			if vm.Editing() {
-				<button type="button" class="btn btn-q btn-s" data-dialog-open={ "del-" + vm.ID }>
-					{ components.T(ctx, "common.delete") }
-				</button>
-				<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[12.5px] text-muted underline underline-offset-2 hover:text-ink">
-					{ components.T(ctx, "common.cancel") }
-				</a>
-			} else {
-				<a href="/wissen" class="text-[12.5px] text-muted underline underline-offset-2 hover:text-ink">
-					{ components.T(ctx, "common.cancel") }
-				</a>
-			}
-		</div>
-	</div>
 	if vm.Editing() {
 		@components.ConfirmDialog(components.ConfirmSpec{
 			ID:              "del-" + vm.ID,
@@ -69,152 +52,157 @@ templ editorOuter(vm EditorVM) {
 			},
 		})
 	}
-	if vm.Err != "" {
-		<p class="mb-5 bg-danger/10 px-4 py-3 text-[14px] font-medium text-danger" role="alert">{ vm.Err }</p>
-	}
-	// Der Editor-Raster: zwei Spalten ab lg, eine Spalte, sobald die Vorschau
-	// eingeklappt ist (data-preview="hidden", gesetzt von editor-preview.js).
-	<div class="editor-grid" data-editor-grid>
-		<form action={ templ.SafeURL(vm.Action()) } method="post" class="panel p-5" data-document-metadata>
-			<div class="grid gap-4 sm:grid-cols-2">
-				<label class="block">
-					<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.type") }</span>
-					<select name="type" class="field" data-document-type>
+	<form action={ templ.SafeURL(vm.Action()) } method="post" class="editor-page" data-document-metadata>
+		<div class="editor-head">
+			<div class="flex items-baseline justify-between gap-4">
+				<span class="eyebrow">{ components.T(ctx, vm.HeadingKey()) }</span>
+				<span class="flex items-center gap-3 text-[12.5px]">
+					if vm.Editing() {
+						<button type="button" class="text-muted hover:text-ink" data-dialog-open={ "del-" + vm.ID }>{ components.T(ctx, "common.delete") }</button>
+						<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-muted underline underline-offset-2 hover:text-ink">{ components.T(ctx, "common.cancel") }</a>
+					} else {
+						<a href="/wissen" class="text-muted underline underline-offset-2 hover:text-ink">{ components.T(ctx, "common.cancel") }</a>
+					}
+					@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
+				</span>
+			</div>
+			if vm.Err != "" {
+				<p class="alert-err mt-3" role="alert">{ vm.Err }</p>
+			}
+			<input type="text" name="title" value={ vm.Title } class="field editor-title" placeholder={ components.T(ctx, "editor.title.placeholder") } autocomplete="off"/>
+			<div class="editor-meta">
+				<label class="editor-meta-item">
+					<span>{ components.T(ctx, "wissen.type") }</span>
+					<select name="type" class="field field-inline" data-document-type>
 						for _, option := range vm.TypeOptions {
 							<option value={ option.Value } selected?={ option.Value == vm.Type }>{ option.Label }</option>
 						}
 					</select>
 				</label>
-				<label class="block" data-metadata-field="project" hidden?={ !vm.ShowsProject() }>
-					<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.project") }</span>
-					<select name="projectId" class="field" data-document-project disabled?={ !vm.ShowsProject() } required?={ vm.Type == "project" }>
+				<label class="editor-meta-item" data-metadata-field="project" hidden?={ !vm.ShowsProject() }>
+					<span>{ components.T(ctx, "wissen.project") }</span>
+					<select name="projectId" class="field field-inline" data-document-project disabled?={ !vm.ShowsProject() } required?={ vm.Type == "project" }>
 						<option value="">{ components.T(ctx, "wissen.project.none") }</option>
 						for _, option := range vm.ProjectOptions {
 							<option value={ option.Value } selected?={ option.Value == vm.NodeID }>{ option.Label }</option>
 						}
 					</select>
 				</label>
+				<label class="editor-meta-item" data-metadata-field="date" hidden?={ !vm.Daily() }>
+					<span>{ components.T(ctx, "wissen.date") }</span>
+					<input type="date" name="date" value={ vm.Date } class="field field-inline" data-document-date disabled?={ !vm.Daily() } required?={ vm.Daily() }/>
+				</label>
+				<label class="editor-meta-item" data-metadata-field="path" hidden?={ vm.Daily() }>
+					<span>{ components.T(ctx, "wissen.path") }</span>
+					<input type="text" name="path" value={ vm.Path } class="field field-inline font-mono" data-document-path disabled?={ vm.Daily() } required?={ !vm.Daily() }/>
+				</label>
+				<span class="editor-meta-item" data-metadata-field="derived-path" hidden?={ !vm.Daily() } title={ components.T(ctx, "wissen.path.dailyHint") }>
+					<span>{ components.T(ctx, "wissen.path.derived") }</span>
+					<code class="font-mono text-ink" data-derived-path>{ vm.Path }</code>
+				</span>
+				<label class="editor-meta-item">
+					<span>{ components.T(ctx, "wissen.tags") }</span>
+					<input type="text" name="tags" value={ vm.TagsCSV } placeholder="go tui postgres" class="field field-inline"/>
+				</label>
 			</div>
-			<label class="mt-4 block" data-metadata-field="date" hidden?={ !vm.Daily() }>
-				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.date") }</span>
-				<input type="date" name="date" value={ vm.Date } class="field" data-document-date disabled?={ !vm.Daily() } required?={ vm.Daily() }/>
-			</label>
-			<label class="mt-4 block" data-metadata-field="path" hidden?={ vm.Daily() }>
-				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
-				<input type="text" name="path" value={ vm.Path } class="field font-mono" data-document-path disabled?={ vm.Daily() } required?={ !vm.Daily() }/>
-			</label>
-			<div class="mt-4 border border-line bg-sunken px-4 py-3" data-metadata-field="derived-path" hidden?={ !vm.Daily() }>
-				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path.derived") }</span>
-				<code class="text-[13px] text-ink" data-derived-path>{ vm.Path }</code>
-				<p class="mt-1 text-[12.5px] text-muted">{ components.T(ctx, "wissen.path.dailyHint") }</p>
-			</div>
-			<label class="mt-4 block">
-				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.title.field") }</span>
-				<input type="text" name="title" value={ vm.Title } class="field"/>
-			</label>
-			<label class="mt-4 block">
-				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.tags") }</span>
-				<input type="text" name="tags" value={ vm.TagsCSV }
-					placeholder="go tui postgres"
-					class="field"/>
-			</label>
 			if vm.Editing() {
-				// Edit mode disables the type/path fields and shows no
-				// projectId select at all (Editing()'s node never changes
-				// here) — a hidden field is the only way the preview POST
-				// and the Artefakt-picker's own hx-get learn the doc's node
-				// (Task 6: Preview-Node-Kontext, Spec §13 Pflicht-Testfall).
+				// Im Bearbeiten-Modus lernt die Vorschau und der Artefakt-Picker den
+				// Knoten der Karte nur über dieses Feld (Spec §13).
 				<input type="hidden" name="node" value={ vm.NodeID }/>
 			}
-			// Kein <label> um Werkzeugleiste und Stift: ein Klick irgendwo in ein
-			// Label aktiviert dessen erstes bedienbares Kind — hier wäre das der
-			// Knopf „Artefakt einfügen …", und jeder Klick in den Editor öffnete
-			// die Artefakt-Auswahl. Die Beschriftung bleibt, als <span>.
-			<div class="mt-4 block" data-editor-field>
-				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
-				<div class="editor-toolbar">
-					<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
-						<button type="button" class="btn btn-q btn-s"
-							data-insert-toggle="insert-picker-artefakte"
-							hx-get="/ui/editor/artefakte"
-							hx-include="[name=node], [name=projectId]"
-							hx-params="projectId,node"
-							hx-target="#insert-picker-artefakte-results"
-							hx-swap="innerHTML"
-							hx-trigger="click">
-							{ components.T(ctx, "editor.insertArtifact") }
-						</button>
-						@components.InsertPicker(components.InsertPickerVM{
-							ID:         "insert-picker-artefakte",
-							ResultsID:  "insert-picker-artefakte-results",
-							Endpoint:   "/ui/editor/artefakte",
-							FilterKey:  "editor.insertArtifact.filter",
-							EmptyKey:   "editor.insertArtifact.empty",
-							QueryParam: "aq",
-							Params:     "projectId,node,aq",
-							Include:    "[name=node], [name=projectId]",
-						})
-					</div>
-					<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
-						<button type="button" class="btn btn-q btn-s"
-							data-insert-toggle="insert-picker-seiten"
-							hx-get="/ui/editor/seiten"
-							hx-params="none"
-							hx-target="#insert-picker-seiten-results"
-							hx-swap="innerHTML"
-							hx-trigger="click">
-							{ components.T(ctx, "editor.insertPage") }
-						</button>
-						@components.InsertPicker(components.InsertPickerVM{
-							ID:         "insert-picker-seiten",
-							ResultsID:  "insert-picker-seiten-results",
-							Endpoint:   "/ui/editor/seiten",
-							FilterKey:  "editor.insertPage.filter",
-							EmptyKey:   "editor.insertPage.empty",
-							QueryParam: "q",
-							Params:     "q",
-						})
-					</div>
+		</div>
+		@editorBand(vm)
+		// Kein <label> um Band und Stift: ein Klick in ein Label aktiviert dessen
+		// erstes bedienbares Kind — den ersten Knopf des Bands.
+		<div class="editor-body" data-editor-field data-editor-body data-mode="rich">
+			<textarea id="editor-body" name="body"
+				class="field editor-source"
+				hx-post="/wissen/preview"
+				hx-include="[name=projectId], [name=node]"
+				hx-trigger="keyup changed delay:400ms, load, flow:preview"
+				hx-target="#preview"
+				hx-swap="innerHTML">{ vm.Body }</textarea>
+			// Die Vorschau ist die Wahrheit des Servers (RenderDocument) — auf der
+			// Lesefläche, nicht im Kasten, und nur im Markdown-Modus zu sehen.
+			<section class="editor-preview bg-canvas" data-preview-pane>
+				<div class="mb-4 flex items-baseline border-b border-line2 pb-2.5">
+					<span class="eyebrow">{ components.T(ctx, "wissen.preview") }</span>
 				</div>
-				<textarea id="editor-body" name="body"
-					class="field h-[60vh] min-h-96 font-mono"
-					hx-post="/wissen/preview"
-					hx-include="[name=projectId], [name=node]"
-					hx-trigger="keyup changed delay:400ms, load"
-					hx-target="#preview"
-					hx-swap="innerHTML">{ vm.Body }</textarea>
-			</div>
-			<div class="mt-5 flex justify-end">
-				@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
-			</div>
-		</form>
-		// Die Vorschau liegt auf der LESEFLÄCHE, nicht in einem Kasten: sie
-		// verspricht "so wird es aussehen", und dieses Versprechen bricht
-		// schon an der Fläche, wenn sie auf Kastenfarbe in einer gerundeten
-		// Box sitzt, während der Artikel auf dem Lesesaal-Papier steht
-		// (Soenne, Punkt g). Renderer und Maße sind ohnehin dieselben —
-		// components.MarkdownProse für beide.
-		<section class="bg-canvas" data-preview-pane>
-			<div class="mb-4 flex items-baseline border-b border-line2 pb-2.5">
-				<span class="eyebrow">{ components.T(ctx, "wissen.preview") }</span>
-			</div>
-			<div id="preview">
-				@MarkdownPreview(vm.PreviewHTML)
-			</div>
-		</section>
+				<div id="preview">
+					@MarkdownPreview(vm.PreviewHTML)
+				</div>
+			</section>
+		</div>
+		<p class="mt-2 text-[11.5px] text-faint">{ components.T(ctx, "editor.hint") }</p>
+	</form>
+}
+
+// editorBand ist das Werkzeug-Band (Mockup 11/16): Blöcke und Auszeichnungen
+// als Befehle an den Stift (im Markdown-Modus als Einfügung in die Quelle),
+// Bild und Verweis öffnen die bestehenden Picker, rechts der Modus.
+templ editorBand(vm EditorVM) {
+	<div class="editor-band panel" role="toolbar" aria-label={ components.T(ctx, "editor.band") }>
+		@bandBtn("h2", "H2", "editor.band.h2")
+		@bandBtn("h3", "H3", "editor.band.h3")
+		@bandBtn("bold", "B", "editor.band.bold")
+		@bandBtn("italic", "I", "editor.band.italic")
+		@bandBtn("code", "</>", "editor.band.code")
+		@bandBtn("list", components.T(ctx, "editor.band.list"), "editor.band.list")
+		@bandBtn("task", "☐ " + components.T(ctx, "editor.band.task"), "editor.band.task")
+		@bandBtn("table", components.T(ctx, "editor.band.table"), "editor.band.table")
+		@bandBtn("diagram", components.T(ctx, "editor.band.diagram"), "editor.band.diagram")
+		<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
+			<button type="button" class="band-btn"
+				data-insert-toggle="insert-picker-artefakte"
+				hx-get="/ui/editor/artefakte"
+				hx-include="[name=node], [name=projectId]"
+				hx-params="projectId,node"
+				hx-target="#insert-picker-artefakte-results"
+				hx-swap="innerHTML"
+				hx-trigger="click"
+				title={ components.T(ctx, "editor.insertArtifact") }>
+				{ components.T(ctx, "editor.band.image") }
+			</button>
+			@components.InsertPicker(components.InsertPickerVM{
+				ID:         "insert-picker-artefakte",
+				ResultsID:  "insert-picker-artefakte-results",
+				Endpoint:   "/ui/editor/artefakte",
+				FilterKey:  "editor.insertArtifact.filter",
+				EmptyKey:   "editor.insertArtifact.empty",
+				QueryParam: "aq",
+				Params:     "projectId,node,aq",
+				Include:    "[name=node], [name=projectId]",
+			})
+		</div>
+		<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
+			<button type="button" class="band-btn font-mono"
+				data-insert-toggle="insert-picker-seiten"
+				hx-get="/ui/editor/seiten"
+				hx-params="none"
+				hx-target="#insert-picker-seiten-results"
+				hx-swap="innerHTML"
+				hx-trigger="click"
+				title={ components.T(ctx, "editor.insertPage") }>
+				[[{ components.T(ctx, "editor.band.link") }]]
+			</button>
+			@components.InsertPicker(components.InsertPickerVM{
+				ID:         "insert-picker-seiten",
+				ResultsID:  "insert-picker-seiten-results",
+				Endpoint:   "/ui/editor/seiten",
+				FilterKey:  "editor.insertPage.filter",
+				EmptyKey:   "editor.insertPage.empty",
+				QueryParam: "q",
+				Params:     "q",
+			})
+		</div>
+		<span class="flex-1"></span>
+		<div class="seg seg-sm" role="group" aria-label={ components.T(ctx, "editor.mode") } data-editor-mode-seg>
+			<button type="button" class="px-3 py-1" data-editor-mode-set="rich" aria-pressed="true">{ components.T(ctx, "editor.mode.rich") }</button>
+			<button type="button" class="px-3 py-1" data-editor-mode-set="markdown" aria-pressed="false">{ components.T(ctx, "editor.mode.markdown") }</button>
+		</div>
 	</div>
 }
 
-// editorPreviewToggle ist der eine Schalter für die Vorschau (Soennes
-// Layout-Entscheidung: nebeneinander, Vorschau einklappbar). Er sitzt im
-// Seitenkopf, weil die Vorschau selbst verschwindet — ein Schalter in der
-// Fläche, die er ausblendet, wäre danach unerreichbar. Beide Beschriftungen
-// stehen als data-Attribute am Knopf, damit das Skript keine Texte kennt;
-// aria-pressed="true" heißt "Vorschau ist sichtbar".
-templ editorPreviewToggle() {
-	<button type="button" class="btn btn-q btn-s" data-preview-toggle aria-pressed="true"
-		data-label-hide={ components.T(ctx, "editor.preview.hide") }
-		data-label-show={ components.T(ctx, "editor.preview.show") }>
-		{ components.T(ctx, "editor.preview.hide") }
-	</button>
+templ bandBtn(cmd, label, titleKey string) {
+	<button type="button" class="band-btn" data-md-cmd={ cmd } title={ components.T(ctx, titleKey) } aria-label={ components.T(ctx, titleKey) }>{ label }</button>
 }

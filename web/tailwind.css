@@ -808,14 +808,26 @@ dialog::backdrop { background: rgb(var(--shadow) / .42); }
   .milkdown-host li[data-item-type="task"][data-checked="true"]::before { content: "☑"; color: rgb(var(--live)); }
   /* Frontmatter ist Metadaten, kein Text — bleibt im Modell, verschwindet im Bild. */
   .milkdown-host div[data-frontmatter] { display: none; }
-  /* Editor-Raster: Stift und Vorschau nebeneinander ab lg; klappt die
-     Vorschau ein (data-preview="hidden"), bekommt der Stift die ganze Breite.
-     Eigene Klasse statt Utilities, damit EIN Attribut beide Zustände trägt. */
-  .editor-grid { display: grid; gap: 24px; }
-  @media (min-width: 64rem) {
-    .editor-grid:not([data-preview="hidden"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
-  }
-  .editor-grid[data-preview="hidden"] > [data-preview-pane] { display: none; }
+  /* Editor (Screens 11/16): die Karte beim Schreiben. Titel als Überschrift,
+     Meta als eine Zeile, das Band auf Kastenton, der Stift auf der Lesefläche.
+     Rich Text ist eine Fläche; Markdown zeigt Quelle und Vorschau nebeneinander. */
+  .editor-page { max-width: 1040px; }
+  .editor-title { font-family: "Schibsted Grotesk", ui-sans-serif, sans-serif; font-size: 26px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; border: 0; border-bottom: 1px solid rgb(var(--line2)); background: transparent; padding: 10px 0 8px; margin-top: 10px; }
+  .editor-title:focus { border-bottom-color: rgb(var(--accent)); }
+  .editor-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 8px 0 10px; font-size: 12.5px; }
+  .editor-meta-item { display: inline-flex; align-items: baseline; gap: 6px; }
+  .editor-meta-item > span:first-child { color: rgb(var(--faint)); font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  .editor-meta-item[hidden] { display: none; }
+  .field-inline { width: auto; padding: 3px 8px; font-size: 12.5px; min-width: 8ch; }
+  .editor-band { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; margin-top: 6px; border: 1px solid rgb(var(--hairp)); }
+  .band-btn { font-size: 11.5px; font-weight: 600; color: rgb(var(--body2)); padding: 4px 8px; border: 1px solid transparent; background: transparent; cursor: pointer; white-space: nowrap; }
+  .band-btn:hover { color: rgb(var(--ink)); border-color: rgb(var(--hair2)); background: rgb(var(--surface)); }
+  .editor-body { margin-top: 14px; }
+  .editor-body[data-mode="rich"] > .editor-source, .editor-body[data-mode="rich"] > [data-preview-pane] { display: none; }
+  .editor-body[data-mode="markdown"] > .milkdown-host { display: none; }
+  .editor-body[data-mode="markdown"] { display: grid; gap: 24px; }
+  @media (min-width: 64rem) { .editor-body[data-mode="markdown"] { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+  .editor-source { min-height: 60vh; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.6; }
   /* Wissens-Überblick je Ebene: Typ-Zähler als Filter und die Kuratier-Marke.
      Zähler sind Chips im Mono-Ton des typechip; der aktive trägt den Akzent. */
   .wtypes { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
