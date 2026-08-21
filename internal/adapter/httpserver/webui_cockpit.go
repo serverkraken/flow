@@ -132,6 +132,11 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 		names[""] = i18nT(r, "cockpit.artifacts.free")
 		if arts, aerr := s.ListArtifacts.Execute(ctx, u.ID, n.ID); aerr == nil {
 			d.Artifacts = webui.BuildArtifactCards(arts, n.ID, names)
+			if len(d.Artifacts) > 0 && s.ListDocuments.Docs != nil {
+				if docs, derr := s.ListDocuments.Execute(ctx, u.ID, nil, nil); derr == nil {
+					webui.AttachArtifactRefs(d.Artifacts, webui.ArtifactRefs(docs))
+				}
+			}
 		} else {
 			slog.WarnContext(ctx, "cockpit: list artifacts failed", "nodeID", n.ID, "err", aerr)
 		}

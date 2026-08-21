@@ -59,7 +59,7 @@ func TestHandleWebWissenArtifactsFragment_NoAppShell(t *testing.T) {
 	if strings.Contains(got, "<html") || strings.Contains(got, "<body") {
 		t.Fatalf("fragment route must not render a full HTML document:\n%.800s", got)
 	}
-	if !strings.Contains(got, `class="artupload mt-3"`) {
+	if !strings.Contains(got, `class="artupload`) {
 		t.Fatalf("fragment must include the upload form:\n%.800s", got)
 	}
 }

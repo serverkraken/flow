@@ -67,17 +67,13 @@ templ artifactCard(d NodeCockpit, a ArtifactCardVM) {
 			</div>
 		}
 		<div class="artcard-name truncate min-w-0" title={ a.Name }>{ a.Name }</div>
-		<div class="artcard-meta">
-			<span>{ a.SizeStr }</span>
-			if a.Inherited {
-				<span class="artcard-origin truncate min-w-0">{ components.T(ctx, "cockpit.artifacts.inherited") } { a.FromNode }</span>
-			}
-		</div>
+		@artifactMeta(a)
+		@artifactEmbed(a)
 		if !a.Inherited {
 			<div class="artcard-actions">
 				<form enctype="multipart/form-data" class="artcard-replace">
 					<input type="hidden" name="slug" value={ a.Slug }/>
-					<label class="btn btn-q btn-s">
+					<label class="artcard-act">
 						{ components.T(ctx, "cockpit.artifacts.replace") }
 						<input
 							type="file"
@@ -91,15 +87,15 @@ templ artifactCard(d NodeCockpit, a ArtifactCardVM) {
 						/>
 					</label>
 				</form>
-				<button type="button" class="btn btn-q btn-s" data-dialog-open={ "rename-artifact-" + a.Slug }>
+				<button type="button" class="artcard-act" data-dialog-open={ "rename-artifact-" + a.Slug }>
 					{ components.T(ctx, "common.rename") }
 				</button>
 				<button
 					type="button"
-					class="btn btn-q btn-s"
+					class="artcard-act"
 					aria-label={ components.T(ctx, "cockpit.artifacts.delete") }
 					data-dialog-open={ "delete-artifact-" + a.Slug }
-				>✕</button>
+				>{ components.T(ctx, "common.delete") }</button>
 			</div>
 			@artifactRenameDialog(d, a)
 			@components.ConfirmDialog(components.ConfirmSpec{

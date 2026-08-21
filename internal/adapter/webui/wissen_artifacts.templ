@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"fmt"
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 )
 
@@ -51,8 +52,9 @@ templ wissenArtifactsOuter(vm WissenArtifactsVM) {
 templ WissenArtifactsFragment(vm WissenArtifactsVM) {
 	<div class="sect">
 		if vm.PanelErr != "" {
-			<p class="err mt-2 text-warn" role="alert">{ vm.PanelErr }</p>
+			<p class="alert-err mt-2" role="alert">{ vm.PanelErr }</p>
 		}
+		@artifactsKopf(vm)
 		if len(vm.Cards) == 0 {
 			<p class="empty text-faint mt-3">{ components.T(ctx, "wissen.artifacts.empty") }</p>
 		} else {
@@ -85,13 +87,12 @@ templ freeArtifactCard(a ArtifactCardVM) {
 			</div>
 		}
 		<div class="artcard-name truncate min-w-0" title={ a.Name }>{ a.Name }</div>
-		<div class="artcard-meta">
-			<span>{ a.SizeStr }</span>
-		</div>
+		@artifactMeta(a)
+		@artifactEmbed(a)
 		<div class="artcard-actions">
 			<form enctype="multipart/form-data" class="artcard-replace">
 				<input type="hidden" name="slug" value={ a.Slug }/>
-				<label class="btn btn-q btn-s">
+				<label class="artcard-act">
 					{ components.T(ctx, "cockpit.artifacts.replace") }
 					<input
 						type="file"
@@ -105,15 +106,15 @@ templ freeArtifactCard(a ArtifactCardVM) {
 					/>
 				</label>
 			</form>
-			<button type="button" class="btn btn-q btn-s" data-dialog-open={ "rename-free-artifact-" + a.Slug }>
+			<button type="button" class="artcard-act" data-dialog-open={ "rename-free-artifact-" + a.Slug }>
 				{ components.T(ctx, "common.rename") }
 			</button>
 			<button
 				type="button"
-				class="btn btn-q btn-s"
+				class="artcard-act"
 				aria-label={ components.T(ctx, "cockpit.artifacts.delete") }
 				data-dialog-open={ "delete-free-artifact-" + a.Slug }
-			>✕</button>
+			>{ components.T(ctx, "common.delete") }</button>
 		</div>
 		@freeArtifactRenameDialog(a)
 		@components.ConfirmDialog(components.ConfirmSpec{
@@ -163,10 +164,78 @@ templ freeArtifactUploadForm() {
 		hx-swap="innerHTML"
 		hx-encoding="multipart/form-data"
 		enctype="multipart/form-data"
-		class="artupload mt-3"
+		class="artupload mt-5"
 	>
-		<input type="file" name="file" class="field"/>
-		<button type="submit" class="btn btn-q btn-s">{ components.T(ctx, "wissen.artifacts.upload") }</button>
-		<p class="mt-1 text-xs text-faint">{ components.T(ctx, "wissen.artifacts.uploadHint") }</p>
+		<label class="artupload-drop">
+			<span class="font-semibold text-ink">{ components.T(ctx, "wissen.artifacts.upload") }</span>
+			<span class="text-[11.5px] text-faint">{ components.T(ctx, "wissen.artifacts.uploadHint") }</span>
+			<input type="file" name="file" class="field mt-2"/>
+		</label>
+		<button type="submit" class="btn btn-q btn-s">{ components.T(ctx, "cockpit.artifacts.upload") }</button>
 	</form>
+}
+
+
+// artifactsKopf ist Bestand und Sicht (Screen 34): Dateien gesamt, ohne
+// Verweis, und die Sicht als Zähler — Bilder, PDF, Daten.
+templ artifactsKopf(vm WissenArtifactsVM) {
+	<div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line2 pb-2.5">
+		<span class="text-[12.5px] text-meta">{ components.Tn(ctx, "wissen.artifacts.files", vm.Total) }</span>
+		if vm.Unreferenced > 0 {
+			<span class="text-[12.5px] text-meta">· { fmt.Sprintf(components.T(ctx, "wissen.artifacts.unreferenced"), vm.Unreferenced) }</span>
+		}
+		<span class="flex-1"></span>
+		<span class="wtypes">
+			@artifactsTyp("", "wissen.artifacts.all", vm.Total, vm.Filter)
+			@artifactsTyp("bild", "wissen.artifacts.images", vm.CountBild, vm.Filter)
+			@artifactsTyp("pdf", "wissen.artifacts.pdf", vm.CountPDF, vm.Filter)
+			@artifactsTyp("daten", "wissen.artifacts.data", vm.CountDaten, vm.Filter)
+		</span>
+	</div>
+}
+
+templ artifactsTyp(key, labelKey string, count int, active string) {
+	{{
+		href := "/wissen/artefakte"
+		frag := "/ui/wissen/artefakte"
+		if key != "" {
+			href += "?typ=" + key
+			frag += "?typ=" + key
+		}
+	}}
+	<a href={ templ.SafeURL(href) } hx-get={ frag } hx-target="#wissen-artefakte" hx-swap="innerHTML" hx-push-url={ href }
+		class={ "wtype", templ.KV("on", active == key) } aria-pressed={ ariaBoolAttr(active == key) }>
+		<span class="tnum">{ itoa(count) }</span> { components.T(ctx, labelKey) }
+	</a>
+}
+
+// artifactMeta: Größe, Herkunft, Verweise — mit den ersten drei Namen.
+templ artifactMeta(a ArtifactCardVM) {
+	<div class="artcard-meta">
+		<span>{ a.SizeStr }</span>
+		if a.Inherited {
+			<span class="artcard-origin truncate min-w-0">{ components.T(ctx, "cockpit.artifacts.inherited") } { a.FromNode }</span>
+		}
+		if a.Refs == 0 {
+			<span>· { components.T(ctx, "wissen.artifacts.noRef") }</span>
+		} else {
+			<span>· { components.Tn(ctx, "wissen.artifacts.refs", a.Refs) }</span>
+		}
+	</div>
+	if len(a.RefDocs) > 0 {
+		<div class="artcard-refs">
+			for _, r := range a.RefDocs {
+				<a href={ templ.SafeURL(r.Href) } class="truncate hover:text-ink hover:underline">{ r.Title }</a>
+			}
+		</div>
+	}
+}
+
+// artifactEmbed sind die zwei Schnipsel zum Kopieren: Einbettung und
+// Verweis — so kommt ein Artefakt in eine Karte.
+templ artifactEmbed(a ArtifactCardVM) {
+	<div class="artcard-embed">
+		<button type="button" class="artcard-act" data-copy={ "![[" + a.Slug + "]]" } data-copied-label={ components.T(ctx, "common.copied") } title={ components.T(ctx, "wissen.artifacts.embed.image") }>![[…]]</button>
+		<button type="button" class="artcard-act" data-copy={ "[[" + a.Slug + "]]" } data-copied-label={ components.T(ctx, "common.copied") } title={ components.T(ctx, "wissen.artifacts.embed.link") }>[[…]]</button>
+	</div>
 }

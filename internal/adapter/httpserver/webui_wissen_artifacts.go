@@ -19,7 +19,13 @@ func (s *Server) wissenArtifactsData(r *http.Request, ownerID, errMsg string) (w
 	if err != nil {
 		return webui.WissenArtifactsVM{}, err
 	}
-	return webui.BuildWissenArtifactsVM(arts, errMsg), nil
+	vm := webui.BuildWissenArtifactsVM(arts, errMsg)
+	if s.ListDocuments.Docs != nil {
+		if docs, derr := s.ListDocuments.Execute(r.Context(), ownerID, nil, nil); derr == nil {
+			webui.AttachArtifactRefs(vm.Cards, webui.ArtifactRefs(docs))
+		}
+	}
+	return webui.FilterArtifactCards(vm, webui.ArtifactTypeFilter(r.URL.Query().Get("typ"))), nil
 }
 
 // handleWebWissenArtifacts serves GET /wissen/artefakte: the FULL page

@@ -20,6 +20,9 @@ type ArtifactCardVM struct {
 	IsImage   bool
 	Inherited bool
 	FromNode  string
+	// Screen 34: wo das Artefakt verwendet wird.
+	Refs    int
+	RefDocs []ArtifactUse
 }
 
 // artifactTypeLabels maps the artifact MIME allowlist (domain.go) to a short

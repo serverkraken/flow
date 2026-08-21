@@ -9,6 +9,36 @@ import "github.com/serverkraken/flow/internal/domain"
 type WissenArtifactsVM struct {
 	Cards    []ArtifactCardVM
 	PanelErr string
+	// Screen 34: Bestand und Sicht.
+	Total, Unreferenced int
+	CountBild, CountPDF, CountDaten int
+	Filter                          string // "" | bild | pdf | daten
+}
+
+// FilterArtifactCards zählt und filtert nach der Sicht.
+func FilterArtifactCards(vm WissenArtifactsVM, filter string) WissenArtifactsVM {
+	all := vm.Cards
+	vm.Total = len(all)
+	vm.Filter = filter
+	kept := make([]ArtifactCardVM, 0, len(all))
+	for _, c := range all {
+		switch artifactTypeKey(c) {
+		case "bild":
+			vm.CountBild++
+		case "pdf":
+			vm.CountPDF++
+		default:
+			vm.CountDaten++
+		}
+		if c.Refs == 0 {
+			vm.Unreferenced++
+		}
+		if filter == "" || artifactTypeKey(c) == filter {
+			kept = append(kept, c)
+		}
+	}
+	vm.Cards = kept
+	return vm
 }
 
 // BuildWissenArtifactsVM converts ListArtifacts' free-library result
