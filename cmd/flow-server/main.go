@@ -138,8 +138,8 @@ func run() error {
 		// later browser DevTools pass (Soenne-Live-Gate) finds a violation
 		// this static+live-curl audit missed, flip back to false.
 		CSPEnforce:         true,
-		StartSession:       usecase.StartSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Tags: tagStore},
-		StopSession:        usecase.StopSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local, Tags: tagStore},
+		StartSession:       usecase.StartSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock},
+		StopSession:        usecase.StopSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local},
 		SwitchSession:      usecase.SwitchSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local},
 		ListSessions:       usecase.ListSessions{Sessions: sessionStore, Clock: clock},
 		CreateNode:         usecase.CreateNode{Nodes: nodeStore, Aggregate: nodeAggregateStore, IDs: ids, Clock: clock},
@@ -147,9 +147,9 @@ func run() error {
 		ListNodes:          usecase.ListNodes{Nodes: nodeStore},
 		UpdateNode:         usecase.UpdateNode{Nodes: nodeStore, Aggregate: nodeAggregateStore, Clock: clock},
 		GetNode:            usecase.GetNode{Nodes: nodeStore},
-		EditSession:        usecase.EditSession{Sessions: sessionStore, Nodes: nodeStore, Clock: clock, Loc: time.Local, Tags: tagStore},
+		EditSession:        usecase.EditSession{Sessions: sessionStore, Nodes: nodeStore, Clock: clock, Loc: time.Local},
 		DeleteSession:      usecase.DeleteSession{Sessions: sessionStore, Tags: tagStore},
-		AddSession:         usecase.AddSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local, Tags: tagStore},
+		AddSession:         usecase.AddSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local},
 		ListSessionsRange:  usecase.ListSessionsRange{Sessions: sessionStore},
 		GetRunningSession:  usecase.GetRunningSession{Sessions: sessionStore},
 		ListSessionsPage:   usecase.ListSessionsPage{Sessions: sessionStore},

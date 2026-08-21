@@ -72,9 +72,9 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		AuditDocuments:       usecase.AuditDocuments{Docs: docs, Nodes: nodes},
 		// Session usecases wired with the shared FakeTagStore so session
 		// multi-tags round-trip through the taggings junction (B2 D1).
-		StartSession: usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
-		AddSession:   usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
-		EditSession:  usecase.EditSession{Sessions: sessions, Nodes: nodes, Tags: tags},
+		StartSession: usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk},
+		AddSession:   usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
+		EditSession:  usecase.EditSession{Sessions: sessions, Nodes: nodes},
 		ComposeContext: usecase.ComposeContext{
 			Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
 			Nodes:   nodes, Docs: docs, Tags: tags,

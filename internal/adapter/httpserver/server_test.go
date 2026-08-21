@@ -140,7 +140,6 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 	ss := testutil.NewFakeSessionStore()
 	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
-	tags := testutil.NewFakeTagStore()
 	bus146 := sse.NewBus()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
@@ -148,13 +147,13 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 		Bus:           bus146,
 		Emitter:       sse.NewEmitter(bus146, &fakeActivityStore{}, ids, clk),
 		Clock:         clk,
-		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk, Tags: tags},
+		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
 		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
 		CreateNode:    usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:     usecase.ListNodes{Nodes: ps},
 		GetNode:       usecase.GetNode{Nodes: ps},
-		EditSession:   usecase.EditSession{Sessions: ss, Nodes: ps, Tags: tags},
+		EditSession:   usecase.EditSession{Sessions: ss, Nodes: ps},
 		DeleteSession: usecase.DeleteSession{Sessions: ss},
 	}
 	ts := httptest.NewServer(srv.Routes())

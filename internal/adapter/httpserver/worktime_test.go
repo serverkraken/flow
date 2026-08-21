@@ -23,7 +23,6 @@ func newWorktimeServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)}
 	sessions := testutil.NewFakeSessionStore()
-	tags := testutil.NewFakeTagStore()
 	ids := &testutil.FakeIDGen{}
 	bus := sse.NewBus()
 	return &httpserver.Server{
@@ -33,11 +32,11 @@ func newWorktimeServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 		Emitter:           sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:             clk,
 		Dev:               true,
-		StartSession:      usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
+		StartSession:      usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk},
 		ListSessions:      usecase.ListSessions{Sessions: sessions, Clock: clk},
-		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
+		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: sessions},
-		EditSession:       usecase.EditSession{Sessions: sessions, Tags: tags},
+		EditSession:       usecase.EditSession{Sessions: sessions},
 		ListSessionsPage:  usecase.ListSessionsPage{Sessions: sessions},
 	}, sessions
 }
