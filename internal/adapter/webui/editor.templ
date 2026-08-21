@@ -23,6 +23,9 @@ templ editorBody(vm EditorVM) {
 	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
 	<script src={ AssetURL("js/editor-insert.js") } defer data-v={ AssetVersion() }></script>
 	<script src={ AssetURL("js/editor-metadata.js") } defer data-v={ AssetVersion() }></script>
+	// Die Vorschau lässt sich einklappen; die Wahl merkt sich der Browser
+	// (localStorage), damit sie den nächsten Editor-Aufruf überlebt.
+	<script src={ AssetURL("js/editor-preview.js") } defer data-v={ AssetVersion() }></script>
 	// Der Stift: Milkdown ersetzt die Textarea, sobald es geladen ist, und
 	// schreibt bei jeder Änderung Markdown hinein — die htmx-Vorschau daneben
 	// bleibt die Wahrheit (RenderDocument). Fällt das Bundle aus, bleibt die
@@ -37,20 +40,21 @@ templ editorOuter(vm EditorVM) {
 			<span class="eyebrow">{ components.T(ctx, "nav.knowledge") }</span>
 			<h1>{ components.T(ctx, vm.HeadingKey()) }</h1>
 		</div>
-		if vm.Editing() {
-			<div class="flex items-center gap-3">
+		<div class="flex items-center gap-3">
+			@editorPreviewToggle()
+			if vm.Editing() {
 				<button type="button" class="btn btn-q btn-s" data-dialog-open={ "del-" + vm.ID }>
 					{ components.T(ctx, "common.delete") }
 				</button>
 				<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
 					{ components.T(ctx, "common.cancel") }
 				</a>
-			</div>
-		} else {
-			<a href="/wissen" class="text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
-				{ components.T(ctx, "common.cancel") }
-			</a>
-		}
+			} else {
+				<a href="/wissen" class="text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+					{ components.T(ctx, "common.cancel") }
+				</a>
+			}
+		</div>
 	</div>
 	if vm.Editing() {
 		@components.ConfirmDialog(components.ConfirmSpec{
@@ -68,7 +72,9 @@ templ editorOuter(vm EditorVM) {
 	if vm.Err != "" {
 		<p class="mb-5 bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
 	}
-	<div class="grid gap-6 lg:grid-cols-2 lg:items-start">
+	// Der Editor-Raster: zwei Spalten ab lg, eine Spalte, sobald die Vorschau
+	// eingeklappt ist (data-preview="hidden", gesetzt von editor-preview.js).
+	<div class="editor-grid" data-editor-grid>
 		<form action={ templ.SafeURL(vm.Action()) } method="post" class="panel p-5" data-document-metadata>
 			<div class="grid gap-4 sm:grid-cols-2">
 				<label class="block">
@@ -184,8 +190,8 @@ templ editorOuter(vm EditorVM) {
 		// Box sitzt, während der Artikel auf dem Lesesaal-Papier steht
 		// (Soenne, Punkt g). Renderer und Maße sind ohnehin dieselben —
 		// components.MarkdownProse für beide.
-		<section class="bg-canvas">
-			<div class="mb-4 border-b border-line2 pb-2.5">
+		<section class="bg-canvas" data-preview-pane>
+			<div class="mb-4 flex items-baseline border-b border-line2 pb-2.5">
 				<span class="eyebrow">{ components.T(ctx, "wissen.preview") }</span>
 			</div>
 			<div id="preview">
@@ -193,4 +199,18 @@ templ editorOuter(vm EditorVM) {
 			</div>
 		</section>
 	</div>
+}
+
+// editorPreviewToggle ist der eine Schalter für die Vorschau (Soennes
+// Layout-Entscheidung: nebeneinander, Vorschau einklappbar). Er sitzt im
+// Seitenkopf, weil die Vorschau selbst verschwindet — ein Schalter in der
+// Fläche, die er ausblendet, wäre danach unerreichbar. Beide Beschriftungen
+// stehen als data-Attribute am Knopf, damit das Skript keine Texte kennt;
+// aria-pressed="true" heißt "Vorschau ist sichtbar".
+templ editorPreviewToggle() {
+	<button type="button" class="btn btn-q btn-s" data-preview-toggle aria-pressed="true"
+		data-label-hide={ components.T(ctx, "editor.preview.hide") }
+		data-label-show={ components.T(ctx, "editor.preview.show") }>
+		{ components.T(ctx, "editor.preview.hide") }
+	</button>
 }

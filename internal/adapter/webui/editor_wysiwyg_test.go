@@ -51,3 +51,29 @@ func maxI(a, b int) int {
 	}
 	return b
 }
+
+// Die Vorschau lässt sich einklappen (Soennes Layout-Entscheidung): ein
+// Schalter im Seitenkopf, eine markierte Vorschau-Fläche, ein Raster, das
+// den Zustand trägt, und das Skript, das ihn merkt. Fehlt eines davon, ist
+// der Knopf ein Schalter ohne Schalttafel.
+func TestEditorPreview_CanBeFolded(t *testing.T) {
+	out := renderToBuf(t, context.Background(), EditorPage(EditorVM{ID: "d1", Title: "T"}))
+	for _, want := range []string{
+		`data-preview-toggle`,
+		`aria-pressed="true"`,
+		`data-label-show=`,
+		`data-label-hide=`,
+		`data-preview-pane`,
+		`data-editor-grid`,
+		`js/editor-preview.js`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Editor ohne %s — die Vorschau ließe sich nicht einklappen", want)
+		}
+	}
+	// Der Schalter steht VOR der Vorschau-Fläche: im Seitenkopf, nicht in
+	// der Fläche, die er ausblendet.
+	if strings.Index(out, `data-preview-toggle`) > strings.Index(out, `data-preview-pane`) {
+		t.Errorf("der Vorschau-Schalter muss im Seitenkopf stehen, nicht in der Vorschau")
+	}
+}

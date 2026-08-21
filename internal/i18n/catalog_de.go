@@ -501,6 +501,8 @@ func init() {
 			"editor.insertPage":            "Seite verlinken …",
 			"editor.insertPage.filter":     "Seiten filtern…",
 			"editor.insertPage.empty":      "Keine Dokumente gefunden.",
+			"editor.preview.hide":         "Vorschau ausblenden",
+			"editor.preview.show":         "Vorschau einblenden",
 			// week summary metrics
 			"kennzahlen.title":   "Kennzahlen",
 			"kennzahlen.avg":     "Schnitt",
