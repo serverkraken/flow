@@ -379,10 +379,12 @@ func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 		_ = webui.NodeTabPage(d, tab).Render(r.Context(), w)
 		return
 	}
-	// Umlegen auf den Einstieg folgt als eigener Schritt: 12 Cockpit-Tests
-	// prüfen diese Seite, und ihre Wanderung auf die neuen Flächen ist
-	// Migrationsarbeit, keine Nebensache.
-	_ = webui.NodeView(d).Render(r.Context(), w)
+	ein, eerr := s.einstiegData(r, u, r.PathValue("id"))
+	if eerr != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	_ = webui.NodeEinstiegPage(ein).Render(r.Context(), w)
 }
 
 // handleWebNodeHead serves GET /nodes/{id}/head : the #cockpit-head fragment

@@ -37,13 +37,31 @@ templ nodeTabBody(d NodeCockpit, tab string) {
 			{ components.T(ctx, "nodetab.back") } { ShortName(d.N.Name) }
 		</a>
 		<h1 class="mb-4 font-display text-[22px] font-bold text-ink">{ components.T(ctx, nodeTabTitleKey(tab)) }</h1>
-		switch tab {
-			case "wissen":
-				@cockpitWissenSection(d)
-			case "worktime":
-				@cockpitBuchungenSection(d)
-			case "struktur":
-				@cockpitEnthaeltSection(d)
+		// Die Abschnitte verdrahten ihre htmx-Ziele auf #cockpit-main — der
+		// Bereichsschalter, "alle N ›" und die Buchungsbearbeitung hängen
+		// daran. Ohne dieses Element liefen sie ins Leere, also spannt die
+		// Fläche es genauso auf wie die frühere Seite, samt SSE-Nachladen.
+		<div
+			id="cockpit-main"
+			class="min-w-0"
+			hx-get={ cockpitMainReloadURL(d) }
+			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:document.created, sse:document.updated, sse:document.deleted, sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted, sse:activity.logged"
+			hx-swap="innerHTML"
+		>
+			switch tab {
+				case "wissen":
+					@cockpitWissenSection(d)
+				case "worktime":
+					@cockpitBuchungenSection(d)
+				case "struktur":
+					@cockpitEnthaeltSection(d)
+			}
+		</div>
+		if tab == "worktime" {
+			// Der Nachbuchen-Knopf öffnet diesen Dialog client-seitig. Er hing
+			// bisher an der Cockpit-SEITE; auf einer eigenen Zeitfläche wäre
+			// der Knopf sonst ein Schalter ohne Schalttafel.
+			@components.SessionDialog(sessionDialogAddVM(d))
 		}
 	</div>
 }

@@ -111,7 +111,7 @@ func TestCockpitWorktime_NachbuchenFormTargetsCockpitMain(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
 
-	rec := c.do(t, "GET", "/nodes/n1", nil)
+	rec := c.do(t, "GET", "/nodes/n1?tab=worktime", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}

@@ -460,11 +460,11 @@ func TestWebExportPreview_WithRate(t *testing.T) {
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
 	ws := domain.WorkSession{
-		ID:        "sess-rate-1",
-		OwnerID:   "u1",
-		Start:     start,
-		Stop:      &stop,
-		NodeID: &projID,
+		ID:      "sess-rate-1",
+		OwnerID: "u1",
+		Start:   start,
+		Stop:    &stop,
+		NodeID:  &projID,
 	}
 	if _, err := sessions.Create(context.Background(), ws); err != nil {
 		t.Fatalf("seed session: %v", err)
@@ -571,8 +571,8 @@ func TestWebNodeCockpit_WithGitUpstream(t *testing.T) {
 	if !strings.Contains(body, "GitProject") {
 		t.Errorf("cockpit missing project name")
 	}
-	if !strings.Contains(body, `id="cockpit-rail"`) {
-		t.Errorf("cockpit missing cockpit-rail div")
+	if !strings.Contains(body, `id="einstieg-kasten"`) {
+		t.Errorf("register entry point missing its Kasten column")
 	}
 }
 
@@ -631,18 +631,18 @@ func newWocheWithDayOffServer(t *testing.T) (*httpserver.Server, *testutil.FakeD
 	tokens := testutil.NewFakeFeedTokenStore()
 	listDayOffs := usecase.ListDayOffs{Store: dos, Settings: settings, Loc: time.Local}
 	srv := &httpserver.Server{
-		Ensure:              usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:                 bus,
-		Clock:               clk,
-		Users:               users,
-		Session:             codec,
-		ListSessions:        usecase.ListSessions{Sessions: ss, Clock: clk},
-		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
-		ListSessionsPage:    usecase.ListSessionsPage{Sessions: ss},
-		ListNodes:        usecase.ListNodes{Nodes: ps},
-		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
-		ListDayOffs:         listDayOffs,
-		GetSettings:         usecase.GetSettings{Settings: settings, Tokens: tokens},
+		Ensure:            usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:               bus,
+		Clock:             clk,
+		Users:             users,
+		Session:           codec,
+		ListSessions:      usecase.ListSessions{Sessions: ss, Clock: clk},
+		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
+		ListSessionsPage:  usecase.ListSessionsPage{Sessions: ss},
+		ListNodes:         usecase.ListNodes{Nodes: ps},
+		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
+		ListDayOffs:       listDayOffs,
+		GetSettings:       usecase.GetSettings{Settings: settings, Tokens: tokens},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,
 			Settings: settings,
@@ -717,11 +717,11 @@ func TestNodeCockpit_WithRateAndSessions(t *testing.T) {
 	stop := start.Add(8 * time.Hour)
 	pid := "rate-sess-proj"
 	sess := domain.WorkSession{
-		ID:        "sess-rate-1",
-		OwnerID:   "u1",
-		Start:     start,
-		Stop:      &stop,
-		NodeID: &pid,
+		ID:      "sess-rate-1",
+		OwnerID: "u1",
+		Start:   start,
+		Stop:    &stop,
+		NodeID:  &pid,
 	}
 	_, _ = ss.Create(ctx, sess)
 

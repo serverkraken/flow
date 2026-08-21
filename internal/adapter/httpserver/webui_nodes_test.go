@@ -356,15 +356,18 @@ func TestWebNodeCockpit(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("cockpit = %d; body=%.700s", code, body)
 	}
+	// /nodes/{id} ist seit Task 10 der Register-Einstieg (Screen 02), nicht
+	// mehr die flache Cockpit-Seite: Kasten-Spalte und Lesespalte statt
+	// #cockpit-rail/#cockpit-main. Name, Krume und Ebenen-Marke bleiben.
 	for _, want := range []string{
-		"flow",              // node name
-		"RTL Extern",        // ancestor breadcrumb (engagement parent)
-		"Repo",              // kind badge label
-		`id="cockpit-rail"`, // Kristall K2 rail shell id (renamed from the old head container)
-		`id="cockpit-main"`, // cockpit shell id
+		"flow",                 // node name
+		"RTL Extern",           // ancestor breadcrumb (engagement parent)
+		"Repo",                 // kind badge label
+		`id="einstieg-kasten"`, // Kasten-Spalte des Einstiegs
+		`id="einstieg-lese"`,   // Lesespalte
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("cockpit missing %q; body=%.700s", want, body)
+			t.Errorf("register entry point missing %q; body=%.700s", want, body)
 		}
 	}
 	if code, _ := getN(t, ts, c, "/nodes/nope"); code != http.StatusNotFound {

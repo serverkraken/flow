@@ -222,9 +222,10 @@ func TestCockpitRail_ContributorsFilledOnHeadPath(t *testing.T) {
 	}
 }
 
-// TestCockpitView_RollupAndIdentity verifies the flat page (Task 7): the three
-// SSE fragment IDs, no tab-strip remnants, and the 404 for an unknown node.
-func TestCockpitView_RollupAndIdentity(t *testing.T) {
+// TestNodeEntry_ShellAndUnknownNode verifies what /nodes/{id} is since
+// Task 10: the register entry point (Screen 02) with its two SSE fragments,
+// no leftovers of the flat cockpit's grid, and the 404 for an unknown node.
+func TestNodeEntry_ShellAndUnknownNode(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, Color: "cyan"})
 
@@ -233,14 +234,16 @@ func TestCockpitView_RollupAndIdentity(t *testing.T) {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"flow", `id="cockpit-head"`, `id="cockpit-main"`, `id="cockpit-rail"`, `class="cock"`} {
+	for _, want := range []string{"flow", `id="einstieg-kasten"`, `id="einstieg-lese"`} {
 		if !strings.Contains(body, want) {
-			t.Errorf("cockpit missing %q", want)
+			t.Errorf("register entry point missing %q", want)
 		}
 	}
-	for _, gone := range []string{"pill-tabs", "pill-tab", "/tab/", "data-tabstrip"} {
+	// The flat cockpit's grid is gone from THIS page; its sections live on
+	// their own surfaces now (?tab=…), which mount #cockpit-main themselves.
+	for _, gone := range []string{`class="cock"`, `id="cockpit-rail"`, "pill-tabs", "data-tabstrip"} {
 		if strings.Contains(body, gone) {
-			t.Errorf("flat cockpit must not contain tab remnant %q", gone)
+			t.Errorf("entry point must not carry the old cockpit grid (%q)", gone)
 		}
 	}
 	if rec2 := c.do(t, "GET", "/nodes/nope", nil); rec2.Code != http.StatusNotFound {
@@ -357,7 +360,7 @@ func TestCockpitMain_ReloadURLTargetsSelf(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "e1", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
 
-	rec := c.do(t, "GET", "/nodes/e1", nil)
+	rec := c.do(t, "GET", "/nodes/e1?tab=wissen", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
@@ -518,7 +521,7 @@ func TestCockpitWissen_ScopeSelfSSEReloadPreservesScope(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
 
-	rec := c.do(t, "GET", "/nodes/eng?scope=self", nil)
+	rec := c.do(t, "GET", "/nodes/eng?tab=wissen&scope=self", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -535,7 +538,7 @@ func TestCockpitWissen_ScopeSubtreeSSEReloadOmitsScope(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
 
-	rec := c.do(t, "GET", "/nodes/eng", nil)
+	rec := c.do(t, "GET", "/nodes/eng?tab=wissen", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -681,7 +684,7 @@ func TestCockpitContext_PanelShowsMeterAndCurateLink(t *testing.T) {
 		t.Fatalf("seed memory doc: %v", err)
 	}
 
-	rec := c.do(t, "GET", "/nodes/n1", nil)
+	rec := c.do(t, "GET", "/nodes/n1/rail", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -714,7 +717,7 @@ func TestCockpitContext_OwnerScopeNoForeignDocsInMeter(t *testing.T) {
 		t.Fatalf("seed foreign doc: %v", err)
 	}
 
-	rec := c.do(t, "GET", "/nodes/n1", nil)
+	rec := c.do(t, "GET", "/nodes/n1/rail", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -734,7 +737,7 @@ func TestCockpitContext_NoDocsRendersWithoutCrash(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
 
-	rec := c.do(t, "GET", "/nodes/n1", nil)
+	rec := c.do(t, "GET", "/nodes/n1/rail", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -771,7 +774,7 @@ func TestCockpitArtifacts_FreeCardShowsFreiOrigin(t *testing.T) {
 		t.Fatalf("seed free artifact: %v", err)
 	}
 
-	rec := c.do(t, "GET", "/nodes/n1", nil)
+	rec := c.do(t, "GET", "/nodes/n1/artifacts", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}

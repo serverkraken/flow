@@ -66,7 +66,7 @@ func TestNodeTabPages_UnknownTabFallsBackToTheRegister(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), `id="cockpit-main"`) {
-		t.Errorf("unknown tab must render the register page; body=%.400s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), `id="einstieg-kasten"`) {
+		t.Errorf("unknown tab must render the register entry point; body=%.400s", rec.Body.String())
 	}
 }
