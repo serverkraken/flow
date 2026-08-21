@@ -183,6 +183,7 @@ func (s *FakeNodeStore) Update(_ context.Context, ownerID string, p domain.Node)
 	existing.CountsTowardTarget = p.CountsTowardTarget
 	existing.Icon = p.Icon
 	existing.LogoRef = p.LogoRef
+	existing.BannerRef = p.BannerRef
 	existing.UpdatedAt = p.UpdatedAt
 	s.m[p.ID] = existing
 	return existing, nil
@@ -2038,6 +2039,50 @@ func (s *FakeNodeLogoStore) Delete(_ context.Context, ownerID, nodeID string) er
 	defer s.mu.Unlock()
 	if l, ok := s.logos[nodeID]; ok && l.OwnerID == ownerID {
 		delete(s.logos, nodeID)
+	}
+	return nil
+}
+
+// FakeNodeBannerStore is an in-memory ports.NodeBannerStore (keyed by node ID).
+// Mirrors FakeNodeLogoStore, including its owner scoping: a foreign owner
+// neither reads nor deletes.
+type FakeNodeBannerStore struct {
+	mu      sync.Mutex
+	banners map[string]domain.NodeBanner
+}
+
+// NewFakeNodeBannerStore builds an empty in-memory banner store.
+func NewFakeNodeBannerStore() *FakeNodeBannerStore {
+	return &FakeNodeBannerStore{banners: map[string]domain.NodeBanner{}}
+}
+
+func (s *FakeNodeBannerStore) Put(_ context.Context, b domain.NodeBanner) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Mirrors the pgstore upsert's owner clause: a foreign Put never reaches
+	// an existing row.
+	if cur, ok := s.banners[b.NodeID]; ok && cur.OwnerID != b.OwnerID {
+		return nil
+	}
+	s.banners[b.NodeID] = b
+	return nil
+}
+
+func (s *FakeNodeBannerStore) Get(_ context.Context, ownerID, nodeID string) (domain.NodeBanner, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b, ok := s.banners[nodeID]
+	if !ok || b.OwnerID != ownerID {
+		return domain.NodeBanner{}, ports.ErrNodeBannerNotFound
+	}
+	return b, nil
+}
+
+func (s *FakeNodeBannerStore) Delete(_ context.Context, ownerID, nodeID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if b, ok := s.banners[nodeID]; ok && b.OwnerID == ownerID {
+		delete(s.banners, nodeID)
 	}
 	return nil
 }
