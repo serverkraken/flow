@@ -188,6 +188,12 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		}
 	}
 
+	if s.Stats.Sessions != nil {
+		if today, terr := s.Stats.Today(ctx, u.ID); terr == nil {
+			vm.TargetLine = webui.TargetLine(ctx, today.Logged, today.Target)
+		}
+	}
+
 	vm.Tools = []webui.ZeitTool{
 		{TitleKey: "zeit.tool.export", DescKey: "zeit.tool.export.desc", Href: "/export"},
 		{TitleKey: "zeit.tool.dayoffs", DescKey: "zeit.tool.dayoffs.desc", Href: "/dayoffs"},

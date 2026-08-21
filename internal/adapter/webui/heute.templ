@@ -53,6 +53,9 @@ templ HeuteFragment(vm HeuteVM) {
 			<div class="pagehead">
 				<span class="eyebrow">{ components.T(ctx, "zeit.eyebrow") }</span>
 				<h1>{ vm.DateTitle }</h1>
+				if vm.TargetLine != "" {
+					<p class="sub font-mono tnum text-ink">{ vm.TargetLine }</p>
+				}
 				<p class="sub">{ vm.AllTimeSub }</p>
 			</div>
 			@heuteTodaySection(vm)

@@ -37,6 +37,7 @@ templ FreiFragment(vm FreiVM) {
 		<div class="k3-panel flex flex-col border-b border-hairp bg-panel lg:border-b-0 lg:border-r">
 			<div class="px-6 pb-2.5 pt-6">
 				<span class="eyebrow">{ components.T(ctx, "frei.eyebrow") }</span>
+				@freiSummary(vm)
 			</div>
 			@freiListSection(vm)
 		</div>
@@ -209,4 +210,30 @@ templ freiSettingsSection(vm FreiVM) {
 			<script src={ AssetURL("js/clipboard.js") } defer></script>
 		</section>
 	</div>
+}
+
+
+// freiSummary ist der Kopf des Kastens (Screen 25): die Tage des Jahres je
+// Art und die nächsten Feiertage. Ein Urlaubskonto (Anspruch, Übertrag)
+// gibt es nicht — dafür fehlt die Grundlage in den Einstellungen.
+templ freiSummary(vm FreiVM) {
+	<div class="mt-2" data-frei-summary>
+		<span class="block font-mono text-[18px] font-semibold tnum text-ink">{ components.Tn(ctx, "frei.summary.days", vm.OwnDays) } { vm.Year }</span>
+		if len(vm.KindCounts) > 0 {
+			<span class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+				for _, k := range vm.KindCounts {
+					<span><b class="font-mono font-semibold tnum text-ink">{ itoa(k.Count) }</b> { k.Label }</span>
+				}
+			</span>
+		}
+	</div>
+	if len(vm.NextHolidays) > 0 {
+		<div class="mt-4 border-b border-line2 pb-1.5 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "frei.nextHolidays") }</div>
+		for _, h := range vm.NextHolidays {
+			<div class="flex items-baseline gap-3 border-b border-line py-1.5 text-[12.5px]">
+				<span class="font-mono text-[11px] tnum text-meta">{ h.DateLabel }</span>
+				<span class="min-w-0 truncate text-ink">{ h.Label }</span>
+			</div>
+		}
+	}
 }

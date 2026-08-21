@@ -47,7 +47,9 @@ templ NodesFragment(d NodesPageData) {
 		<a href="/nodes?status=archived" class={ nodeFilterChip(d.Status == "archived") }>{ components.T(ctx, "nodes.filterArchived") }</a>
 		<a href="/nodes?status=all" class={ nodeFilterChip(d.Status == "all") }>{ components.T(ctx, "nodes.filterAll") }</a>
 	</div>
-	if len(d.VM.Engagements) == 0 {
+	if len(d.VM.Engagements) == 0 && d.Status == "" {
+		@nodesFirstStart()
+	} else if len(d.VM.Engagements) == 0 {
 		@components.EmptyState("", "nodes.empty", "nodes.emptyHint")
 	} else {
 		for _, es := range d.VM.Engagements {
@@ -433,3 +435,28 @@ templ nodeColorRadio(name, current string) {
 	</label>
 }
 
+
+
+// nodesFirstStart ist der leere Kasten (Screen 29): alles in flow hängt an
+// einem Register, also zuerst ein Engagement — und danach die Reihenfolge,
+// die die Uhr nicht ins Leere rechnen lässt.
+templ nodesFirstStart() {
+	<section class="mx-auto max-w-[560px] py-10" data-first-start>
+		<span class="eyebrow">{ components.T(ctx, "nodes.first.eyebrow") }</span>
+		<h2 class="mt-1 font-display text-[26px] font-[750] tracking-[-.02em] text-ink">{ components.T(ctx, "nodes.first.title") }</h2>
+		<p class="mt-3 text-[15px] leading-[1.6] text-body">{ components.T(ctx, "nodes.first.body") }</p>
+		<p class="mt-2 text-[12.5px] text-faint">{ components.T(ctx, "nodes.first.none") }</p>
+		<a href="/nodes/new?kind=engagement" class="btn btn-pri mt-5 inline-flex">{ components.T(ctx, "nodes.first.cta") }</a>
+		<div class="mt-8 border-b border-line2 pb-2 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "nodes.first.then") }</div>
+		@nodesFirstStep("01", "nodes.first.step1", "nodes.first.step1.sub", "/nodes/new?kind=vorhaben")
+		@nodesFirstStep("02", "nodes.first.step2", "nodes.first.step2.sub", "/einstellungen#sollzeiten")
+		@nodesFirstStep("03", "nodes.first.step3", "nodes.first.step3.sub", "/nodes/new?kind=repo")
+	</section>
+}
+
+templ nodesFirstStep(num, titleKey, subKey, href string) {
+	<a href={ templ.SafeURL(href) } class="flex items-baseline gap-3 border-b border-line py-2.5 hover:bg-accent-wash">
+		<span class="num w-6 shrink-0 text-[11px] text-meta">{ num }</span>
+		<span class="min-w-0"><span class="block text-[14px] font-[650] text-ink">{ components.T(ctx, titleKey) }</span><span class="block text-[11.5px] text-muted">{ components.T(ctx, subKey) }</span></span>
+	</a>
+}

@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 // Screen 23 „Beim Anlegen": README als Kopf der Registerseite und die
@@ -49,5 +51,21 @@ func TestWebNodeCreate_OnCreateHooks(t *testing.T) {
 		if !strings.Contains(form, want) {
 			t.Errorf("Formular ohne %q", want)
 		}
+	}
+}
+
+// Screen 29: ohne ein einziges Register ist der Kasten leer — und sagt, was
+// zuerst kommt.
+func TestWebNodesHome_FirstStart(t *testing.T) {
+	c := newCockpitTestServer(t)
+	body := c.do(t, "GET", "/nodes", nil).Body.String()
+	for _, want := range []string{`data-first-start`, "Der Kasten ist leer", `href="/nodes/new?kind=engagement"`, `href="/einstellungen#sollzeiten"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("leerer Kasten ohne %q", want)
+		}
+	}
+	c.seedNode(t, domain.Node{ID: "e1", OwnerID: "u1", Slug: "privat", Name: "Privat", Kind: domain.KindEngagement})
+	if strings.Contains(c.do(t, "GET", "/nodes", nil).Body.String(), `data-first-start`) {
+		t.Errorf("mit Register kein erster Start")
 	}
 }

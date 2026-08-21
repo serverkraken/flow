@@ -26,6 +26,7 @@ type HeuteVM struct {
 
 	DateTitle  string // pagehead h1, "Donnerstag, 3. Juli" (FmtDayTitle)
 	AllTimeSub string // pagehead sub, "Σ 304h 46m in 41 Sessions seit 24. April · 41 freie Tage gepflegt"
+	TargetLine string // "Ziel 8:00 h · noch 1:48 h" — wie weit der Tag ist (Screen 09)
 
 	WeekTotal    string        // this week's logged total (Mon..Sun, FmtVerbose)
 	WeekGoal     string        // this week's target total (FmtVerbose)

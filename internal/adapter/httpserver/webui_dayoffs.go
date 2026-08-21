@@ -84,7 +84,11 @@ func (s *Server) dayOffData(ctx context.Context, u domain.User) (webui.FreiVM, e
 	if code == "" {
 		code = "DE"
 	}
+	own, kinds, next := webui.BuildFreiSummary(rows, now.In(loc).Format("2006-01-02"))
 	return webui.FreiVM{
+		OwnDays:           own,
+		KindCounts:        kinds,
+		NextHolidays:      next,
 		User:              u.Username,
 		BundeslandCode:    code,
 		BundeslandName:    bundeslandName(code),

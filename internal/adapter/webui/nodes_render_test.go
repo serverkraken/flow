@@ -83,12 +83,13 @@ func TestNodesFragment_RepoRowShowsDescriptionSubtitle(t *testing.T) {
 	}
 }
 
-// TestNodesFragment_Empty pins the "leer" state: no engagements at all
-// renders the calm empty-state copy, never a card grid, and stays glyph-free.
+// TestNodesFragment_Empty pins the "leer" state (Screen 29): no engagements
+// at all renders the first-start copy with the way to the first engagement,
+// never a card grid, and stays glyph-free.
 func TestNodesFragment_Empty(t *testing.T) {
 	vm := BuildProjectsVM(nil, nil, nil, nil, time.Now())
 	out := renderToBuf(t, context.Background(), NodesFragment(NodesPageData{User: "u1", VM: vm}))
-	if !strings.Contains(out, "Keine Knoten") {
+	if !strings.Contains(out, "Der Kasten ist leer") || !strings.Contains(out, `href="/nodes/new?kind=engagement"`) {
 		t.Errorf("empty state copy missing; out=%.1000s", out)
 	}
 	if strings.Contains(out, "◆") {

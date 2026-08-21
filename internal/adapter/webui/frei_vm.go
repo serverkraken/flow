@@ -24,6 +24,42 @@ type FreiVM struct {
 	Rows              []FreiRowVM
 	HasOwn            bool // at least one non-holiday entry (drives EmptyState)
 	Err               string
+
+	// Screen 25: die Summe des Jahres je Art und die nächsten Feiertage.
+	OwnDays      int
+	KindCounts   []FreiKindCount
+	NextHolidays []FreiRowVM
+}
+
+// FreiKindCount ist eine Art mit ihrer Tageszahl im Jahr.
+type FreiKindCount struct {
+	Label string
+	Hue   string
+	Count int
+}
+
+// BuildFreiSummary zählt die eigenen Tage je Art (Feiertage zählen nicht —
+// die hat man nicht genommen) und sammelt die nächsten vier Feiertage ab
+// heute. today ist yyyy-mm-dd wie FreiRowVM.Day.
+func BuildFreiSummary(rows []FreiRowVM, today string) (own int, kinds []FreiKindCount, next []FreiRowVM) {
+	idx := map[string]int{}
+	for _, r := range rows {
+		if r.IsHoliday {
+			if r.Day >= today && len(next) < 4 {
+				next = append(next, r)
+			}
+			continue
+		}
+		own++
+		i, ok := idx[r.KindLabel]
+		if !ok {
+			idx[r.KindLabel] = len(kinds)
+			kinds = append(kinds, FreiKindCount{Label: r.KindLabel, Hue: r.Hue})
+			i = len(kinds) - 1
+		}
+		kinds[i].Count++
+	}
+	return own, kinds, next
 }
 
 // FreiBundeslandOption is one entry in the Bundesland <select>.
