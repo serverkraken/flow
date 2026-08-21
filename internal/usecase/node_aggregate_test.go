@@ -24,7 +24,7 @@ func TestCreateNode_AggregateRollsBackEveryFollowFailure(t *testing.T) {
 			nodes := testutil.NewFakeNodeStore()
 			logos := testutil.NewFakeNodeLogoStore()
 			tags := testutil.NewFakeTagStore()
-			agg := testutil.NewFakeNodeAggregateStore(nodes, logos, tags)
+			agg := testutil.NewFakeNodeAggregateStore(nodes, logos, testutil.NewFakeNodeBannerStore(), tags)
 			agg.FailStage = stage
 			ids := &testutil.FakeIDGen{}
 			clk := testutil.FakeClock{T: time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)}
@@ -64,7 +64,7 @@ func TestUpdateNode_AggregateRollsBackEveryFollowFailure(t *testing.T) {
 			nodes := testutil.NewFakeNodeStore()
 			logos := testutil.NewFakeNodeLogoStore()
 			tags := testutil.NewFakeTagStore()
-			agg := testutil.NewFakeNodeAggregateStore(nodes, logos, tags)
+			agg := testutil.NewFakeNodeAggregateStore(nodes, logos, testutil.NewFakeNodeBannerStore(), tags)
 			clk := testutil.FakeClock{T: time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)}
 			n, _ := domain.NewNode("n1", "u1", "Old", "old", clk.Now().Add(-time.Hour))
 			n.Kind = domain.KindEngagement
@@ -117,7 +117,7 @@ func TestUpdateNode_AggregateRemainsOwnerScoped(t *testing.T) {
 	nodes := testutil.NewFakeNodeStore()
 	logos := testutil.NewFakeNodeLogoStore()
 	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(nodes, logos, tags)
+	agg := testutil.NewFakeNodeAggregateStore(nodes, logos, testutil.NewFakeNodeBannerStore(), tags)
 	clk := testutil.FakeClock{T: time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)}
 	n, _ := domain.NewNode("n1", "u1", "Old", "old", clk.Now())
 	n.Kind = domain.KindEngagement

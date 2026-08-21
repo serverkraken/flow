@@ -31,7 +31,7 @@ func newAPILogoServer(t *testing.T) (*httpserver.Server, *testutil.FakeNodeStore
 	ns := testutil.NewFakeNodeStore()
 	ls := testutil.NewFakeNodeLogoStore()
 	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
 	users := testutil.NewFakeUserStore()
 	u, err := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	if err != nil {

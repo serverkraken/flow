@@ -74,6 +74,12 @@ func (s *NodeAggregateStore) createAggregateTx(ctx context.Context, tx pgx.Tx, n
 		}
 		n.LogoRef = changes.LogoValue.Ref
 	}
+	if changes.Banner == ports.NodeBannerPut {
+		if changes.BannerValue.OwnerID != n.OwnerID || changes.BannerValue.NodeID != n.ID {
+			return domain.Node{}, errors.New("pgstore: node create banner identity mismatch")
+		}
+		n.BannerRef = changes.BannerValue.Ref
+	}
 	created, err := createNodeTx(ctx, tx, n)
 	if err != nil {
 		return domain.Node{}, err
@@ -85,6 +91,11 @@ func (s *NodeAggregateStore) createAggregateTx(ctx context.Context, tx pgx.Tx, n
 	}
 	if changes.Logo == ports.NodeLogoPut {
 		if err := putNodeLogoTx(ctx, tx, changes.LogoValue); err != nil {
+			return domain.Node{}, err
+		}
+	}
+	if changes.Banner == ports.NodeBannerPut {
+		if err := putNodeBannerTx(ctx, tx, changes.BannerValue); err != nil {
 			return domain.Node{}, err
 		}
 	}
@@ -122,6 +133,19 @@ func (s *NodeAggregateStore) UpdateAggregate(ctx context.Context, ownerID, nodeI
 	default:
 		return domain.Node{}, errors.New("pgstore: invalid node logo mutation")
 	}
+	switch changes.Banner {
+	case ports.NodeBannerKeep:
+		n.BannerRef = current.BannerRef
+	case ports.NodeBannerPut:
+		if changes.BannerValue.OwnerID != current.OwnerID || changes.BannerValue.NodeID != current.ID {
+			return domain.Node{}, errors.New("pgstore: node update banner identity mismatch")
+		}
+		n.BannerRef = changes.BannerValue.Ref
+	case ports.NodeBannerDelete:
+		n.BannerRef = ""
+	default:
+		return domain.Node{}, errors.New("pgstore: invalid node banner mutation")
+	}
 	if _, err := updateNodeTx(ctx, tx, ownerID, n); err != nil {
 		return domain.Node{}, err
 	}
@@ -142,6 +166,16 @@ func (s *NodeAggregateStore) UpdateAggregate(ctx context.Context, ownerID, nodeI
 		}
 	case ports.NodeLogoDelete:
 		if err := deleteNodeLogoTx(ctx, tx, ownerID, nodeID); err != nil {
+			return domain.Node{}, err
+		}
+	}
+	switch changes.Banner {
+	case ports.NodeBannerPut:
+		if err := putNodeBannerTx(ctx, tx, changes.BannerValue); err != nil {
+			return domain.Node{}, err
+		}
+	case ports.NodeBannerDelete:
+		if err := deleteNodeBannerTx(ctx, tx, ownerID, nodeID); err != nil {
 			return domain.Node{}, err
 		}
 	}
@@ -267,6 +301,25 @@ WHERE node_logos.owner_id=$2`,
 func deleteNodeLogoTx(ctx context.Context, tx pgx.Tx, ownerID, nodeID string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM node_logos WHERE owner_id=$1 AND node_id=$2`, ownerID, nodeID); err != nil {
 		return fmt.Errorf("pgstore: delete aggregate node logo: %w", err)
+	}
+	return nil
+}
+
+func putNodeBannerTx(ctx context.Context, tx pgx.Tx, b domain.NodeBanner) error {
+	_, err := tx.Exec(ctx, `INSERT INTO node_banners (node_id, owner_id, mime, ref, bytes, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6)
+ON CONFLICT (node_id) DO UPDATE SET mime=$3, ref=$4, bytes=$5, updated_at=$6
+WHERE node_banners.owner_id=$2`,
+		b.NodeID, b.OwnerID, b.Mime, b.Ref, b.Bytes, b.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("pgstore: put aggregate node banner: %w", err)
+	}
+	return nil
+}
+
+func deleteNodeBannerTx(ctx context.Context, tx pgx.Tx, ownerID, nodeID string) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM node_banners WHERE owner_id=$1 AND node_id=$2`, ownerID, nodeID); err != nil {
+		return fmt.Errorf("pgstore: delete aggregate node banner: %w", err)
 	}
 	return nil
 }

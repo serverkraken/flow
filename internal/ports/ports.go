@@ -178,16 +178,30 @@ const (
 	NodeLogoDelete
 )
 
+// NodeBannerMutation is the banner's twin of NodeLogoMutation. The banner
+// rides the same transaction because the edit form saves metadata, tags, rate
+// and banner in ONE submit — a blob written beside the transaction would be
+// clobbered by a concurrent metadata update.
+type NodeBannerMutation uint8
+
+const (
+	NodeBannerKeep NodeBannerMutation = iota
+	NodeBannerPut
+	NodeBannerDelete
+)
+
 // NodeAggregateChanges are the optional dependent writes committed with one
 // node create/update. Rate and tags use explicit Set flags so clearing them is
 // distinct from leaving them untouched.
 type NodeAggregateChanges struct {
-	SetRate   bool
-	Rate      *domain.Money
-	SetTags   bool
-	Tags      []string
-	Logo      NodeLogoMutation
-	LogoValue domain.NodeLogo
+	SetRate     bool
+	Rate        *domain.Money
+	SetTags     bool
+	Tags        []string
+	Logo        NodeLogoMutation
+	LogoValue   domain.NodeLogo
+	Banner      NodeBannerMutation
+	BannerValue domain.NodeBanner
 }
 
 // NodeAggregateStore owns the transaction boundary for node metadata and its

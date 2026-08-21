@@ -62,32 +62,6 @@ func buildNodeBanner(ownerID, nodeID string, data []byte, now time.Time) (domain
 	}, nil
 }
 
-// UploadNodeBanner stores a node's banner image (replace-on-upload) and
-// stamps the node's BannerRef with the content hash for cache-busting URLs
-// and ETags. Mirrors UploadNodeLogo.
-type UploadNodeBanner struct {
-	Nodes   ports.NodeStore
-	Banners ports.NodeBannerStore
-	Clock   ports.Clock
-}
-
-func (uc UploadNodeBanner) Execute(ctx context.Context, ownerID, nodeID string, data []byte) (domain.Node, error) {
-	banner, err := buildNodeBanner(ownerID, nodeID, data, uc.Clock.Now())
-	if err != nil {
-		return domain.Node{}, err
-	}
-	n, err := uc.Nodes.Get(ctx, ownerID, nodeID)
-	if err != nil {
-		return domain.Node{}, err
-	}
-	if err := uc.Banners.Put(ctx, banner); err != nil {
-		return domain.Node{}, err
-	}
-	n.BannerRef = banner.Ref
-	n.UpdatedAt = banner.UpdatedAt
-	return uc.Nodes.Update(ctx, ownerID, n)
-}
-
 // GetNodeBanner returns a node's stored banner blob (the WebUI serving path).
 type GetNodeBanner struct {
 	Banners ports.NodeBannerStore
@@ -95,28 +69,4 @@ type GetNodeBanner struct {
 
 func (uc GetNodeBanner) Execute(ctx context.Context, ownerID, nodeID string) (domain.NodeBanner, error) {
 	return uc.Banners.Get(ctx, ownerID, nodeID)
-}
-
-// DeleteNodeBanner removes a node's uploaded banner and clears its BannerRef,
-// so the landing page falls back to the empty slot. Absent banner is a no-op.
-type DeleteNodeBanner struct {
-	Nodes   ports.NodeStore
-	Banners ports.NodeBannerStore
-	Clock   ports.Clock
-}
-
-func (uc DeleteNodeBanner) Execute(ctx context.Context, ownerID, nodeID string) (domain.Node, error) {
-	n, err := uc.Nodes.Get(ctx, ownerID, nodeID)
-	if err != nil {
-		return domain.Node{}, err
-	}
-	if err := uc.Banners.Delete(ctx, ownerID, nodeID); err != nil {
-		return domain.Node{}, err
-	}
-	if n.BannerRef == "" {
-		return n, nil
-	}
-	n.BannerRef = ""
-	n.UpdatedAt = uc.Clock.Now()
-	return uc.Nodes.Update(ctx, ownerID, n)
 }

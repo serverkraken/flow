@@ -23,9 +23,10 @@ type CreateNodeInput struct {
 	CountsTowardTarget *bool
 	// WebUI aggregate fields. A nil Tags pointer leaves tag state outside this
 	// mutation; a non-nil pointer replaces it, including with an empty set.
-	Rate     *domain.Money
-	Tags     *[]string
-	LogoData []byte
+	Rate       *domain.Money
+	Tags       *[]string
+	LogoData   []byte
+	BannerData []byte
 }
 
 // CreateNode creates an owner-scoped node, validating kind+parent placement.
@@ -44,7 +45,7 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 	if uc.Aggregate != nil {
 		return uc.Aggregate.CreateAggregate(ctx, n, changes)
 	}
-	if changes.SetRate || changes.SetTags || changes.Logo != ports.NodeLogoKeep {
+	if changes.SetRate || changes.SetTags || changes.Logo != ports.NodeLogoKeep || changes.Banner != ports.NodeBannerKeep {
 		return domain.Node{}, errors.New("create node aggregate store is not configured")
 	}
 	return uc.Nodes.Create(ctx, n)
@@ -60,6 +61,14 @@ func (uc CreateNode) prepare(ctx context.Context, ownerID string, in CreateNodeI
 	if len(in.LogoData) > 0 {
 		var err error
 		logo, err = buildNodeLogo(ownerID, "", in.LogoData, uc.Clock.Now())
+		if err != nil {
+			return domain.Node{}, ports.NodeAggregateChanges{}, err
+		}
+	}
+	var banner domain.NodeBanner
+	if len(in.BannerData) > 0 {
+		var err error
+		banner, err = buildNodeBanner(ownerID, "", in.BannerData, uc.Clock.Now())
 		if err != nil {
 			return domain.Node{}, ports.NodeAggregateChanges{}, err
 		}
@@ -111,6 +120,12 @@ func (uc CreateNode) prepare(ctx context.Context, ownerID string, in CreateNodeI
 		n.LogoRef = logo.Ref
 		changes.Logo = ports.NodeLogoPut
 		changes.LogoValue = logo
+	}
+	if len(in.BannerData) > 0 {
+		banner.NodeID = n.ID
+		n.BannerRef = banner.Ref
+		changes.Banner = ports.NodeBannerPut
+		changes.BannerValue = banner
 	}
 	if err := n.Validate(); err != nil {
 		return domain.Node{}, ports.NodeAggregateChanges{}, err

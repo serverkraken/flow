@@ -58,7 +58,7 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 	bs := testutil.NewFakeProjectBindingStore()
 	tags := testutil.NewFakeTagStore()
 	ls := testutil.NewFakeNodeLogoStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	_, _ = users.UpsertBySub(context.Background(), u)

@@ -32,6 +32,8 @@ type UpdateNodeInput struct {
 	Tags                    *[]string
 	LogoData                []byte
 	DeleteLogo              bool
+	BannerData              []byte
+	DeleteBanner            bool
 }
 
 // UpdateNode overwrites a node's metadata. Canonical Git identity lives on the
@@ -117,6 +119,21 @@ func applyNodeUpdate(cur domain.Node, ownerID string, in UpdateNodeInput, now ti
 		p.LogoRef = logo.Ref
 		changes.Logo = ports.NodeLogoPut
 		changes.LogoValue = logo
+	}
+	if in.DeleteBanner && len(in.BannerData) > 0 {
+		return domain.Node{}, ports.NodeAggregateChanges{}, errors.New("cannot upload and delete a node banner together")
+	}
+	if in.DeleteBanner {
+		p.BannerRef = ""
+		changes.Banner = ports.NodeBannerDelete
+	} else if len(in.BannerData) > 0 {
+		banner, err := buildNodeBanner(ownerID, p.ID, in.BannerData, now)
+		if err != nil {
+			return domain.Node{}, ports.NodeAggregateChanges{}, err
+		}
+		p.BannerRef = banner.Ref
+		changes.Banner = ports.NodeBannerPut
+		changes.BannerValue = banner
 	}
 	if err := p.Validate(); err != nil {
 		return domain.Node{}, ports.NodeAggregateChanges{}, err

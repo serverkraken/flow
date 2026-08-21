@@ -46,7 +46,7 @@ func newWebNodeLogoServer(t *testing.T) (*httpserver.Server, *httptest.Server, *
 	ns := testutil.NewFakeNodeStore()
 	ls := testutil.NewFakeNodeLogoStore()
 	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	_, _ = users.UpsertBySub(context.Background(), u)

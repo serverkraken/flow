@@ -16,7 +16,7 @@ func newUpdateNodeFixture(t *testing.T) (usecase.UpdateNode, *testutil.FakeNodeS
 	t.Helper()
 	ns := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, testutil.NewFakeNodeLogoStore(), testutil.NewFakeTagStore())
+	agg := testutil.NewFakeNodeAggregateStore(ns, testutil.NewFakeNodeLogoStore(), testutil.NewFakeNodeBannerStore(), testutil.NewFakeTagStore())
 	uc := usecase.UpdateNode{
 		Nodes:     ns,
 		Aggregate: agg,

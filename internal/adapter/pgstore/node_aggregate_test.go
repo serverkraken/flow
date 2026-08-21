@@ -13,7 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
-func newNodeAggregateFixture(t *testing.T) (context.Context, *pgstore.NodeStore, *pgstore.NodeLogoStore, *pgstore.TagStore, *pgstore.NodeAggregateStore, *pgstore.ProjectBindingStore, func(string, ...any)) {
+func newNodeAggregateFixture(t *testing.T) (context.Context, *pgstore.NodeStore, *pgstore.NodeLogoStore, *pgstore.NodeBannerStore, *pgstore.TagStore, *pgstore.NodeAggregateStore, *pgstore.ProjectBindingStore, func(string, ...any)) {
 	t.Helper()
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
@@ -35,7 +35,7 @@ func newNodeAggregateFixture(t *testing.T) (context.Context, *pgstore.NodeStore,
 			t.Fatal(err)
 		}
 	}
-	return ctx, pgstore.NewNodeStore(pool), pgstore.NewNodeLogoStore(pool), pgstore.NewTagStore(pool, ids), pgstore.NewNodeAggregateStore(pool, ids), pgstore.NewProjectBindingStore(pool), exec
+	return ctx, pgstore.NewNodeStore(pool), pgstore.NewNodeLogoStore(pool), pgstore.NewNodeBannerStore(pool), pgstore.NewTagStore(pool, ids), pgstore.NewNodeAggregateStore(pool, ids), pgstore.NewProjectBindingStore(pool), exec
 }
 
 func aggregateNode(id string, now time.Time) domain.Node {
@@ -52,7 +52,7 @@ func aggregateLogo(nodeID, ref string, now time.Time) domain.NodeLogo {
 }
 
 func TestNodeAggregateStore_RollsBackCreateAndUpdateFollowFailures(t *testing.T) {
-	ctx, nodes, logos, tags, agg, _, exec := newNodeAggregateFixture(t)
+	ctx, nodes, logos, _, tags, agg, _, exec := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	for _, id := range []string{"agg-rate", "agg-tags", "agg-logo"} {
 		n := aggregateNode(id, now)
@@ -148,7 +148,7 @@ FOR EACH ROW EXECUTE FUNCTION test_fail_node_logo()`)
 }
 
 func TestNodeAggregateStore_ConcurrentLogoUploadsStayConsistent(t *testing.T) {
-	ctx, nodes, logos, _, agg, _, _ := newNodeAggregateFixture(t)
+	ctx, nodes, logos, _, _, agg, _, _ := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	if _, err := agg.CreateAggregate(ctx, aggregateNode("agg-upload", now), ports.NodeAggregateChanges{}); err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestNodeAggregateStore_ConcurrentLogoUploadsStayConsistent(t *testing.T) {
 }
 
 func TestNodeAggregateStore_ConcurrentLogoDeleteAndUploadStayConsistent(t *testing.T) {
-	ctx, nodes, logos, _, agg, _, _ := newNodeAggregateFixture(t)
+	ctx, nodes, logos, _, _, agg, _, _ := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	if _, err := agg.CreateAggregate(ctx, aggregateNode("agg-delete-upload", now), ports.NodeAggregateChanges{
 		Logo: ports.NodeLogoPut, LogoValue: aggregateLogo("agg-delete-upload", "old", now),
@@ -205,7 +205,7 @@ func TestNodeAggregateStore_ConcurrentLogoDeleteAndUploadStayConsistent(t *testi
 }
 
 func TestNodeAggregateStore_ConcurrentMetadataAndLogoUpdatesDoNotLoseEither(t *testing.T) {
-	ctx, nodes, logos, _, agg, _, _ := newNodeAggregateFixture(t)
+	ctx, nodes, logos, _, _, agg, _, _ := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	if _, err := agg.CreateAggregate(ctx, aggregateNode("agg-meta-logo", now), ports.NodeAggregateChanges{}); err != nil {
 		t.Fatal(err)
@@ -232,7 +232,7 @@ func TestNodeAggregateStore_ConcurrentMetadataAndLogoUpdatesDoNotLoseEither(t *t
 }
 
 func TestNodeAggregateStore_CreateBoundAggregateRollsBackNodeWhenBindingFails(t *testing.T) {
-	ctx, nodes, _, _, agg, bindings, exec := newNodeAggregateFixture(t)
+	ctx, nodes, _, _, _, agg, bindings, exec := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 13, 0, 0, 0, time.UTC)
 	parent := aggregateNode("bound-parent", now)
 	if _, err := agg.CreateAggregate(ctx, parent, ports.NodeAggregateChanges{}); err != nil {
@@ -290,7 +290,7 @@ FOR EACH ROW EXECUTE FUNCTION test_fail_bound_node_binding()`)
 }
 
 func TestNodeAggregateStore_ConcurrentCreateBoundKeepsNodeAndBindingCardinalityEqual(t *testing.T) {
-	ctx, nodes, _, _, agg, bindings, _ := newNodeAggregateFixture(t)
+	ctx, nodes, _, _, _, agg, bindings, _ := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 14, 0, 0, 0, time.UTC)
 	parent := aggregateNode("bound-race-parent", now)
 	if _, err := agg.CreateAggregate(ctx, parent, ports.NodeAggregateChanges{}); err != nil {
@@ -371,5 +371,113 @@ func concurrentNodeAggregateMutations(t *testing.T, run func(int) error) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func aggregateBanner(nodeID, ref string, now time.Time) domain.NodeBanner {
+	return domain.NodeBanner{
+		NodeID: nodeID, OwnerID: "u-agg", Mime: "image/png", Ref: ref,
+		Bytes: []byte(ref), UpdatedAt: now,
+	}
+}
+
+// TestNodeAggregateStore_ConcurrentMetadataAndBannerUpdatesDoNotLoseEither is
+// the banner twin of the logo test. The edit form saves metadata, tags, rate
+// and the banner in ONE submit; a banner written outside the aggregate's
+// transaction would be clobbered by a concurrent metadata update that read the
+// node before the blob landed.
+func TestNodeAggregateStore_ConcurrentMetadataAndBannerUpdatesDoNotLoseEither(t *testing.T) {
+	ctx, nodes, _, banners, _, agg, _, _ := newNodeAggregateFixture(t)
+	now := time.Date(2026, 8, 21, 10, 0, 0, 0, time.UTC)
+	if _, err := agg.CreateAggregate(ctx, aggregateNode("agg-meta-banner", now), ports.NodeAggregateChanges{}); err != nil {
+		t.Fatal(err)
+	}
+	concurrentNodeAggregateMutations(t, func(i int) error {
+		_, err := agg.UpdateAggregate(ctx, "u-agg", "agg-meta-banner", func(n domain.Node) (domain.Node, ports.NodeAggregateChanges, error) {
+			n.UpdatedAt = now.Add(time.Duration(i+1) * time.Minute)
+			if i == 0 {
+				n.Name = "renamed"
+				return n, ports.NodeAggregateChanges{}, nil
+			}
+			return n, ports.NodeAggregateChanges{Banner: ports.NodeBannerPut, BannerValue: aggregateBanner(n.ID, "banner", n.UpdatedAt)}, nil
+		})
+		return err
+	})
+	got, err := nodes.Get(ctx, "u-agg", "agg-meta-banner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	banner, err := banners.Get(ctx, "u-agg", "agg-meta-banner")
+	if err != nil || got.Name != "renamed" || got.BannerRef != "banner" || banner.Ref != "banner" {
+		t.Fatalf("concurrent updates lost state: node=%+v banner=%+v err=%v", got, banner, err)
+	}
+}
+
+// TestNodeAggregateStore_BannerDeleteClearsRefAndBlobTogether pins that the
+// node's ref and the blob never diverge: an empty ref must mean no blob.
+func TestNodeAggregateStore_BannerDeleteClearsRefAndBlobTogether(t *testing.T) {
+	ctx, nodes, _, banners, _, agg, _, _ := newNodeAggregateFixture(t)
+	now := time.Date(2026, 8, 21, 11, 0, 0, 0, time.UTC)
+	n := aggregateNode("agg-banner-del", now)
+	if _, err := agg.CreateAggregate(ctx, n, ports.NodeAggregateChanges{
+		Banner: ports.NodeBannerPut, BannerValue: aggregateBanner(n.ID, "old", now),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	created, err := nodes.Get(ctx, "u-agg", "agg-banner-del")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.BannerRef != "old" {
+		t.Fatalf("create did not stamp the banner ref: %+v", created)
+	}
+
+	if _, err := agg.UpdateAggregate(ctx, "u-agg", "agg-banner-del", func(n domain.Node) (domain.Node, ports.NodeAggregateChanges, error) {
+		n.UpdatedAt = now.Add(time.Minute)
+		return n, ports.NodeAggregateChanges{Banner: ports.NodeBannerDelete}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := nodes.Get(ctx, "u-agg", "agg-banner-del")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.BannerRef != "" {
+		t.Errorf("BannerRef=%q want cleared", got.BannerRef)
+	}
+	if _, err := banners.Get(ctx, "u-agg", "agg-banner-del"); !errors.Is(err, ports.ErrNodeBannerNotFound) {
+		t.Errorf("blob outlived the ref: %v", err)
+	}
+}
+
+// TestNodeAggregateStore_BannerKeepLeavesTheBlobAlone pins the default: a
+// metadata-only update must not touch an existing banner, exactly like the
+// logo's Keep.
+func TestNodeAggregateStore_BannerKeepLeavesTheBlobAlone(t *testing.T) {
+	ctx, nodes, _, banners, _, agg, _, _ := newNodeAggregateFixture(t)
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	n := aggregateNode("agg-banner-keep", now)
+	if _, err := agg.CreateAggregate(ctx, n, ports.NodeAggregateChanges{
+		Banner: ports.NodeBannerPut, BannerValue: aggregateBanner(n.ID, "keepme", now),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agg.UpdateAggregate(ctx, "u-agg", "agg-banner-keep", func(n domain.Node) (domain.Node, ports.NodeAggregateChanges, error) {
+		n.Name = "renamed"
+		n.BannerRef = "" // a stale VM value must not win over the stored blob
+		n.UpdatedAt = now.Add(time.Minute)
+		return n, ports.NodeAggregateChanges{}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := nodes.Get(ctx, "u-agg", "agg-banner-keep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "renamed" || got.BannerRef != "keepme" {
+		t.Errorf("metadata update disturbed the banner: %+v", got)
+	}
+	if b, err := banners.Get(ctx, "u-agg", "agg-banner-keep"); err != nil || b.Ref != "keepme" {
+		t.Errorf("blob changed: %+v err=%v", b, err)
 	}
 }

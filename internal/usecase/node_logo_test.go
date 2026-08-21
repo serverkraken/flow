@@ -95,7 +95,7 @@ func TestUploadNodeLogo_RollsBackBlobWhenNodeWriteFails(t *testing.T) {
 	ns := testutil.NewFakeNodeStore()
 	ls := testutil.NewFakeNodeLogoStore()
 	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
 	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
 	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
 	n.Kind = domain.KindEngagement
@@ -123,7 +123,7 @@ func TestDeleteNodeLogo_RollsBackRefWhenBlobDeleteFails(t *testing.T) {
 	ns := testutil.NewFakeNodeStore()
 	ls := testutil.NewFakeNodeLogoStore()
 	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
 	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
 	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
 	n.Kind = domain.KindEngagement
@@ -157,7 +157,7 @@ func TestDeleteNodeLogo_RemovesOrphanBlobWhenRefIsAlreadyEmpty(t *testing.T) {
 	ns := testutil.NewFakeNodeStore()
 	ls := testutil.NewFakeNodeLogoStore()
 	tags := testutil.NewFakeTagStore()
-	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, testutil.NewFakeNodeBannerStore(), tags)
 	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
 	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
 	n.Kind = domain.KindEngagement

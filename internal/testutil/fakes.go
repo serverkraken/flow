@@ -2103,17 +2103,19 @@ type FakeNodeAggregateStore struct {
 	mu        sync.Mutex
 	Nodes     *FakeNodeStore
 	Logos     *FakeNodeLogoStore
+	Banners   *FakeNodeBannerStore
 	Tags      *FakeTagStore
 	FailStage string
 }
 
-func NewFakeNodeAggregateStore(nodes *FakeNodeStore, logos *FakeNodeLogoStore, tags *FakeTagStore) *FakeNodeAggregateStore {
-	return &FakeNodeAggregateStore{Nodes: nodes, Logos: logos, Tags: tags}
+func NewFakeNodeAggregateStore(nodes *FakeNodeStore, logos *FakeNodeLogoStore, banners *FakeNodeBannerStore, tags *FakeTagStore) *FakeNodeAggregateStore {
+	return &FakeNodeAggregateStore{Nodes: nodes, Logos: logos, Banners: banners, Tags: tags}
 }
 
 type fakeNodeAggregateSnapshot struct {
 	nodes      map[string]domain.Node
 	logos      map[string]domain.NodeLogo
+	banners    map[string]domain.NodeBanner
 	tagDisplay map[string]string
 	tagLinks   map[string]map[string]bool
 	tagIDGen   int
@@ -2132,6 +2134,12 @@ func (s *FakeNodeAggregateStore) snapshot() fakeNodeAggregateSnapshot {
 		logos[k] = v
 	}
 	s.Logos.mu.Unlock()
+	s.Banners.mu.Lock()
+	banners := make(map[string]domain.NodeBanner, len(s.Banners.banners))
+	for k, v := range s.Banners.banners {
+		banners[k] = v
+	}
+	s.Banners.mu.Unlock()
 	s.Tags.mu.Lock()
 	display := make(map[string]string, len(s.Tags.display))
 	for k, v := range s.Tags.display {
@@ -2147,7 +2155,7 @@ func (s *FakeNodeAggregateStore) snapshot() fakeNodeAggregateSnapshot {
 	}
 	idgen := s.Tags.idgen
 	s.Tags.mu.Unlock()
-	return fakeNodeAggregateSnapshot{nodes: nodes, logos: logos, tagDisplay: display, tagLinks: links, tagIDGen: idgen}
+	return fakeNodeAggregateSnapshot{nodes: nodes, logos: logos, banners: banners, tagDisplay: display, tagLinks: links, tagIDGen: idgen}
 }
 
 func (s *FakeNodeAggregateStore) restore(snap fakeNodeAggregateSnapshot) {
@@ -2157,6 +2165,9 @@ func (s *FakeNodeAggregateStore) restore(snap fakeNodeAggregateSnapshot) {
 	s.Logos.mu.Lock()
 	s.Logos.logos = snap.logos
 	s.Logos.mu.Unlock()
+	s.Banners.mu.Lock()
+	s.Banners.banners = snap.banners
+	s.Banners.mu.Unlock()
 	s.Tags.mu.Lock()
 	s.Tags.display = snap.tagDisplay
 	s.Tags.links = snap.tagLinks
@@ -2188,6 +2199,12 @@ func (s *FakeNodeAggregateStore) CreateAggregate(ctx context.Context, n domain.N
 		}
 		n.LogoRef = changes.LogoValue.Ref
 	}
+	if changes.Banner == ports.NodeBannerPut {
+		if changes.BannerValue.OwnerID != n.OwnerID || changes.BannerValue.NodeID != n.ID {
+			return rollback(errors.New("fake node aggregate create banner identity mismatch"))
+		}
+		n.BannerRef = changes.BannerValue.Ref
+	}
 	created, err := s.Nodes.Create(ctx, n)
 	if err != nil {
 		return rollback(err)
@@ -2213,6 +2230,11 @@ func (s *FakeNodeAggregateStore) CreateAggregate(ctx context.Context, n domain.N
 			return rollback(err)
 		}
 		if err := s.fail(NodeAggregateFailLogo); err != nil {
+			return rollback(err)
+		}
+	}
+	if changes.Banner == ports.NodeBannerPut {
+		if err := s.Banners.Put(ctx, changes.BannerValue); err != nil {
 			return rollback(err)
 		}
 	}
@@ -2249,6 +2271,17 @@ func (s *FakeNodeAggregateStore) UpdateAggregate(ctx context.Context, ownerID, n
 	case ports.NodeLogoDelete:
 		n.LogoRef = ""
 	}
+	switch changes.Banner {
+	case ports.NodeBannerKeep:
+		n.BannerRef = current.BannerRef
+	case ports.NodeBannerPut:
+		if changes.BannerValue.OwnerID != current.OwnerID || changes.BannerValue.NodeID != current.ID {
+			return rollback(errors.New("fake node aggregate update banner identity mismatch"))
+		}
+		n.BannerRef = changes.BannerValue.Ref
+	case ports.NodeBannerDelete:
+		n.BannerRef = ""
+	}
 	updated, err := s.Nodes.Update(ctx, ownerID, n)
 	if err != nil {
 		return rollback(err)
@@ -2284,6 +2317,16 @@ func (s *FakeNodeAggregateStore) UpdateAggregate(ctx context.Context, ownerID, n
 	}
 	if changes.Logo != ports.NodeLogoKeep {
 		if err := s.fail(NodeAggregateFailLogo); err != nil {
+			return rollback(err)
+		}
+	}
+	switch changes.Banner {
+	case ports.NodeBannerPut:
+		if err := s.Banners.Put(ctx, changes.BannerValue); err != nil {
+			return rollback(err)
+		}
+	case ports.NodeBannerDelete:
+		if err := s.Banners.Delete(ctx, ownerID, nodeID); err != nil {
 			return rollback(err)
 		}
 	}
