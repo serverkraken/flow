@@ -140,6 +140,10 @@ type nodeRollupDTO struct {
 	WorkTotalMin int `json:"workTotalMin"`
 	WorkWeekMin  int `json:"workWeekMin"`
 	WorkMonthMin int `json:"workMonthMin"`
+	// YearMin/PrevYearToDateMin feed Screen 02's year tile; both are additive,
+	// so apiclient.NodeRollup (three fields) keeps decoding unchanged.
+	YearMin           int `json:"yearMin"`
+	PrevYearToDateMin int `json:"prevYearToDateMin"`
 }
 
 func (s *Server) handleNodeStats(w http.ResponseWriter, r *http.Request) {
@@ -153,12 +157,14 @@ func (s *Server) handleNodeStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
 		writeJSON(w, http.StatusOK, nodeRollupDTO{
-			TotalMin:     minutes(roll.Total),
-			WeekMin:      minutes(roll.Week),
-			MonthMin:     minutes(roll.Month),
-			WorkTotalMin: minutes(roll.WorkTotal),
-			WorkWeekMin:  minutes(roll.WorkWeek),
-			WorkMonthMin: minutes(roll.WorkMonth),
+			TotalMin:          minutes(roll.Total),
+			WeekMin:           minutes(roll.Week),
+			MonthMin:          minutes(roll.Month),
+			WorkTotalMin:      minutes(roll.WorkTotal),
+			WorkWeekMin:       minutes(roll.WorkWeek),
+			WorkMonthMin:      minutes(roll.WorkMonth),
+			YearMin:           minutes(roll.Year),
+			PrevYearToDateMin: minutes(roll.PrevYearToDate),
 		})
 	}
 }

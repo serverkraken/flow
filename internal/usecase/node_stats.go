@@ -55,6 +55,11 @@ func (c StatsComputer) NodeStats(ctx context.Context, ownerID, nodeID string) (d
 	weekStart := isoMondayLocal(now)
 	prevWeekStart := weekStart.AddDate(0, 0, -7)
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, loc)
+	prevYearStart := time.Date(now.Year()-1, 1, 1, 0, 0, 0, 0, loc)
+	// Same CALENDAR day one year back, not a duration added to Jan 1 — after a
+	// Feb 29 the duration form would slide the cutoff a day out of step.
+	prevYearCutoff := now.AddDate(-1, 0, 0)
 	var r domain.NodeRollup
 	for _, s := range sessions {
 		if s.NodeID == nil || !ids[*s.NodeID] {
@@ -69,6 +74,8 @@ func (c StatsComputer) NodeStats(ctx context.Context, ownerID, nodeID string) (d
 		inWeek := !st.Before(weekStart)
 		inPrevWeek := !st.Before(prevWeekStart) && st.Before(weekStart)
 		inMonth := !st.Before(monthStart)
+		inYear := !st.Before(yearStart)
+		inPrevYearToDate := !st.Before(prevYearStart) && st.Before(prevYearCutoff)
 		r.Total += el
 		if inWeek {
 			r.Week += el
@@ -78,6 +85,12 @@ func (c StatsComputer) NodeStats(ctx context.Context, ownerID, nodeID string) (d
 		}
 		if inMonth {
 			r.Month += el
+		}
+		if inYear {
+			r.Year += el
+		}
+		if inPrevYearToDate {
+			r.PrevYearToDate += el
 		}
 		if work {
 			r.WorkTotal += el

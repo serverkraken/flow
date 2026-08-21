@@ -211,3 +211,53 @@ func TestNodeStats_PrevWeek(t *testing.T) {
 		t.Errorf("PrevWeek=%v want 3h", r.PrevWeek)
 	}
 }
+
+// TestNodeStats_YearAndPrevYearToDate pins the Screen-02 year tile: Year is the
+// running calendar year, PrevYearToDate is the SAME span one year back — Jan 1
+// up to today-minus-one-year, NOT the whole previous year. The November session
+// is the discriminator: it lies in the previous calendar year but AFTER the
+// cutoff, so an implementation that simply summed "last year" would report 4h.
+func TestNodeStats_YearAndPrevYearToDate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ss := testutil.NewFakeSessionStore()
+	// Wednesday, 2026-07-01 12:00 UTC → year starts 2026-01-01,
+	// the previous-year window is 2025-01-01 .. 2025-07-01 12:00.
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)}
+
+	eng := "eng"
+	n, _ := domain.NewNode(eng, "u1", eng, eng, clk.Now())
+	n.Kind = domain.KindEngagement
+	_, _ = ns.Create(ctx, n)
+
+	ids := &testutil.FakeIDGen{}
+	add := func(label string, start, stop time.Time) {
+		t.Helper()
+		if _, err := (usecase.AddSession{Sessions: ss, Nodes: ns, IDs: ids, Clock: clk}).
+			Execute(ctx, "u1", &eng, start, stop, nil, ""); err != nil {
+			t.Fatalf("AddSession (%s): %v", label, err)
+		}
+	}
+	// 2h this year
+	add("this year", time.Date(2026, 3, 10, 9, 0, 0, 0, time.UTC), time.Date(2026, 3, 10, 11, 0, 0, 0, time.UTC))
+	// 1h last year, inside the same-span window
+	add("prev year to date", time.Date(2025, 3, 10, 9, 0, 0, 0, time.UTC), time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC))
+	// 3h last year, but past the cutoff — belongs to neither window
+	add("prev year after cutoff", time.Date(2025, 11, 5, 9, 0, 0, 0, time.UTC), time.Date(2025, 11, 5, 12, 0, 0, 0, time.UTC))
+
+	sc := usecase.StatsComputer{Sessions: ss, Nodes: ns, Clock: clk, Loc: time.UTC}
+	r, err := sc.NodeStats(ctx, "u1", eng)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Total != 6*time.Hour {
+		t.Errorf("Total=%v want 6h", r.Total)
+	}
+	if r.Year != 2*time.Hour {
+		t.Errorf("Year=%v want 2h", r.Year)
+	}
+	if r.PrevYearToDate != 1*time.Hour {
+		t.Errorf("PrevYearToDate=%v want 1h (the November session is past the cutoff)", r.PrevYearToDate)
+	}
+}
