@@ -2,7 +2,7 @@
 // Ziel: der Editor VERSTEHT [[ziel|anzeige]], ![[slug]] und > [!NOTE], statt
 // sie als Text zu escapen. Parser (remark → ProseMirror) und Serializer
 // (ProseMirror → remark) je Knoten; ein $remark-Plugin zerlegt den Text vorab.
-import { $node, $remark, $inputRule } from '@milkdown/kit/utils';
+import { $node, $remark, $inputRule, $pasteRule, markdownToSlice } from '@milkdown/kit/utils';
 import { InputRule } from '@milkdown/kit/prose/inputrules';
 import { findAndReplace } from 'mdast-util-find-and-replace';
 import remarkFrontmatter from 'remark-frontmatter';
@@ -104,4 +104,21 @@ export const embedInputRule = $inputRule(ctx => new InputRule(
   (state, match, start, end) => state.tr.replaceWith(start, end,
     embedNode.type(ctx).create({ slug: match[1].trim() }))));
 
-export const flowSyntax = [frontmatterRemark, frontmatterNode, wikiRemark, wikilinkNode, embedNode, calloutRemark, calloutNode, wikilinkInputRule, embedInputRule].flat();
+// ── Paste-Rule: eingefügt, nicht nur getippt ──────────────────────────────
+// Die Input-Rules feuern pro Tastendruck auf die schließende Klammer. Wer
+// "[[ziel]]" aus einer anderen Karte KOPIERT, fügt den ganzen Block auf einmal
+// ein — kein Tastendruck, keine Regel, und der Serializer escaped den Text zu
+// "\\[\\[ziel]]". Eingefügter Klartext läuft deshalb durch den Markdown-
+// Parser, wo die $remark-Plugins greifen; nur wenn flow-Syntax drinsteckt,
+// sonst bleibt der Slice, wie er ist (kein Umdeuten normaler Absätze).
+const FLOW_SYNTAX = /!?\[\[[^\[\]\n]+\]\]|^> \[![A-Za-z]+\]/m;
+export const flowPasteRule = $pasteRule((ctx) => ({
+  run: (slice, _view, isPlainText) => {
+    if (!isPlainText) return slice;
+    const text = slice.content.textBetween(0, slice.content.size, '\n');
+    if (!FLOW_SYNTAX.test(text)) return slice;
+    try { return markdownToSlice(text)(ctx); } catch { return slice; }
+  },
+}));
+
+export const flowSyntax = [frontmatterRemark, frontmatterNode, wikiRemark, wikilinkNode, embedNode, calloutRemark, calloutNode, wikilinkInputRule, embedInputRule, flowPasteRule].flat();
