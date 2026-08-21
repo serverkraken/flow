@@ -255,7 +255,8 @@ VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, tagID, string(domain.TaggableNode), n
 func putNodeLogoTx(ctx context.Context, tx pgx.Tx, l domain.NodeLogo) error {
 	_, err := tx.Exec(ctx, `INSERT INTO node_logos (node_id, owner_id, mime, ref, bytes, updated_at, width, height)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-ON CONFLICT (node_id) DO UPDATE SET mime=$3, ref=$4, bytes=$5, updated_at=$6, width=$7, height=$8`,
+ON CONFLICT (node_id) DO UPDATE SET mime=$3, ref=$4, bytes=$5, updated_at=$6, width=$7, height=$8
+WHERE node_logos.owner_id=$2`,
 		l.NodeID, l.OwnerID, l.Mime, l.Ref, l.Bytes, l.UpdatedAt, l.Width, l.Height)
 	if err != nil {
 		return fmt.Errorf("pgstore: put aggregate node logo: %w", err)
