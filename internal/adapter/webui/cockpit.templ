@@ -4,76 +4,12 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 )
 
-// NodeView is the full cockpit page (Mockup v2.4, Spec §5/§9 "Rückgrat ersetzt
-// den Baum"): a flat single-scroll layout — no tabs. Three independent SSE
-// fragments (head/main/rail) wrap CockpitHead (T4), CockpitMain (T6), and
-// CockpitRailBlocks (T5).
-templ NodeView(d NodeCockpit) {
-	@components.Base("projekte", nodeCockpitShell(d))
-}
-
-templ nodeCockpitShell(d NodeCockpit) {
-	@components.AppShell("projekte", nodeBreadcrumb(d), nil, cockpitBody(d))
-}
-
+// nodeBreadcrumb ist alles, was von der flachen Cockpit-SEITE übrig ist. Die
+// Seite selbst (NodeView/cockpitBody) ist mit der Umlegung auf den
+// Register-Einstieg verschwunden; ihre Bausteine leben auf eigenen Flächen
+// weiter (?tab=wissen|worktime|struktur|kontext, /nodes/{id}/artifacts). Die
+// Krume brauchen sie alle.
 templ nodeBreadcrumb(d NodeCockpit) {
 	@components.Breadcrumb(nodeCrumbs(d))
 }
 
-// cockpitBody wires the four fragments per the brief's SSE-per-mutation
-// table: #cockpit-head (spine, full width — reloads only on node.updated/
-// node.moved), then the .cock grid holding #cockpit-main (content column —
-// reloads on every session/document/node/activity mutation) and #cockpit-rail
-// (Meta-Spalte aside — reloads on session, node.updated/moved, and
-// document.* so the L5 context-instrument panel's meter/pins live-follow a
-// pin/reorder mutation), and finally #cockpit-artifacts (Task 5 — a full-
-// width Haarlinien-Sektion BELOW the .cock grid, not a rail block; Spec OE
-// #2, reloads on artifact.created/updated/deleted). The shared
-// add-mode session dialog mounts once here (opened client-side via
-// data-dialog-open, no server round-trip needed); the edit-mode dialog is
-// mounted inside CockpitMain instead (cockpit_main.templ) so it also
-// reappears after a #cockpit-main-only AJAX swap (the ?edit={sid} round-trip).
-templ cockpitBody(d NodeCockpit) {
-	<div
-		id="cockpit-head"
-		hx-get={ "/nodes/" + d.N.ID + "/head" }
-		hx-trigger="sse:node.updated, sse:node.moved"
-		hx-swap="innerHTML"
-	>
-		@CockpitHead(d)
-	</div>
-	<div class="cock">
-		<div
-			id="cockpit-main"
-			class="min-w-0"
-			hx-get={ cockpitMainReloadURL(d) }
-			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:document.created, sse:document.updated, sse:document.deleted, sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted, sse:activity.logged"
-			hx-swap="innerHTML"
-		>
-			@CockpitMain(d)
-		</div>
-		<aside
-			class="rail"
-			id="cockpit-rail"
-			hx-get={ "/nodes/" + d.N.ID + "/rail" }
-			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.updated, sse:node.moved, sse:document.created, sse:document.updated, sse:document.deleted"
-			hx-swap="innerHTML"
-		>
-			@CockpitRailBlocks(d)
-		</aside>
-	</div>
-	<div
-		id="cockpit-artifacts"
-		hx-get={ "/nodes/" + d.N.ID + "/artifacts" }
-		hx-trigger="sse:artifact.created, sse:artifact.updated, sse:artifact.deleted"
-		hx-swap="innerHTML"
-	>
-		@CockpitArtifacts(d)
-	</div>
-	@components.SessionDialog(sessionDialogAddVM(d))
-	<script src={ AssetURL("js/clipboard.js") } defer></script>
-	// Shared document-render scripts (mermaid etc.) so the cockpit's rendered
-	// README (FR-A) renders a document body identically to /wissen/{id}. Mounted
-	// once here, outside the SSE-swapped #cockpit-main. See DocRenderScripts.
-	@DocRenderScripts()
-}

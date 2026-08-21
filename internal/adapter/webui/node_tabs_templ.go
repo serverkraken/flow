@@ -15,7 +15,7 @@ import "github.com/serverkraken/flow/internal/adapter/webui/components"
 // register itself rather than an error page.
 func NormalizeTab(raw string) string {
 	switch raw {
-	case "wissen", "worktime", "struktur":
+	case "wissen", "worktime", "struktur", "kontext":
 		return raw
 	default:
 		return ""
@@ -210,13 +210,22 @@ func nodeTabBody(d NodeCockpit, tab string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+		case "kontext":
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "    ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = CockpitRailBlocks(d).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if tab == "worktime" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "   ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "   ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -225,7 +234,7 @@ func nodeTabBody(d NodeCockpit, tab string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -242,6 +251,8 @@ func nodeTabTitleKey(tab string) string {
 		return "nodetab.worktime"
 	case "struktur":
 		return "nodetab.struktur"
+	case "kontext":
+		return "nodetab.kontext"
 	default:
 		return "nodetab.wissen"
 	}

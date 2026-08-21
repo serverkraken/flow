@@ -261,14 +261,7 @@ func TestCockpitMain_WissenLinksToScopedManagerWithArchiveCounts(t *testing.T) {
 	}
 }
 
-// TestCockpitBody_MountsMermaidInit verifies the cockpit page shell mounts
-// mermaid-init.js once (outside the SSE-swapped #cockpit-main) so a rendered
-// README's mermaid diagrams initialize in the cockpit — at parity with the
-// document view (/wissen/{id}), which mounts the same script.
-func TestCockpitBody_MountsMermaidInit(t *testing.T) {
-	d := seededCockpit()
-	out := renderToBuf(t, context.Background(), cockpitBody(d))
-	if !strings.Contains(out, "js/mermaid-init.js") {
-		t.Fatalf("cockpit page must mount mermaid-init.js for README diagram rendering:\n%s", out)
-	}
-}
+// TestCockpitBody_MountsMermaidInit ist entfallen: die Cockpit-SEITE, die
+// mermaid-init.js montierte, gibt es nicht mehr. Der Anspruch bleibt und ist
+// nach node_einstieg_vm_test.go gewandert — die Registerseite rendert die
+// README jetzt dort, und DocRenderScripts gehört mit ihr.

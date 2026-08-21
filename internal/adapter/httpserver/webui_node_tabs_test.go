@@ -106,3 +106,28 @@ func TestEinstieg_KastenReloadsItself(t *testing.T) {
 		t.Errorf("Kasten fragment missing the register's name; body=%.500s", fb)
 	}
 }
+
+// TestNodeTab_KontextSurfaceIsReachable pins Soenne's decision of 21.08.: the
+// context instrument (meter + pin preview) was built and works, but after the
+// entry point took over /nodes/{id} nothing linked to it any more. It is a
+// surface of its own now, and the entry point's ways row leads there.
+func TestNodeTab_KontextSurfaceIsReachable(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, Color: "cyan"})
+
+	rec := c.do(t, "GET", "/nodes/n1?tab=kontext", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.300s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `href="/nodes/n1"`) {
+		t.Errorf("the context surface needs its way back; body=%.600s", body)
+	}
+
+	// And the entry point must lead there — an instrument nobody can reach is
+	// the state this decision was made to end.
+	entry := c.do(t, "GET", "/nodes/n1", nil)
+	if !strings.Contains(entry.Body.String(), `/nodes/n1?tab=kontext`) {
+		t.Errorf("entry point must link to the context surface; body=%.900s", entry.Body.String())
+	}
+}

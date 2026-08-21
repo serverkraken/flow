@@ -7,6 +7,7 @@ package webui
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -610,3 +611,25 @@ func TestBuildNodeEinstieg_HighlightHref(t *testing.T) {
 
 func ptrDur(d time.Duration) *time.Duration { return &d }
 func ptrT(t time.Time) *time.Time           { return &t }
+
+// TestEinstiegPage_MountsDocRenderScripts pins what DocRenderScripts' own
+// comment demands: every surface that renders a Kompendium document body
+// mounts the same set. The entry point shows the register's README in its
+// reading column, so mermaid diagrams and the image lightbox must work there
+// exactly as they do on /wissen/{id}. The flat cockpit page mounted them and
+// had a test for it; that page is gone, and its test went with it — this one
+// takes over.
+func TestEinstiegPage_MountsDocRenderScripts(t *testing.T) {
+	d := NodeEinstieg{N: domain.Node{ID: "n1", Name: "flow", Kind: domain.KindRepo}}
+	out := renderToBuf(t, context.Background(), NodeEinstiegPage(d))
+	for _, want := range []string{"js/mermaid-init.js", "js/lightbox.js", `id="doc-lightbox"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the entry point renders a README but does not mount %s", want)
+		}
+	}
+	// Once per page, and OUTSIDE the SSE-swapped columns — a fragment swap
+	// must never re-add the tag.
+	if n := strings.Count(out, "js/mermaid-init.js"); n != 1 {
+		t.Errorf("mermaid-init.js mounted %d times, want exactly once", n)
+	}
+}

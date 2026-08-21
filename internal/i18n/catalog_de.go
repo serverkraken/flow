@@ -193,6 +193,7 @@ func init() {
 			"nodetab.wissen":                      "Wissen",
 			"nodetab.worktime":                    "Buchungen",
 			"nodetab.struktur":                    "Enthält",
+			"nodetab.kontext":                     "Kontext",
 			"einstieg.artefakte":                  "Artefakte ›",
 			"einstieg.kontext":                    "Kontext kuratieren ›",
 			"cockpit.rail.facts":                  "Eckdaten",

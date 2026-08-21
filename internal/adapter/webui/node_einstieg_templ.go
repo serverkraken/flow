@@ -75,6 +75,10 @@ func einstiegBody(d NodeEinstieg) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
+		templ_7745c5c3_Err = DocRenderScripts().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		return nil
 	})
 }
@@ -107,7 +111,7 @@ func einstiegOuter(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(d.N.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 28, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 33, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -120,7 +124,7 @@ func einstiegOuter(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("/nodes/" + d.N.ID + "/kasten" + d.SortStateHref)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 30, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 35, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -149,7 +153,7 @@ func einstiegOuter(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("/nodes/" + d.N.ID + "/lese")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 41, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 46, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -323,7 +327,7 @@ func einstiegKopf(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(d.N.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 84, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 89, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -349,7 +353,7 @@ func einstiegKopf(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(d.MetaParts, " · "))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 88, Col: 92}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 93, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -399,7 +403,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(d.WeekDecimal)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 101, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 106, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -412,7 +416,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.week"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 103, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 108, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -430,7 +434,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.week.soll"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 105, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 110, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -443,7 +447,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(d.WeekSoll)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 105, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 110, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -457,7 +461,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(d.MonthStr)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 110, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 115, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -470,7 +474,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(d.MonthName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 111, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 116, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -483,7 +487,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(d.YearStr)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 114, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 119, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -496,7 +500,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(d.YearNum)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 116, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 121, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -514,7 +518,7 @@ func einstiegKennzahlen(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(d.YearDelta)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 118, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 123, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -564,7 +568,7 @@ func einstiegBanner(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs("/nodes/" + d.N.ID + "/banner?v=" + d.BannerRef)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 130, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 135, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -582,7 +586,7 @@ func einstiegBanner(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.banner.empty"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 133, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 138, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -604,7 +608,7 @@ func einstiegBanner(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.banner.pick"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 135, Col: 122}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 140, Col: 122}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -663,7 +667,7 @@ func einstiegZeitverlaufLink(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.zeitverlauf"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 152, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 157, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -676,7 +680,7 @@ func einstiegZeitverlaufLink(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.zeitverlauf.since"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 153, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 158, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -689,7 +693,7 @@ func einstiegZeitverlaufLink(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(d.SinceMonth)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 153, Col: 118}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 158, Col: 118}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -737,7 +741,7 @@ func einstiegEckdaten(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "cockpit.rail.facts"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 164, Col: 155}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 169, Col: 155}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -755,7 +759,7 @@ func einstiegEckdaten(d NodeEinstieg) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, f.LabelKey))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 168, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 173, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -790,7 +794,7 @@ func einstiegEckdaten(d NodeEinstieg) templ.Component {
 				var templ_7745c5c3_Var37 string
 				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(f.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 170, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 175, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 				if templ_7745c5c3_Err != nil {
@@ -808,7 +812,7 @@ func einstiegEckdaten(d NodeEinstieg) templ.Component {
 					var templ_7745c5c3_Var38 string
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(f.Aside)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 172, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 177, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {
@@ -865,7 +869,7 @@ func einstiegSectionKopf(label, hint string) templ.Component {
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 187, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 192, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 		if templ_7745c5c3_Err != nil {
@@ -883,7 +887,7 @@ func einstiegSectionKopf(label, hint string) templ.Component {
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(hint)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 189, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 194, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -964,7 +968,7 @@ func einstiegKinder(d NodeEinstieg) templ.Component {
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, d.SortLabelKey))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 207, Col: 39}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 212, Col: 39}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 				if templ_7745c5c3_Err != nil {
@@ -1044,7 +1048,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(railTint(row.Kind))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 228, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 233, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -1072,7 +1076,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(row.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 235, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 240, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -1085,7 +1089,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(einstiegOpenAttr(row.Open))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 236, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 241, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {
@@ -1098,7 +1102,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 			var templ_7745c5c3_Var51 string
 			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "nav.collapseToggle"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 237, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 242, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
@@ -1158,7 +1162,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 		var templ_7745c5c3_Var54 string
 		templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(row.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 250, Col: 152}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 255, Col: 152}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 		if templ_7745c5c3_Err != nil {
@@ -1171,7 +1175,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(components.Tn(ctx, "einstieg.cards", row.Cards))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 251, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 256, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
@@ -1189,7 +1193,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "cockpit.worktime.running"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 254, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 259, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 			if templ_7745c5c3_Err != nil {
@@ -1202,7 +1206,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(row.RunningDur)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 254, Col: 127}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 259, Col: 127}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
@@ -1220,7 +1224,7 @@ func einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) templ.Component {
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(row.When)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 256, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 261, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
@@ -1287,7 +1291,7 @@ func einstiegRepoRow(row EinstiegRepoRow, kind domain.NodeKind) templ.Component 
 		var templ_7745c5c3_Var61 string
 		templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(row.ParentID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 272, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 277, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 		if templ_7745c5c3_Err != nil {
@@ -1322,7 +1326,7 @@ func einstiegRepoRow(row EinstiegRepoRow, kind domain.NodeKind) templ.Component 
 		var templ_7745c5c3_Var64 string
 		templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(einstiegRepoName(row))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 282, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 287, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 		if templ_7745c5c3_Err != nil {
@@ -1336,7 +1340,7 @@ func einstiegRepoRow(row EinstiegRepoRow, kind domain.NodeKind) templ.Component 
 			var templ_7745c5c3_Var65 string
 			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(row.Upstream)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 285, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 290, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1346,7 +1350,7 @@ func einstiegRepoRow(row EinstiegRepoRow, kind domain.NodeKind) templ.Component 
 			var templ_7745c5c3_Var66 string
 			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.repo.noUpstream"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 287, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 292, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 			if templ_7745c5c3_Err != nil {
@@ -1360,7 +1364,7 @@ func einstiegRepoRow(row EinstiegRepoRow, kind domain.NodeKind) templ.Component 
 		var templ_7745c5c3_Var67 string
 		templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(row.Cards))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 291, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 296, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 		if templ_7745c5c3_Err != nil {
@@ -1476,7 +1480,7 @@ func einstiegLoseRepos(d NodeEinstieg) templ.Component {
 				var templ_7745c5c3_Var71 string
 				templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.loseRepos.upstream"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 387, Col: 92}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 392, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 				if templ_7745c5c3_Err != nil {
@@ -1557,7 +1561,7 @@ func einstiegBuchungen(d NodeEinstieg) templ.Component {
 				var templ_7745c5c3_Var75 string
 				templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.buchungen.all"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 403, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 408, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 				if templ_7745c5c3_Err != nil {
@@ -1616,7 +1620,7 @@ func einstiegBuchungRow(b EinstiegBuchungRow) templ.Component {
 		var templ_7745c5c3_Var77 string
 		templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(b.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 419, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 424, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 		if templ_7745c5c3_Err != nil {
@@ -1629,7 +1633,7 @@ func einstiegBuchungRow(b EinstiegBuchungRow) templ.Component {
 		var templ_7745c5c3_Var78 string
 		templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(b.DurStr)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 420, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 425, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 		if templ_7745c5c3_Err != nil {
@@ -1643,7 +1647,7 @@ func einstiegBuchungRow(b EinstiegBuchungRow) templ.Component {
 			var templ_7745c5c3_Var79 string
 			templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(b.Amount)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 424, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 429, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 			if templ_7745c5c3_Err != nil {
@@ -1653,7 +1657,7 @@ func einstiegBuchungRow(b EinstiegBuchungRow) templ.Component {
 			var templ_7745c5c3_Var80 string
 			templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(b.DurStr)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 426, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 431, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 			if templ_7745c5c3_Err != nil {
@@ -1714,7 +1718,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var83 string
 		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.wissen"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 444, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 449, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 		if templ_7745c5c3_Err != nil {
@@ -1732,7 +1736,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var84 string
 			templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(d.CardsTotal))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 446, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 451, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 			if templ_7745c5c3_Err != nil {
@@ -1759,7 +1763,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var86 string
 		templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.neuesWissen"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 451, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 456, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 		if templ_7745c5c3_Err != nil {
@@ -1781,7 +1785,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var88 string
 		templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.zeitStarten"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 458, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 463, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 		if templ_7745c5c3_Err != nil {
@@ -1803,7 +1807,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var90 string
 		templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.zeitNachtragen"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 461, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 466, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 		if templ_7745c5c3_Err != nil {
@@ -1825,7 +1829,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var92 string
 		templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.artefakte"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 467, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 472, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 		if templ_7745c5c3_Err != nil {
@@ -1835,7 +1839,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var93 templ.SafeURL = templ.SafeURL("/kontext/" + d.N.ID)
+		var templ_7745c5c3_Var93 templ.SafeURL = templ.SafeURL("/nodes/" + d.N.ID + "?tab=kontext")
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var93)))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -1847,7 +1851,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var94 string
 		templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.kontext"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 470, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 475, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 		if templ_7745c5c3_Err != nil {
@@ -1869,7 +1873,7 @@ func einstiegWege(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var96 string
 		templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.verwalten"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 473, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 478, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var96))
 		if templ_7745c5c3_Err != nil {
@@ -1914,7 +1918,7 @@ func einstiegReadmeKopf(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var98 string
 		templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.readme"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 483, Col: 125}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 488, Col: 125}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 		if templ_7745c5c3_Err != nil {
@@ -1932,7 +1936,7 @@ func einstiegReadmeKopf(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var99 string
 			templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinStringErrs(d.ReadmePath)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 488, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 493, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 			if templ_7745c5c3_Err != nil {
@@ -1950,7 +1954,7 @@ func einstiegReadmeKopf(d NodeEinstieg) templ.Component {
 				var templ_7745c5c3_Var100 string
 				templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.readme.last"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 490, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 495, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 				if templ_7745c5c3_Err != nil {
@@ -1963,7 +1967,7 @@ func einstiegReadmeKopf(d NodeEinstieg) templ.Component {
 				var templ_7745c5c3_Var101 string
 				templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(d.ReadmeWhen)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 490, Col: 112}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 495, Col: 112}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 				if templ_7745c5c3_Err != nil {
@@ -1991,7 +1995,7 @@ func einstiegReadmeKopf(d NodeEinstieg) templ.Component {
 		var templ_7745c5c3_Var103 string
 		templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "common.edit"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 494, Col: 184}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 499, Col: 184}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var103))
 		if templ_7745c5c3_Err != nil {
@@ -2059,7 +2063,7 @@ func einstiegReadmeProsa(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var106 string
 			templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.readme.empty"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 506, Col: 172}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 511, Col: 172}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var106))
 			if templ_7745c5c3_Err != nil {
@@ -2105,7 +2109,7 @@ func einstiegReadmeEnde(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var108 string
 			templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.readme.end"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 519, Col: 139}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 524, Col: 139}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 			if templ_7745c5c3_Err != nil {
@@ -2153,7 +2157,7 @@ func einstiegHighlights(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var110 string
 			templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.highlights"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 532, Col: 121}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 537, Col: 121}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var110))
 			if templ_7745c5c3_Err != nil {
@@ -2166,7 +2170,7 @@ func einstiegHighlights(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var111 string
 			templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.highlights.hint"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 533, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 538, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var111))
 			if templ_7745c5c3_Err != nil {
@@ -2278,7 +2282,7 @@ func einstiegHighlightBody(row EinstiegHighlightRow) templ.Component {
 		var templ_7745c5c3_Var115 string
 		templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinStringErrs(row.Day)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 557, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 562, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 		if templ_7745c5c3_Err != nil {
@@ -2291,7 +2295,7 @@ func einstiegHighlightBody(row EinstiegHighlightRow) templ.Component {
 		var templ_7745c5c3_Var116 string
 		templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs("„" + row.Quote + "“")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 558, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 563, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 		if templ_7745c5c3_Err != nil {
@@ -2304,7 +2308,7 @@ func einstiegHighlightBody(row EinstiegHighlightRow) templ.Component {
 		var templ_7745c5c3_Var117 string
 		templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(row.Where)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 559, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 564, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 		if templ_7745c5c3_Err != nil {
@@ -2351,7 +2355,7 @@ func einstiegFeed(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var119 string
 			templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.feed.title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 569, Col: 121}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 574, Col: 121}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 			if templ_7745c5c3_Err != nil {
@@ -2364,7 +2368,7 @@ func einstiegFeed(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var120 string
 			templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(d.N.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 569, Col: 134}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 574, Col: 134}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 			if templ_7745c5c3_Err != nil {
@@ -2377,7 +2381,7 @@ func einstiegFeed(d NodeEinstieg) templ.Component {
 			var templ_7745c5c3_Var121 string
 			templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "einstieg.feed.hint"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 570, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 575, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var121))
 			if templ_7745c5c3_Err != nil {
@@ -2429,7 +2433,7 @@ func einstiegFeedRow(row EinstiegFeedRow) templ.Component {
 		var templ_7745c5c3_Var123 string
 		templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(row.When)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 583, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 588, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 		if templ_7745c5c3_Err != nil {
@@ -2464,7 +2468,7 @@ func einstiegFeedRow(row EinstiegFeedRow) templ.Component {
 		var templ_7745c5c3_Var126 string
 		templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.JoinStringErrs(row.ChipLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 584, Col: 112}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 589, Col: 112}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var126))
 		if templ_7745c5c3_Err != nil {
@@ -2491,7 +2495,7 @@ func einstiegFeedRow(row EinstiegFeedRow) templ.Component {
 			var templ_7745c5c3_Var128 string
 			templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinStringErrs(row.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 587, Col: 115}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 592, Col: 115}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var128))
 			if templ_7745c5c3_Err != nil {
@@ -2509,7 +2513,7 @@ func einstiegFeedRow(row EinstiegFeedRow) templ.Component {
 			var templ_7745c5c3_Var129 string
 			templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(row.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 589, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 594, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 			if templ_7745c5c3_Err != nil {
@@ -2528,7 +2532,7 @@ func einstiegFeedRow(row EinstiegFeedRow) templ.Component {
 			var templ_7745c5c3_Var130 string
 			templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(row.Note)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 592, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 597, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 			if templ_7745c5c3_Err != nil {
@@ -2546,7 +2550,7 @@ func einstiegFeedRow(row EinstiegFeedRow) templ.Component {
 		var templ_7745c5c3_Var131 string
 		templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(row.Vorhaben)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 595, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/node_einstieg.templ`, Line: 600, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 		if templ_7745c5c3_Err != nil {
