@@ -114,6 +114,12 @@ templ RailNav(vm RailNavVM) {
 				<span class="ml-auto font-mono text-[10.5px] text-muted tnum">{ itoa(vm.BibCount) }</span>
 			}
 		</a>
+		<a href="/tagebuch" data-tint="green" class={ railAllgemeinClass(vm.Active == "tagebuch") }>
+			{ components.T(ctx, "nav.tagebuch") }
+			if vm.TagebuchCount > 0 {
+				<span class="ml-auto font-mono text-[10.5px] text-muted tnum">{ itoa(vm.TagebuchCount) }</span>
+			}
+		</a>
 		<a href="/zeit" data-tint="live" class={ railAllgemeinClass(vm.Active == "zeit") }>
 			{ components.T(ctx, "nav.zeit") }
 			if vm.ZeitToday != "" {

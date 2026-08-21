@@ -72,11 +72,16 @@ type Server struct {
 	SetCountsTowardTarget usecase.SetCountsTowardTarget
 
 	// cockpit-story slice 2 (node logos)
-	UploadNodeLogo   usecase.UploadNodeLogo
-	DeleteNodeLogo   usecase.DeleteNodeLogo
-	GetNodeLogo      usecase.GetNodeLogo
-	GetNodeBanner    usecase.GetNodeBanner
-	UploadNodeBanner usecase.UploadNodeBanner
+	UploadNodeLogo         usecase.UploadNodeLogo
+	DeleteNodeLogo         usecase.DeleteNodeLogo
+	GetNodeLogo            usecase.GetNodeLogo
+	GetNodeBanner          usecase.GetNodeBanner
+	UploadNodeBanner       usecase.UploadNodeBanner
+	AssignHighlight        usecase.AssignHighlight
+	RemoveHighlight        usecase.RemoveHighlight
+	ListDocumentHighlights usecase.ListDocumentHighlights
+	ListRecentHighlights   usecase.ListRecentHighlights
+	ListNewestHighlights   usecase.ListNewestHighlights
 
 	// slice 1 bulk ops
 	BulkAssignNode     usecase.BulkAssignNode
@@ -378,6 +383,12 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /nodes/{id}/rail", s.webAuth(http.HandlerFunc(s.handleWebNodeRail)))
 	mux.Handle("GET /nodes/{id}/logo", s.webAuth(http.HandlerFunc(s.handleWebNodeLogo)))
 	mux.Handle("GET /nodes/{id}/banner", s.webAuth(http.HandlerFunc(s.handleWebNodeBanner)))
+	mux.Handle("GET /tagebuch", s.webAuth(http.HandlerFunc(s.handleWebTagebuch)))
+	mux.Handle("GET /tagebuch/heute", s.webAuth(http.HandlerFunc(s.handleWebTagebuchToday)))
+	mux.Handle("GET /tagebuch/archiv", s.webAuth(http.HandlerFunc(s.handleWebTagebuchArchiv)))
+	mux.Handle("GET /tagebuch/{id}/markieren", s.webAuth(http.HandlerFunc(s.handleWebTagebuchMarkieren)))
+	mux.Handle("POST /tagebuch/{id}/highlights", s.webAuth(http.HandlerFunc(s.handleWebTagebuchHighlightCreate)))
+	mux.Handle("POST /tagebuch/{id}/highlights/{hid}/delete", s.webAuth(http.HandlerFunc(s.handleWebTagebuchHighlightDelete)))
 	mux.Handle("GET /nodes/{id}/artifacts/{slug}", s.webAuth(http.HandlerFunc(s.handleServeArtifact)))
 	mux.Handle("GET /nodes/{id}/artifacts", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifacts)))
 	mux.Handle("POST /nodes/{id}/artifacts", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifactUpload)))

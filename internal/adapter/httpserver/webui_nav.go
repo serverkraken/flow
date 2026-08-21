@@ -38,6 +38,11 @@ func (s *Server) handleNavTreeFragment(w http.ResponseWriter, r *http.Request) {
 		}
 		cards = webui.SubtreeDocTotals(visible, docs)
 		vm.BibCount = len(docs)
+		for _, d := range docs {
+			if d.Type == domain.DocDaily {
+				vm.TagebuchCount++
+			}
+		}
 	}
 
 	runningNode, runningDur := "", ""

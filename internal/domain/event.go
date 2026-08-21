@@ -8,10 +8,10 @@ const (
 	EventSessionStopped  EventType = "session.stopped"
 	EventSessionUpdated  EventType = "session.updated"
 	EventSessionDeleted  EventType = "session.deleted"
-	EventNodeCreated  EventType = "node.created"
-	EventNodeDeleted  EventType = "node.deleted"
-	EventNodeUpdated  EventType = "node.updated"
-	EventNodeMoved    EventType = "node.moved"
+	EventNodeCreated     EventType = "node.created"
+	EventNodeDeleted     EventType = "node.deleted"
+	EventNodeUpdated     EventType = "node.updated"
+	EventNodeMoved       EventType = "node.moved"
 	EventDayOffChanged   EventType = "dayoff.changed"
 	EventSettingsChanged EventType = "settings.changed"
 
@@ -22,6 +22,10 @@ const (
 	EventArtifactCreated EventType = "artifact.created"
 	EventArtifactUpdated EventType = "artifact.updated"
 	EventArtifactDeleted EventType = "artifact.deleted"
+
+	// EventHighlightChanged fires when a marked passage is assigned to a
+	// register or removed again (Screen 27).
+	EventHighlightChanged EventType = "highlight.changed"
 
 	EventActivityLogged EventType = "activity.logged"
 )

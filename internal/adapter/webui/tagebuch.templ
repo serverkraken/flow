@@ -1,0 +1,251 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// ---- Screen 04: heutige Tagesnotiz ----------------------------------------
+
+templ TagebuchPage(vm TagebuchVM) {
+	@components.Base("tagebuch", tagebuchBody(vm))
+}
+
+templ tagebuchBody(vm TagebuchVM) {
+	@components.AppShellFlush("tagebuch", "", tagebuchMain(vm))
+}
+
+templ tagebuchMain(vm TagebuchVM) {
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+		<div class="k3-panel flex flex-col bg-panel border-b border-hairp lg:border-b-0 lg:border-r">
+			<div class="px-6 pt-6">
+				<div class="flex items-center gap-3">
+					<h2 class="flex-1 font-display text-xl font-bold tracking-tight">{ components.T(ctx, "tagebuch.title") }</h2>
+					<a href="/tagebuch/archiv" class="text-[12.5px] font-semibold text-muted hover:text-ink">{ components.T(ctx, "tagebuch.archiv") } ›</a>
+					<a href="/tagebuch/heute" class="text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "tagebuch.writeToday") }</a>
+				</div>
+				<div class="mt-2 flex gap-4 text-[12px] text-muted">
+					<span>{ vm.NotesCountLabel }</span>
+					<span>{ vm.StreakLabel }</span>
+				</div>
+				if vm.MonthLabel != "" {
+					<div class="mt-7 border-b border-line2 pb-2.5 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ vm.MonthLabel }</div>
+				}
+			</div>
+			<div class="flex-1 overflow-auto pb-4">
+				for _, n := range vm.Notes {
+					<a
+						href={ templ.SafeURL("/tagebuch?selected=" + n.ID) }
+						class={ "block border-b border-line px-6 py-3", templ.KV("bg-accent-wash", n.Selected) }
+					>
+						<span class="flex items-baseline gap-2.5">
+							<span class="text-[13.5px] font-bold">{ n.Weekday }</span>
+							<span class="font-mono text-[10.5px] text-muted">{ n.DateLabel }</span>
+						</span>
+						if n.Excerpt != "" {
+							<span class="mt-1 block text-[12.5px] leading-relaxed text-muted">{ n.Excerpt }</span>
+						}
+					</a>
+				}
+			</div>
+		</div>
+		<div class="bg-canvas">
+			@components.PanelToggle("tagebuch.title", "mx-11 mt-6")
+			@tagebuchDetailView(vm.Selected)
+		</div>
+	</div>
+}
+
+templ tagebuchDetailView(d *TagebuchDetail) {
+	if d == nil {
+		@components.EmptyState("", "tagebuch.empty", "tagebuch.empty.body")
+	} else {
+		<div class="max-w-[660px] px-11 py-7">
+			@components.Breadcrumb(&components.Crumb{Href: "/tagebuch", Label: components.T(ctx, "tagebuch.title")},
+				[]components.Crumb{
+					{Href: "/tagebuch", Label: components.T(ctx, "tagebuch.title")},
+					{Label: d.Title},
+				}, "")
+			// Screen 04's head: the type marker in the Tagebuch hue beside the
+			// path, actions as text links, the title on the top typo rung, and
+			// one quiet line of provenance.
+			<div class="flex items-baseline gap-2.5">
+				<span class="shrink-0 text-[10px] font-bold uppercase tracking-[.1em] text-green">{ components.T(ctx, "wissen.daily") }</span>
+				<span class="min-w-0 truncate font-mono text-[11px] text-muted">{ d.Path }</span>
+				<span class="flex-1"></span>
+				<a href={ templ.SafeURL(d.MarkierenHref) } class="shrink-0 text-[12.5px] font-semibold text-body2 hover:text-accent">{ components.T(ctx, "tagebuch.markieren") }</a>
+				<a href={ templ.SafeURL(d.EditHref) } class="shrink-0 text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "tagebuch.edit") }</a>
+			</div>
+			<h1 class="mt-3.5 text-[30px] font-[750] leading-[1.12] tracking-[-.02em]">{ d.Title }</h1>
+			if d.MetaLabel != "" {
+				<p class="mt-2 text-[12.5px] text-muted">{ d.MetaLabel }</p>
+			}
+			@components.MarkdownProse(d.BodyHTML)
+			// The note is never finished — the dashed line is the invitation to
+			// keep writing, and it leads into the editor rather than pretending
+			// to be an input (Screen 04).
+			<a href={ templ.SafeURL(d.EditHref) } class="mt-1 block max-w-[420px] border-b border-dashed border-hair3 pb-1 text-[13px] text-faint hover:text-accent">
+				{ components.T(ctx, "tagebuch.continue") }
+			</a>
+		</div>
+	}
+}
+
+// ---- Screen 14: Archiv -----------------------------------------------------
+
+templ TagebuchArchivPage(vm TagebuchArchivVM) {
+	@components.Base("tagebuch", tagebuchArchivBody(vm))
+}
+
+templ tagebuchArchivBody(vm TagebuchArchivVM) {
+	@components.AppShellFlush("tagebuch", "", tagebuchArchivMain(vm))
+}
+
+templ tagebuchArchivMain(vm TagebuchArchivVM) {
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+		<div class="k3-panel flex flex-col bg-panel border-b border-hairp lg:border-b-0 lg:border-r">
+			<div class="px-6 pt-6">
+				<div class="flex items-baseline gap-3">
+					<h2 class="flex-1 font-display text-xl font-bold tracking-tight">{ components.T(ctx, "tagebuch.archiv") }</h2>
+					<a href={ templ.SafeURL(tagebuchArchivHref(vm.Year, 0)) } class="text-[13px] font-bold">{ itoa(vm.Year) }</a>
+					<a href={ templ.SafeURL(tagebuchArchivHref(vm.PrevYear, 0)) } class="text-[13px] text-muted hover:text-ink">{ itoa(vm.PrevYear) }</a>
+				</div>
+				<p class="mt-1.5 text-[12.5px] text-muted">{ vm.TotalCountLabel }</p>
+				<div class="mt-7 border-b border-line2 pb-2.5 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "nav.tagebuch") }</div>
+			</div>
+			<div class="flex-1 overflow-auto pb-4">
+				for _, m := range vm.Months {
+					<a href={ templ.SafeURL(m.Href) } class={ "flex items-baseline gap-2.5 border-b border-line px-6 py-3", templ.KV("bg-accent-wash", m.Selected) }>
+						<span class="text-[13.5px] font-semibold">{ m.Label }</span>
+						<span class="ml-auto font-mono text-[11px] text-muted">{ m.MetaLabel }</span>
+					</a>
+				}
+			</div>
+		</div>
+		<div class="overflow-auto bg-canvas px-11 py-7">
+			<div class="max-w-[66ch]">
+				@components.PanelToggle("tagebuch.archiv", "mb-4")
+				@components.Breadcrumb(&components.Crumb{Href: "/tagebuch/archiv", Label: components.T(ctx, "tagebuch.archiv")},
+					[]components.Crumb{
+						{Href: "/tagebuch", Label: components.T(ctx, "tagebuch.title")},
+						{Href: "/tagebuch/archiv", Label: components.T(ctx, "tagebuch.archiv")},
+						{Label: vm.SelectedMonthLabel + " " + itoa(vm.Year)},
+					}, "")
+				<div class="flex items-baseline gap-3">
+					<h1 class="font-display text-2xl font-bold tracking-tight">{ vm.SelectedMonthLabel } { itoa(vm.Year) }</h1>
+					<span class="text-[12.5px] text-muted">{ vm.SelectedCountLabel }</span>
+				</div>
+				if len(vm.Entries) == 0 {
+					@components.EmptyState("", "tagebuch.archiv.empty", "tagebuch.archiv.empty.body")
+				}
+				for _, e := range vm.Entries {
+					<article class="mt-6 border-t border-line2 pt-5">
+						<div class="flex items-baseline gap-2.5">
+							<a href={ templ.SafeURL(e.Href) } class="text-[15px] font-bold hover:text-accent">{ e.Weekday }</a>
+							<span class="font-mono text-[11px] text-muted">{ e.DateLabel }</span>
+						</div>
+						if e.Excerpt != "" {
+							<p class="mt-1.5 text-[14px] leading-relaxed text-body">{ e.Excerpt }</p>
+						}
+					</article>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// ---- Screen 27: Stellen markieren und je Register zuordnen -----------------
+
+templ TagebuchMarkierenPage(vm TagebuchMarkierenVM) {
+	@components.Base("tagebuch", tagebuchMarkierenBody(vm))
+}
+
+templ tagebuchMarkierenBody(vm TagebuchMarkierenVM) {
+	@components.AppShellFlush("tagebuch", "", tagebuchMarkierenMain(vm))
+}
+
+templ tagebuchMarkierenMain(vm TagebuchMarkierenVM) {
+	<div class="grid flex-1 lg:grid-cols-[minmax(0,1fr)_380px]">
+		<div class="bg-canvas border-b border-hairp px-11 py-7 lg:border-b-0 lg:border-r" id="tagebuch-markieren-content">
+			<div class="max-w-[66ch]">
+				@components.Breadcrumb(&components.Crumb{Href: "/tagebuch?selected=" + vm.Doc.ID, Label: components.T(ctx, "tagebuch.title")},
+					[]components.Crumb{
+						{Href: "/tagebuch", Label: components.T(ctx, "tagebuch.title")},
+						{Label: vm.Doc.Title},
+					}, "")
+				<div class="flex items-center gap-2">
+					<span class="font-mono text-[11px] text-muted">{ vm.Doc.Path }</span>
+					<span class="flex-1"></span>
+					<a href={ templ.SafeURL(vm.Doc.EditHref) } class="text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "tagebuch.edit") }</a>
+				</div>
+				<h1 class="mt-3.5 font-display text-2xl font-bold tracking-tight">{ vm.Doc.Title }</h1>
+				<div id="tagebuch-mark-body" class="select-text">
+					@components.MarkdownProse(vm.Doc.BodyHTML)
+				</div>
+				<form method="post" action={ templ.SafeURL(vm.AssignAction) } id="tagebuch-mark-form" class="mt-6 hidden border border-line2 bg-sheet p-3.5">
+					<div class="text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "tagebuch.markieren.title") }</div>
+					<p id="tagebuch-mark-quote-display" class="mt-1.5 text-[12.5px] italic text-body"></p>
+					<input type="hidden" name="quote" id="tagebuch-mark-quote"/>
+					<div class="mt-2.5 flex items-center gap-2">
+						<select name="nodeId" class="field flex-1 text-[12.5px]">
+							for _, opt := range vm.NodeOptions {
+								<option value={ opt.ID }>{ opt.Label }</option>
+							}
+						</select>
+						@components.Button(components.BtnPrimary, components.T(ctx, "tagebuch.markieren.assign"), "", templ.Attributes{"type": "submit"})
+					</div>
+				</form>
+			</div>
+		</div>
+		<div class="bg-panel px-6 py-7">
+			<div class="text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "tagebuch.markieren.assignmentsTitle") }</div>
+			if len(vm.Assignments) == 0 {
+				<p class="mt-3 text-[12px] text-muted">{ components.T(ctx, "tagebuch.markieren.assignmentsEmpty") }</p>
+			}
+			for _, a := range vm.Assignments {
+				<div class={ "mt-2.5 border-l-[3px] px-3.5 py-3", a.BorderClass }>
+					<div class="flex items-center gap-2.5">
+						<span class="min-w-0 flex-1 truncate text-[13px] font-bold">{ a.TargetName }</span>
+						if a.ParentLabel != "" {
+							<span class="shrink-0 text-[11px] text-faint">{ a.ParentLabel }</span>
+						}
+					</div>
+					<p class="mt-1.5 text-[12.5px] leading-relaxed text-body">„{ a.Quote }“</p>
+					<form method="post" action={ templ.SafeURL(a.RemoveHref) } class="mt-1.5">
+						<button type="submit" class="text-[11px] font-semibold text-muted hover:text-red">{ components.T(ctx, "tagebuch.markieren.remove") }</button>
+					</form>
+				</div>
+			}
+			<div class="mt-7 border-b border-line2 pb-2.5 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "tagebuch.markieren.effectTitle") }</div>
+			<p class="mt-3 text-[13px] leading-relaxed text-body">{ components.T(ctx, "tagebuch.markieren.effect1") }</p>
+			<p class="mt-2.5 text-[13px] leading-relaxed text-body">{ components.T(ctx, "tagebuch.markieren.effect2") }</p>
+			<p class="mt-2.5 text-[13px] leading-relaxed text-body">{ components.T(ctx, "tagebuch.markieren.effect3") }</p>
+			if len(vm.Tally) > 0 {
+				<div class="mt-7 border-b border-line2 pb-2.5 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "tagebuch.markieren.tallyTitle") }</div>
+				for _, t := range vm.Tally {
+					<div class="mt-2 flex items-center gap-2.5 text-[13px]">
+						<span class="h-[9px] w-[9px] shrink-0" style={ "background-color:" + t.DotColor }></span>
+						<span class="min-w-0 flex-1 truncate">{ t.Name }</span>
+						<span class="font-mono text-[12px] text-muted">{ t.CountLabel }</span>
+					</div>
+				}
+			}
+		</div>
+	</div>
+	<script>
+		(function () {
+			var content = document.getElementById('tagebuch-mark-body');
+			var form = document.getElementById('tagebuch-mark-form');
+			var quoteField = document.getElementById('tagebuch-mark-quote');
+			var quoteDisplay = document.getElementById('tagebuch-mark-quote-display');
+			if (!content || !form) { return; }
+			content.addEventListener('mouseup', function () {
+				var sel = window.getSelection();
+				var text = sel ? sel.toString().trim() : '';
+				if (!text) { form.classList.add('hidden'); return; }
+				quoteField.value = text;
+				quoteDisplay.textContent = '„' + text + '“';
+				form.classList.remove('hidden');
+			});
+		})();
+	</script>
+}
