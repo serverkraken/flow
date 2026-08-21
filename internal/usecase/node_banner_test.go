@@ -151,3 +151,36 @@ func TestCreateNode_BannerRidesTheAggregate(t *testing.T) {
 		t.Errorf("blob does not belong to the created node: %+v vs %+v", stored, got)
 	}
 }
+
+// TestUploadNodeBanner_AgentPath covers the agent-facing upload (REST/MCP):
+// it goes through the aggregate too, so ref and blob land together, and it
+// refuses a node that is not the caller's.
+func TestUploadNodeBanner_AgentPath(t *testing.T) {
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	bs := testutil.NewFakeNodeBannerStore()
+	agg := testutil.NewFakeNodeAggregateStore(ns, testutil.NewFakeNodeLogoStore(), bs, testutil.NewFakeTagStore())
+	clk := testutil.FakeClock{T: time.Date(2026, 8, 21, 12, 0, 0, 0, time.Local)}
+	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
+	n.Kind = domain.KindEngagement
+	_, _ = ns.Create(ctx, n)
+	uc := usecase.UploadNodeBanner{Nodes: ns, Banners: bs, Aggregate: agg, Clock: clk}
+
+	got, err := uc.Execute(ctx, "u1", "n1", pngPixel(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.BannerRef) != 12 {
+		t.Errorf("BannerRef=%q want the content hash", got.BannerRef)
+	}
+	stored, err := bs.Get(ctx, "u1", "n1")
+	if err != nil || stored.Ref != got.BannerRef {
+		t.Fatalf("blob and ref diverged: %+v err=%v", stored, err)
+	}
+	if _, err := uc.Execute(ctx, "u-fremd", "n1", pngPixel(t)); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Errorf("foreign upload: want ErrNodeNotFound, got %v", err)
+	}
+	if _, err := uc.Execute(ctx, "u1", "n1", []byte("kein Bild")); !errors.Is(err, usecase.ErrBannerBadType) {
+		t.Errorf("non-image: want ErrBannerBadType, got %v", err)
+	}
+}

@@ -72,10 +72,11 @@ type Server struct {
 	SetCountsTowardTarget usecase.SetCountsTowardTarget
 
 	// cockpit-story slice 2 (node logos)
-	UploadNodeLogo usecase.UploadNodeLogo
-	DeleteNodeLogo usecase.DeleteNodeLogo
-	GetNodeLogo    usecase.GetNodeLogo
-	GetNodeBanner  usecase.GetNodeBanner
+	UploadNodeLogo   usecase.UploadNodeLogo
+	DeleteNodeLogo   usecase.DeleteNodeLogo
+	GetNodeLogo      usecase.GetNodeLogo
+	GetNodeBanner    usecase.GetNodeBanner
+	UploadNodeBanner usecase.UploadNodeBanner
 
 	// slice 1 bulk ops
 	BulkAssignNode     usecase.BulkAssignNode
@@ -221,6 +222,7 @@ func (s *Server) Routes() http.Handler {
 	// fr-node-logo: token-authed REST logo upload (replace-on-upload) so
 	// flow-mcp and other non-browser clients can set node logos.
 	mux.Handle("PUT /api/v1/nodes/{id}/logo", s.auth(http.HandlerFunc(s.handleAPISetNodeLogo)))
+	mux.Handle("PUT /api/v1/nodes/{id}/banner", s.auth(http.HandlerFunc(s.handleAPISetNodeBanner)))
 
 	// Free (node-less, free-artifacts Task 3) artifact REST verbs — the
 	// owner-global counterparts of the /api/v1/nodes/{id}/artifacts trio.

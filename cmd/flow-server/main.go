@@ -84,6 +84,7 @@ func run() error {
 	settingsStore := pgstore.NewUserSettingsStore(pool)
 	feedTokenStore := pgstore.NewFeedTokenStore(pool)
 	nodeLogoStore := pgstore.NewNodeLogoStore(pool)
+	nodeBannerStore := pgstore.NewNodeBannerStore(pool)
 	artifactStore := pgstore.NewArtifactStore(pool)
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
@@ -180,6 +181,8 @@ func run() error {
 		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Aggregate: nodeAggregateStore, Clock: clock},
 		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Aggregate: nodeAggregateStore, Clock: clock},
 		GetNodeLogo:           usecase.GetNodeLogo{Logos: nodeLogoStore},
+		UploadNodeBanner:      usecase.UploadNodeBanner{Nodes: nodeStore, Banners: nodeBannerStore, Aggregate: nodeAggregateStore, Clock: clock},
+		GetNodeBanner:         usecase.GetNodeBanner{Banners: nodeBannerStore},
 		UploadArtifact:        usecase.UploadArtifact{Nodes: nodeStore, Artifacts: artifactStore, IDs: ids, Clock: clock, Emitter: emitter},
 		RenameArtifact:        usecase.RenameArtifact{Artifacts: artifactStore, Emitter: emitter},
 		ListArtifacts:         usecase.ListArtifacts{Nodes: nodeStore, Artifacts: artifactStore},
