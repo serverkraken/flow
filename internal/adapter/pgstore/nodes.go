@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -16,12 +17,12 @@ type NodeStore struct{ pool *pgxpool.Pool }
 
 func NewNodeStore(pool *pgxpool.Pool) *NodeStore { return &NodeStore{pool: pool} }
 
-const nodeCols = `id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref`
+const nodeCols = `id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, banner_ref, weekly_target_min`
 
 func (s *NodeStore) Create(ctx context.Context, n domain.Node) (domain.Node, error) {
 	const q = `
 INSERT INTO nodes (` + nodeCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 RETURNING ` + nodeCols
 	ra, rc := rateCols(n.Rate)
 	os := nullStr(n.OriginSlug)
@@ -31,7 +32,7 @@ RETURNING ` + nodeCols
 	}
 	got, err := scanNode(s.pool.QueryRow(ctx, q,
 		n.ID, n.OwnerID, n.ParentID, string(n.Kind), n.Name, n.Slug, n.Color, n.Glyph,
-		n.Description, n.UpstreamGit, os, string(n.Status), ra, rc, ex, n.CreatedAt, n.UpdatedAt, n.CountsTowardTarget, n.Icon, n.LogoRef))
+		n.Description, n.UpstreamGit, os, string(n.Status), ra, rc, ex, n.CreatedAt, n.UpdatedAt, n.CountsTowardTarget, n.Icon, n.LogoRef, n.BannerRef, weeklyTargetMin(n.WeeklyTarget)))
 	if err != nil {
 		return domain.Node{}, mapSlugConflict(err)
 	}
@@ -77,13 +78,14 @@ func (s *NodeStore) Get(ctx context.Context, ownerID, id string) (domain.Node, e
 
 // Update overwrites mutable metadata (name, slug, color, glyph, description,
 // upstream_git, origin_slug, status, extra, counts_toward_target, icon,
-// logo_ref). It does NOT touch rate or parent_id.
+// logo_ref, banner_ref). It does NOT touch rate, parent_id or
+// weekly_target_min (see SetWeeklyTarget).
 func (s *NodeStore) Update(ctx context.Context, ownerID string, n domain.Node) (domain.Node, error) {
 	const q = `
 UPDATE nodes SET name=$1, slug=$2, color=$3, glyph=$4, description=$5,
                  upstream_git=$6, origin_slug=$7, status=$8, extra=$9, counts_toward_target=$10,
-                 icon=$11, logo_ref=$12, updated_at=$13
-WHERE owner_id=$14 AND id=$15
+                 icon=$11, logo_ref=$12, banner_ref=$13, updated_at=$14
+WHERE owner_id=$15 AND id=$16
 RETURNING ` + nodeCols
 	ex := n.Extra
 	if ex == nil {
@@ -91,7 +93,7 @@ RETURNING ` + nodeCols
 	}
 	got, err := scanNode(s.pool.QueryRow(ctx, q,
 		n.Name, n.Slug, n.Color, n.Glyph, n.Description, n.UpstreamGit, nullStr(n.OriginSlug),
-		string(n.Status), ex, n.CountsTowardTarget, n.Icon, n.LogoRef, n.UpdatedAt, ownerID, n.ID))
+		string(n.Status), ex, n.CountsTowardTarget, n.Icon, n.LogoRef, n.BannerRef, n.UpdatedAt, ownerID, n.ID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Node{}, ports.ErrNodeNotFound
 	}
@@ -110,12 +112,38 @@ func nullStr(s string) *string {
 	return &s
 }
 
+// weeklyTargetMin maps the optional weekly target to its INTEGER column
+// (minutes, NULL = none) — mirrors rateCols' nil-handling.
+func weeklyTargetMin(d *time.Duration) *int {
+	if d == nil {
+		return nil
+	}
+	m := int(d.Minutes())
+	return &m
+}
+
 func (s *NodeStore) SetRate(ctx context.Context, ownerID, id string, rate *domain.Money) error {
 	ra, rc := rateCols(rate)
 	const q = `UPDATE nodes SET rate_amount=$1, rate_currency=$2, updated_at=now() WHERE owner_id=$3 AND id=$4`
 	tag, err := s.pool.Exec(ctx, q, ra, rc, ownerID, id)
 	if err != nil {
 		return fmt.Errorf("pgstore: set rate: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ports.ErrNodeNotFound
+	}
+	return nil
+}
+
+// SetWeeklyTarget sets (d != nil) or clears (d == nil) the node's own weekly
+// hour target. Separate from Update for the same reason SetRate is: Update
+// carries a whole node and would otherwise silently reset a target that the
+// caller never meant to touch.
+func (s *NodeStore) SetWeeklyTarget(ctx context.Context, ownerID, id string, d *time.Duration) error {
+	const q = `UPDATE nodes SET weekly_target_min=$1, updated_at=now() WHERE owner_id=$2 AND id=$3`
+	tag, err := s.pool.Exec(ctx, q, weeklyTargetMin(d), ownerID, id)
+	if err != nil {
+		return fmt.Errorf("pgstore: set weekly target: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ports.ErrNodeNotFound
@@ -194,14 +222,14 @@ func (s *NodeStore) Children(ctx context.Context, ownerID string, parentID *stri
 func (s *NodeStore) Ancestors(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
 	const q = `
 WITH RECURSIVE chain AS (
-  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, 0 AS depth, ARRAY[id] AS path
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, banner_ref, weekly_target_min, 0 AS depth, ARRAY[id] AS path
   FROM nodes WHERE owner_id=$1 AND id=$2
   UNION ALL
-  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, c.depth+1, c.path || n.id
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, n.banner_ref, n.weekly_target_min, c.depth+1, c.path || n.id
   FROM nodes n JOIN chain c ON n.id = c.parent_id
   WHERE n.owner_id=$1 AND NOT n.id = ANY(c.path)
 )
-SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref
+SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, banner_ref, weekly_target_min
 FROM chain ORDER BY depth`
 	rows, err := s.pool.Query(ctx, q, ownerID, nodeID)
 	if err != nil {
@@ -223,14 +251,14 @@ FROM chain ORDER BY depth`
 func (s *NodeStore) Subtree(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
 	const q = `
 WITH RECURSIVE sub AS (
-  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, 0 AS depth, ARRAY[id] AS path
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, banner_ref, weekly_target_min, 0 AS depth, ARRAY[id] AS path
   FROM nodes WHERE owner_id=$1 AND id=$2
   UNION ALL
-  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, s.depth+1, s.path || n.id
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, n.banner_ref, n.weekly_target_min, s.depth+1, s.path || n.id
   FROM nodes n JOIN sub s ON n.parent_id = s.id
   WHERE n.owner_id=$1 AND NOT n.id = ANY(s.path)
 )
-SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref
+SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, banner_ref, weekly_target_min
 FROM sub ORDER BY depth`
 	rows, err := s.pool.Query(ctx, q, ownerID, nodeID)
 	if err != nil {
@@ -321,10 +349,12 @@ func scanNode(r rowScanner) (domain.Node, error) {
 	var ra *int64
 	var rc *string
 	var extra map[string]any
+	var weeklyTargetMinCol *int
 	if err := r.Scan(
 		&n.ID, &n.OwnerID, &parentID, &kind, &n.Name, &n.Slug, &n.Color, &n.Glyph,
 		&n.Description, &n.UpstreamGit, &originSlug, &status, &ra, &rc, &extra,
-		&n.CreatedAt, &n.UpdatedAt, &n.CountsTowardTarget, &n.Icon, &n.LogoRef,
+		&n.CreatedAt, &n.UpdatedAt, &n.CountsTowardTarget, &n.Icon, &n.LogoRef, &n.BannerRef,
+		&weeklyTargetMinCol,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Node{}, err
@@ -342,6 +372,10 @@ func scanNode(r rowScanner) (domain.Node, error) {
 	}
 	if ra != nil && rc != nil {
 		n.Rate = &domain.Money{Amount: *ra, Currency: *rc}
+	}
+	if weeklyTargetMinCol != nil {
+		d := time.Duration(*weeklyTargetMinCol) * time.Minute
+		n.WeeklyTarget = &d
 	}
 	n.Extra = extra
 	return n, nil

@@ -28,28 +28,35 @@ const (
 // minimal field set; the heavier foundation fields (repos/paths/links/…)
 // arrive in later migrations.
 type Node struct {
-	ID                 string         `json:"id"`
-	OwnerID            string         `json:"-"`
-	Name               string         `json:"name"`
-	Slug               string         `json:"slug"`
-	Color              string         `json:"color"`
-	Glyph              string         `json:"glyph"`
+	ID      string `json:"id"`
+	OwnerID string `json:"-"`
+	Name    string `json:"name"`
+	Slug    string `json:"slug"`
+	Color   string `json:"color"`
+	Glyph   string `json:"glyph"`
 	// Icon is a whitelisted key into the curated Lucide identity-icon set
 	// ("" = none); rendered in the node's color. LogoRef is the content hash
 	// of the uploaded logo image ("" = none) — render priority is
 	// upload > icon > glyph.
-	Icon               string         `json:"icon"`
-	LogoRef            string         `json:"logoRef,omitempty"`
-	Description        string         `json:"description"`
-	UpstreamGit        string         `json:"upstreamGit"`
-	Rate               *Money         `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
-	Status             NodeStatus     `json:"status"`
-	CreatedAt          time.Time      `json:"createdAt"`
-	UpdatedAt          time.Time      `json:"updatedAt"`
-	ParentID           *string        `json:"parentId,omitempty"`
-	Kind               NodeKind       `json:"kind"`
-	OriginSlug         string         `json:"originSlug,omitempty"`
-	Extra              map[string]any `json:"extra,omitempty"`
+	Icon    string `json:"icon"`
+	LogoRef string `json:"logoRef,omitempty"`
+	// BannerRef is the content hash of the uploaded banner image ("" = none) —
+	// shown on the register's landing page under the name (screen 02/08).
+	BannerRef string `json:"bannerRef,omitempty"`
+	// WeeklyTarget is the register's own weekly hour target (nil = none).
+	// It is NOT inherited — a Vorhaben without its own target shows no target
+	// (Screen 02's "Woche · Soll 20" line simply drops the "· Soll N" half).
+	WeeklyTarget *time.Duration `json:"weeklyTarget,omitempty"`
+	Description  string         `json:"description"`
+	UpstreamGit  string         `json:"upstreamGit"`
+	Rate         *Money         `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
+	Status       NodeStatus     `json:"status"`
+	CreatedAt    time.Time      `json:"createdAt"`
+	UpdatedAt    time.Time      `json:"updatedAt"`
+	ParentID     *string        `json:"parentId,omitempty"`
+	Kind         NodeKind       `json:"kind"`
+	OriginSlug   string         `json:"originSlug,omitempty"`
+	Extra        map[string]any `json:"extra,omitempty"`
 	// CountsTowardTarget: nil = erbt (nächster expliziter Vorfahr entscheidet);
 	// *true = Work (zählt aufs Soll); *false = Privat (nur getrackt).
 	CountsTowardTarget *bool `json:"countsTowardTarget,omitempty"`

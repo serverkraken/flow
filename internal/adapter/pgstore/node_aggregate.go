@@ -157,7 +157,7 @@ func (s *NodeAggregateStore) UpdateAggregate(ctx context.Context, ownerID, nodeI
 
 func createNodeTx(ctx context.Context, tx pgx.Tx, n domain.Node) (domain.Node, error) {
 	const q = `INSERT INTO nodes (` + nodeCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 RETURNING ` + nodeCols
 	ra, rc := rateCols(n.Rate)
 	ex := n.Extra
@@ -167,7 +167,8 @@ RETURNING ` + nodeCols
 	got, err := scanNode(tx.QueryRow(ctx, q,
 		n.ID, n.OwnerID, n.ParentID, string(n.Kind), n.Name, n.Slug, n.Color, n.Glyph,
 		n.Description, n.UpstreamGit, nullStr(n.OriginSlug), string(n.Status), ra, rc, ex,
-		n.CreatedAt, n.UpdatedAt, n.CountsTowardTarget, n.Icon, n.LogoRef))
+		n.CreatedAt, n.UpdatedAt, n.CountsTowardTarget, n.Icon, n.LogoRef, n.BannerRef,
+		weeklyTargetMin(n.WeeklyTarget)))
 	if err != nil {
 		return domain.Node{}, mapSlugConflict(err)
 	}
@@ -195,15 +196,15 @@ func getNodeTx(ctx context.Context, tx pgx.Tx, ownerID, nodeID string) (domain.N
 func updateNodeTx(ctx context.Context, tx pgx.Tx, ownerID string, n domain.Node) (domain.Node, error) {
 	const q = `UPDATE nodes SET name=$1, slug=$2, color=$3, glyph=$4, description=$5,
 upstream_git=$6, origin_slug=$7, status=$8, extra=$9, counts_toward_target=$10,
-icon=$11, logo_ref=$12, updated_at=$13
-WHERE owner_id=$14 AND id=$15 RETURNING ` + nodeCols
+icon=$11, logo_ref=$12, banner_ref=$13, updated_at=$14
+WHERE owner_id=$15 AND id=$16 RETURNING ` + nodeCols
 	ex := n.Extra
 	if ex == nil {
 		ex = map[string]any{}
 	}
 	got, err := scanNode(tx.QueryRow(ctx, q,
 		n.Name, n.Slug, n.Color, n.Glyph, n.Description, n.UpstreamGit, nullStr(n.OriginSlug),
-		string(n.Status), ex, n.CountsTowardTarget, n.Icon, n.LogoRef, n.UpdatedAt, ownerID, n.ID))
+		string(n.Status), ex, n.CountsTowardTarget, n.Icon, n.LogoRef, n.BannerRef, n.UpdatedAt, ownerID, n.ID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Node{}, ports.ErrNodeNotFound
 	}

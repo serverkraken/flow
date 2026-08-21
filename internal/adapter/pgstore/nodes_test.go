@@ -925,3 +925,135 @@ func TestNodeStore_Subtree(t *testing.T) {
 		t.Fatalf("Subtree(u-sub2, eng): want empty (u-sub2 doesn't own eng), got %v", sub3)
 	}
 }
+
+// TestNodeStore_BannerRefAndWeeklyTargetRoundTrip pins the two Screen-02
+// columns through every path that reads a node: Create/Get, the Subtree CTE
+// (which spells its columns out by hand and would silently rot otherwise) and
+// Update. Update deliberately does NOT touch the weekly target — it mirrors
+// rate, which has its own setter for the same reason.
+func TestNodeStore_BannerRefAndWeeklyTargetRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-banner", "sub-banner", "banner", "banner@x.de", "Banner")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeStore(pool)
+	now := time.Now().UTC()
+
+	n, _ := domain.NewNode("eng-banner", u.ID, "Engagement Banner", "eng-banner", now)
+	n.Kind = domain.KindEngagement
+	n.BannerRef = "a1b2c3d4e5f6"
+	soll := 20 * time.Hour
+	n.WeeklyTarget = &soll
+	created, err := st.Create(ctx, n)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if created.BannerRef != "a1b2c3d4e5f6" {
+		t.Errorf("create BannerRef=%q want a1b2c3d4e5f6", created.BannerRef)
+	}
+	if created.WeeklyTarget == nil || *created.WeeklyTarget != 20*time.Hour {
+		t.Errorf("create WeeklyTarget=%v want 20h", created.WeeklyTarget)
+	}
+
+	got, err := st.Get(ctx, u.ID, n.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.BannerRef != "a1b2c3d4e5f6" {
+		t.Errorf("get BannerRef=%q want a1b2c3d4e5f6", got.BannerRef)
+	}
+	if got.WeeklyTarget == nil || *got.WeeklyTarget != 20*time.Hour {
+		t.Errorf("get WeeklyTarget=%v want 20h", got.WeeklyTarget)
+	}
+
+	sub, err := st.Subtree(ctx, u.ID, n.ID)
+	if err != nil {
+		t.Fatalf("subtree: %v", err)
+	}
+	if len(sub) != 1 {
+		t.Fatalf("subtree len=%d want 1", len(sub))
+	}
+	if sub[0].BannerRef != "a1b2c3d4e5f6" || sub[0].WeeklyTarget == nil {
+		t.Errorf("subtree dropped the Screen-02 columns: BannerRef=%q WeeklyTarget=%v", sub[0].BannerRef, sub[0].WeeklyTarget)
+	}
+
+	// Clearing the banner goes through Update; the weekly target must survive it.
+	got.BannerRef = ""
+	got.UpdatedAt = now.Add(time.Minute)
+	upd, err := st.Update(ctx, u.ID, got)
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if upd.BannerRef != "" {
+		t.Errorf("update BannerRef=%q want cleared", upd.BannerRef)
+	}
+	if upd.WeeklyTarget == nil || *upd.WeeklyTarget != 20*time.Hour {
+		t.Errorf("update must not touch WeeklyTarget, got %v", upd.WeeklyTarget)
+	}
+}
+
+// TestNodeStore_SetWeeklyTarget covers the target's own setter. It mirrors
+// SetRate: Update() leaves the column alone, so setting and clearing the
+// weekly target is a separate, owner-scoped write.
+func TestNodeStore_SetWeeklyTarget(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-soll", "sub-soll", "soll", "soll@x.de", "Soll")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeStore(pool)
+	n, _ := domain.NewNode("eng-soll", u.ID, "Engagement Soll", "eng-soll", time.Now().UTC())
+	n.Kind = domain.KindEngagement
+	if _, err := st.Create(ctx, n); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	soll := 20 * time.Hour
+	if err := st.SetWeeklyTarget(ctx, u.ID, n.ID, &soll); err != nil {
+		t.Fatalf("set weekly target: %v", err)
+	}
+	got, err := st.Get(ctx, u.ID, n.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.WeeklyTarget == nil || *got.WeeklyTarget != 20*time.Hour {
+		t.Errorf("WeeklyTarget=%v want 20h", got.WeeklyTarget)
+	}
+
+	if err := st.SetWeeklyTarget(ctx, u.ID, n.ID, nil); err != nil {
+		t.Fatalf("clear weekly target: %v", err)
+	}
+	cleared, err := st.Get(ctx, u.ID, n.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.WeeklyTarget != nil {
+		t.Errorf("WeeklyTarget=%v want nil after clearing", cleared.WeeklyTarget)
+	}
+
+	// Owner-scoped: a foreign owner must not reach this node, and the caller
+	// learns only that it is not there.
+	if err := st.SetWeeklyTarget(ctx, "u-fremd", n.ID, &soll); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Errorf("foreign owner: want ErrNodeNotFound, got %v", err)
+	}
+	if err := st.SetWeeklyTarget(ctx, u.ID, "ghost", &soll); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Errorf("unknown node: want ErrNodeNotFound, got %v", err)
+	}
+}
