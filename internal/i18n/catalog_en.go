@@ -189,6 +189,8 @@ func init() {
 			"nodetab.struktur":                    "Contains",
 			"einstieg.artefakte":                  "Artifacts ›",
 			"einstieg.kontext":                    "Curate context ›",
+			"cockpit.rail.facts":                  "Key facts",
+			"wissen.daily":                        "Daily",
 			"node.banner":                         "Banner",
 			"node.banner.remove":                  "Remove banner",
 			"node.banner.hint":                    "PNG, JPEG or WebP · max 1 MB · wide strip, 1600×400 recommended",

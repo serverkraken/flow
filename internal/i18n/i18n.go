@@ -64,6 +64,22 @@ func T(ctx context.Context, key string) string {
 	return key
 }
 
+// HasKey reports whether any catalog carries key, as a plain string or as a
+// plural set. T and Tn fall back to returning the key itself when it is
+// missing — on screen that shows up as "cockpit.rail.facts" where a heading
+// belongs, and nothing else notices. The used-key test uses this to catch it.
+func HasKey(key string) bool {
+	for _, c := range catalogs {
+		if _, ok := c.strings[key]; ok {
+			return true
+		}
+		if _, ok := c.plurals[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // Tn returns the singular/plural form of key for n in the ctx locale.
 // "{{.N}}" in the chosen form is replaced by n.
 func Tn(ctx context.Context, key string, n int) string {
