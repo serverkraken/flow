@@ -933,3 +933,11 @@ func getWissenRedirect(t *testing.T, h http.Handler, url string, codec *websessi
 	h.ServeHTTP(rec, req)
 	return rec.Header().Get("Location"), rec.Code
 }
+
+func (f noopActivityStore) ListPageForNodes(_ context.Context, _ string, _ []string, _, _ int) ([]domain.ActivityEntry, int, error) {
+	return nil, 0, nil
+}
+
+func (f noopActivityStore) DistinctAgentsSince(_ context.Context, _ string, _ []string, _ time.Time) (int, error) {
+	return 0, nil
+}

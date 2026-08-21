@@ -225,3 +225,11 @@ func TestEmitter_incompleteDocumentNotLogged(t *testing.T) {
 		})
 	}
 }
+
+func (f *fakeStore) ListPageForNodes(_ context.Context, _ string, _ []string, _, _ int) ([]domain.ActivityEntry, int, error) {
+	return nil, 0, nil
+}
+
+func (f *fakeStore) DistinctAgentsSince(_ context.Context, _ string, _ []string, _ time.Time) (int, error) {
+	return 0, nil
+}

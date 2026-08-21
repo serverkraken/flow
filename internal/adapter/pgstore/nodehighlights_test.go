@@ -109,3 +109,71 @@ func TestNodeHighlightStore_OrdersAndScopes(t *testing.T) {
 		t.Errorf("second delete: want ErrNodeHighlightNotFound, got %v", err)
 	}
 }
+
+// TestNodeHighlightStore_ListRecentForNodes covers the register entry point's
+// "Woran zuletzt gearbeitet": newest marks from THIS register's subtree, not
+// the owner's newest filtered afterwards — a busy neighbour would otherwise
+// push a quiet register's marks out of the window entirely.
+func TestNodeHighlightStore_ListRecentForNodes(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-hlsub", "sub-hlsub", "hlsub", "hlsub@x.de", "HLSub")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	nodes := pgstore.NewNodeStore(pool)
+	for _, id := range []string{"sub-mine", "sub-loud"} {
+		n, _ := domain.NewNode(id, u.ID, id, id, now)
+		n.Kind = domain.KindEngagement
+		if _, err := nodes.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	docs := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "hlsub-doc", OwnerID: u.ID, Type: domain.DocDaily, Path: "daily/hlsub",
+		Title: "Notiz", Body: "Text", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeHighlightStore(pool)
+	mk := func(id, nodeID string, at time.Time) {
+		if _, err := st.Create(ctx, domain.NodeHighlight{
+			ID: id, OwnerID: u.ID, DocumentID: "hlsub-doc", NodeID: nodeID,
+			Quote: "Stelle " + id, CreatedAt: at,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("q-mine-old", "sub-mine", now.Add(-72*time.Hour))
+	mk("q-mine-new", "sub-mine", now.Add(-48*time.Hour))
+	// The loud neighbour marks three fresher passages.
+	mk("q-loud-1", "sub-loud", now.Add(-3*time.Hour))
+	mk("q-loud-2", "sub-loud", now.Add(-2*time.Hour))
+	mk("q-loud-3", "sub-loud", now.Add(-1*time.Hour))
+
+	got, err := st.ListRecentForNodes(ctx, u.ID, []string{"sub-mine"}, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != "q-mine-new" || got[1].ID != "q-mine-old" {
+		t.Errorf("got %+v, want the quiet register's two marks newest first", got)
+	}
+	if l, err := st.ListRecentForNodes(ctx, u.ID, []string{"sub-mine"}, 1); err != nil || len(l) != 1 {
+		t.Errorf("limit ignored: %+v err=%v", l, err)
+	}
+	if l, err := st.ListRecentForNodes(ctx, u.ID, nil, 5); err != nil || len(l) != 0 {
+		t.Errorf("empty node set = %+v err=%v, want empty", l, err)
+	}
+	if l, err := st.ListRecentForNodes(ctx, "u-fremd", []string{"sub-mine"}, 5); err != nil || len(l) != 0 {
+		t.Errorf("foreign owner = %+v err=%v, want empty", l, err)
+	}
+}

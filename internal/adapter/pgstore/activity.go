@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -119,4 +120,49 @@ func scanActivity(r rowScanner) (domain.ActivityEntry, error) {
 		return domain.ActivityEntry{}, fmt.Errorf("pgstore: scan activity: %w", err)
 	}
 	return e, nil
+}
+
+// ListPageForNodes returns one page of activity newest-first restricted to the
+// given node set, plus the total inside that set. It exists so the register
+// entry point's "last N" is TRUE: filtering an owner-wide page in the adapter
+// silently drops a register's rows as soon as a louder neighbour fills the
+// page, and no page size makes that reliable.
+//
+// An empty node set returns nothing rather than falling back to a broader
+// read — a register with no subtree has no activity, and a silent widening
+// would be a cross-register leak in disguise.
+func (s *ActivityStore) ListPageForNodes(ctx context.Context, ownerID string, nodeIDs []string, limit, offset int) ([]domain.ActivityEntry, int, error) {
+	if len(nodeIDs) == 0 {
+		return nil, 0, nil
+	}
+	const where = ` WHERE owner_id=$1 AND node_ref = ANY($2)`
+	var total int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM activity`+where, ownerID, nodeIDs).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("pgstore: count subtree activity: %w", err)
+	}
+	q := `SELECT ` + activityCols + ` FROM activity` + where + ` ORDER BY at DESC LIMIT $3 OFFSET $4`
+	rows, err := s.pool.Query(ctx, q, ownerID, nodeIDs, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("pgstore: list subtree activity: %w", err)
+	}
+	defer rows.Close()
+	out, err := scanActivities(rows)
+	return out, total, err
+}
+
+// DistinctAgentsSince counts the distinct AGENT actors that touched the given
+// node set at or after since — the register head's "N Agenten heute aktiv".
+// Humans are not counted: the line answers "who else worked here", and the
+// viewer already knows about themselves.
+func (s *ActivityStore) DistinctAgentsSince(ctx context.Context, ownerID string, nodeIDs []string, since time.Time) (int, error) {
+	if len(nodeIDs) == 0 {
+		return 0, nil
+	}
+	const q = `SELECT count(DISTINCT actor_ref) FROM activity
+WHERE owner_id=$1 AND node_ref = ANY($2) AND actor_kind='agent' AND at >= $3`
+	var n int
+	if err := s.pool.QueryRow(ctx, q, ownerID, nodeIDs, since).Scan(&n); err != nil {
+		return 0, fmt.Errorf("pgstore: count subtree agents: %w", err)
+	}
+	return n, nil
 }

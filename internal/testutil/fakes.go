@@ -2121,6 +2121,36 @@ func (s *FakeNodeHighlightStore) ListRecent(_ context.Context, ownerID string, l
 	return out, nil
 }
 
+// ListRecentForNodes returns the newest highlights of the given node set,
+// newest first, capped by limit — mirrors pgstore's ANY($2) filter.
+func (s *FakeNodeHighlightStore) ListRecentForNodes(_ context.Context, ownerID string, nodeIDs []string, limit int) ([]domain.NodeHighlight, error) {
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+	want := make(map[string]bool, len(nodeIDs))
+	for _, id := range nodeIDs {
+		want[id] = true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.NodeHighlight
+	for _, h := range s.m {
+		if h.OwnerID == ownerID && want[h.NodeID] {
+			out = append(out, h)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if limit >= 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 // FakeNodeBannerStore is an in-memory ports.NodeBannerStore (keyed by node ID).
 // Mirrors FakeNodeLogoStore, including its owner scoping: a foreign owner
 // neither reads nor deletes.

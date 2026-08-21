@@ -229,3 +229,11 @@ func TestCreateNodeRecordsActivity(t *testing.T) {
 		t.Errorf("ActorKind: want %q, got %q", "human", e.ActorKind)
 	}
 }
+
+func (r *recordingActivityStore) ListPageForNodes(_ context.Context, _ string, _ []string, _, _ int) ([]domain.ActivityEntry, int, error) {
+	return nil, 0, nil
+}
+
+func (r *recordingActivityStore) DistinctAgentsSince(_ context.Context, _ string, _ []string, _ time.Time) (int, error) {
+	return 0, nil
+}

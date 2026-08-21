@@ -192,3 +192,11 @@ func TestHandleListActivity_RequiresAuth(t *testing.T) {
 		t.Errorf("want 401, got %d", res.StatusCode)
 	}
 }
+
+func (f *fakeActivityStore) ListPageForNodes(_ context.Context, _ string, _ []string, _, _ int) ([]domain.ActivityEntry, int, error) {
+	return nil, 0, nil
+}
+
+func (f *fakeActivityStore) DistinctAgentsSince(_ context.Context, _ string, _ []string, _ time.Time) (int, error) {
+	return 0, nil
+}

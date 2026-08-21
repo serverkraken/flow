@@ -84,3 +84,23 @@ func scanNodeHighlights(rows pgx.Rows) ([]domain.NodeHighlight, error) {
 	}
 	return out, rows.Err()
 }
+
+// ListRecentForNodes returns the newest highlights whose register is in the
+// given set, newest first, capped by limit. The register entry point needs
+// THIS subtree's newest marks — taking the owner's newest and filtering
+// afterwards loses a quiet register's marks behind a busy neighbour's.
+// An empty node set returns nothing rather than widening the read.
+func (s *NodeHighlightStore) ListRecentForNodes(ctx context.Context, ownerID string, nodeIDs []string, limit int) ([]domain.NodeHighlight, error) {
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+	const q = `SELECT id, owner_id, document_id, node_id, quote, created_at
+FROM node_highlights WHERE owner_id=$1 AND node_id = ANY($2)
+ORDER BY created_at DESC, id DESC LIMIT $3`
+	rows, err := s.pool.Query(ctx, q, ownerID, nodeIDs, limit)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: list recent node highlights for nodes: %w", err)
+	}
+	defer rows.Close()
+	return scanNodeHighlights(rows)
+}

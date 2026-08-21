@@ -173,9 +173,11 @@ type NodeHighlightStore interface {
 	ListSince(ctx context.Context, ownerID string, since time.Time) ([]domain.NodeHighlight, error)
 	// ListRecent returns the owner's newest highlights, newest first, capped by
 	// limit (a SQL LIMIT — the register entry point only ever shows a handful).
-	// Subtree filtering happens in the adapter against the already-loaded node
-	// set; no SQL join across the tree.
 	ListRecent(ctx context.Context, ownerID string, limit int) ([]domain.NodeHighlight, error)
+	// ListRecentForNodes is ListRecent restricted to a node set. The register
+	// entry point needs THIS subtree's newest marks; taking the owner's newest
+	// and filtering afterwards loses a quiet register's behind a busy one's.
+	ListRecentForNodes(ctx context.Context, ownerID string, nodeIDs []string, limit int) ([]domain.NodeHighlight, error)
 }
 
 // NodeBannerStore persists at most one uploaded banner image per node.
@@ -606,6 +608,14 @@ type ActivityStore interface {
 	// DistinctActors returns all distinct actor_refs for the owner, sorted
 	// alphabetically. Independent of any class/actor filter — always the full set.
 	DistinctActors(ctx context.Context, ownerID string) ([]string, error)
+	// ListPageForNodes is ListPage restricted to a node set — the register
+	// entry point's feed. Filtering an owner-wide page in the adapter cannot
+	// guarantee "the last N of THIS register": a louder neighbour fills the
+	// page first. An empty node set returns nothing, never a wider read.
+	ListPageForNodes(ctx context.Context, ownerID string, nodeIDs []string, limit, offset int) (items []domain.ActivityEntry, total int, err error)
+	// DistinctAgentsSince counts distinct AGENT actors that touched the node
+	// set at or after since — the register head's "N Agenten heute aktiv".
+	DistinctAgentsSince(ctx context.Context, ownerID string, nodeIDs []string, since time.Time) (int, error)
 }
 
 // Emitter publishes a live event and, for loggable mutations, persists an
