@@ -178,6 +178,7 @@ func init() {
 			"einstieg.repo.noUpstream":            "kein Upstream",
 			"einstieg.wissen":                     "Wissen",
 			"einstieg.neuesWissen":                "Neues Wissen ›",
+			"einstieg.zeitStarten":                "Zeit hier starten ›",
 			"einstieg.zeitNachtragen":             "Zeit nachtragen ›",
 			"einstieg.verwalten":                  "Verwalten ›",
 			"einstieg.panelToggle":                "Register",

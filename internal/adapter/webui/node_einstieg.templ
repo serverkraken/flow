@@ -1,0 +1,612 @@
+package webui
+
+import (
+	"strings"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// NodeEinstiegPage is the register entry point (Screen 02): the flush three
+// column layout of the card reading surface, with the Kasten column carrying
+// the register's numbers and the reading column its README.
+templ NodeEinstiegPage(d NodeEinstieg) {
+	@components.Base("projekte", einstiegBody(d))
+}
+
+// einstiegBody mounts Screen 02 flush on the shell — the same anatomy the card
+// reading surface has carried since ea0996e5: Schiene, Kasten column, reading
+// column, no shell padding in between.
+templ einstiegBody(d NodeEinstieg) {
+	@components.AppShellFlush("projekte", d.EbeneColor, einstiegOuter(d))
+}
+
+templ einstiegOuter(d NodeEinstieg) {
+	<div class="k3-cols grid flex-1 lg:grid-cols-[372px_minmax(0,1fr)]">
+		<div
+			id="einstieg-kasten"
+			data-node-id={ d.N.ID }
+			class="k3-panel flex flex-col bg-panel border-b border-hairp lg:border-b-0 lg:border-r lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto scroll-thin"
+			hx-get={ "/nodes/" + d.N.ID + "/head" + d.SortStateHref }
+			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted, sse:document.created, sse:document.updated, sse:document.deleted, sse:activity.logged"
+			hx-swap="innerHTML"
+		>
+			@EinstiegKasten(d)
+		</div>
+		<div class="bg-canvas px-6 py-7 lg:px-14">
+			@components.PanelToggle("einstieg.panelToggle", "mb-4")
+			<div
+				id="einstieg-lese"
+				class="max-w-[820px]"
+				hx-get={ "/nodes/" + d.N.ID + "/lese" }
+				hx-trigger="sse:activity.logged, sse:document.created, sse:document.updated, sse:document.deleted, sse:node.updated, sse:node.moved, sse:highlight.changed"
+				hx-swap="innerHTML"
+			>
+				@EinstiegLese(d)
+			</div>
+		</div>
+	</div>
+}
+
+// EinstiegKasten is the 372px middle column — also the SSE fragment served at
+// GET /nodes/{id}/head (the route path stays for compatibility).
+templ EinstiegKasten(d NodeEinstieg) {
+	@einstiegKopf(d)
+	@einstiegWege(d)
+	@einstiegBanner(d)
+	@einstiegKennzahlen(d)
+	@einstiegZeitverlaufLink(d)
+	@einstiegEckdaten(d)
+	@einstiegKinder(d)
+	@einstiegLoseRepos(d)
+	@einstiegBuchungen(d)
+}
+
+// EinstiegLese is the reading column — also the SSE fragment served at
+// GET /nodes/{id}/lese.
+templ EinstiegLese(d NodeEinstieg) {
+	@components.Breadcrumb(einstiegCrumbs(d))
+	@einstiegReadmeKopf(d)
+	@einstiegReadmeProsa(d)
+	@einstiegReadmeEnde(d)
+	@einstiegHighlights(d)
+	@einstiegFeed(d)
+}
+
+// einstiegKopf is Screen 02's first line: the 44px monogram, the name, the
+// Ebene badge and one quiet meta line.
+templ einstiegKopf(d NodeEinstieg) {
+	<div class="px-6 pt-[26px]">
+		<div class="flex items-center gap-3">
+			@components.Monogram(d.N.Name, d.N.Color, "h-11 w-11 text-[15px]")
+			<div class="min-w-0 flex-1">
+				<div class="flex items-center gap-2.5">
+					<h1 class="min-w-0 truncate text-xl font-[750] tracking-[-.015em] text-ink">{ d.N.Name }</h1>
+					@nodeKindBadge(d.N.Kind)
+				</div>
+				if len(d.MetaParts) > 0 {
+					<div class="mt-0.5 truncate text-[12px] text-muted">{ strings.Join(d.MetaParts, " · ") }</div>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// einstiegKennzahlen is the three-cell hairline grid: week (decimal, in the
+// accent — the number one steers by), month, year with its ±% against the
+// same span a year earlier. "Gesamt" moved into the Eckdaten (Spec C.1.3).
+templ einstiegKennzahlen(d NodeEinstieg) {
+	<div class="mx-6 mt-3.5 grid grid-cols-3 gap-px border border-line2 bg-line2">
+		<div class="bg-sheet px-3 py-3">
+			<span class="block font-mono text-[18px] font-semibold tnum text-accent">{ d.WeekDecimal }</span>
+			<span class="mt-0.5 block whitespace-nowrap text-[10.5px] text-muted">
+				{ components.T(ctx, "einstieg.week") }
+				if d.WeekSoll != "" {
+					· { components.T(ctx, "einstieg.week.soll") } { d.WeekSoll }
+				}
+			</span>
+		</div>
+		<div class="bg-sheet px-3 py-3">
+			<span class="block font-mono text-[18px] font-semibold tnum">{ d.MonthStr }</span>
+			<span class="mt-0.5 block whitespace-nowrap text-[10.5px] text-muted">{ d.MonthName }</span>
+		</div>
+		<div class="bg-sheet px-3 py-3">
+			<span class="block font-mono text-[18px] font-semibold tnum">{ d.YearStr }</span>
+			<span class="mt-0.5 block whitespace-nowrap text-[10.5px] text-muted">
+				{ d.YearNum }
+				if d.YearDelta != "" {
+					· { d.YearDelta }
+				}
+			</span>
+		</div>
+	</div>
+}
+
+// einstiegBanner is the optional wide image under the name. Without one the
+// slot stays — an empty frame that says what it wants, not a blank gap.
+templ einstiegBanner(d NodeEinstieg) {
+	<div class="mx-6 mt-3.5 grid h-[76px] place-items-center overflow-hidden border border-line2 bg-panel">
+		if d.BannerRef != "" {
+			<img src={ "/nodes/" + d.N.ID + "/banner?v=" + d.BannerRef } alt="" class="h-[76px] w-full object-cover"/>
+		} else {
+			<span class="text-center text-[11px] leading-[1.5] text-faint">
+				{ components.T(ctx, "einstieg.banner.empty") }<br/>
+				<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/edit") } hx-boost="false"
+					class="font-mono text-[10.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "einstieg.banner.pick") }</a>
+			</span>
+		}
+	</div>
+}
+
+
+// einstiegZeitverlaufLink is the way into Screen 28. Without a single booking
+// in the subtree there is nothing to plot, so the line drops entirely.
+templ einstiegZeitverlaufLink(d NodeEinstieg) {
+	if d.SinceMonth != "" {
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/zeitverlauf") }
+			class="mx-6 mt-2.5 flex items-baseline gap-2 text-[12.5px] font-semibold text-accent hover:underline">
+			{ components.T(ctx, "einstieg.zeitverlauf") }
+			<span class="text-[11px] font-normal text-faint">{ components.T(ctx, "einstieg.zeitverlauf.since") } { d.SinceMonth }</span>
+		</a>
+	}
+}
+
+// einstiegEckdaten renders d.Facts as the labelled block of hairline rows —
+// the Bestand-Anatomie of cockpitIdMeta (cockpit.templ:113): the uppercase
+// faint label section, then one border-b border-line row per fact. Mono
+// values get font-mono tnum; Aside renders as a quiet right-hand note.
+templ einstiegEckdaten(d NodeEinstieg) {
+	if len(d.Facts) > 0 {
+		<div class="mx-6 mt-7 border-b border-line2 pb-2 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "cockpit.rail.facts") }</div>
+		<div class="mx-6 text-[13px]">
+			for _, f := range d.Facts {
+				<div class="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
+					<span class="shrink-0 text-[12.5px] text-muted">{ components.T(ctx, f.LabelKey) }</span>
+					<span class={ "min-w-0 truncate text-right font-semibold text-ink", templ.KV("font-mono tnum", f.Mono) }>
+						{ f.Value }
+						if f.Aside != "" {
+							<span class="ml-1.5 font-normal text-[11px] text-faint">{ f.Aside }</span>
+						}
+					</span>
+				</div>
+			}
+		</div>
+	}
+}
+
+// einstiegSectionKopf is the shared section head anatomy for all three
+// Screen-02 list sections (Kinder/LoseRepos/Buchungen): the uppercase faint
+// label, an optional hint, then the section's own right-hand content
+// (sort switch / plain word / "alle Buchungen" link).
+templ einstiegSectionKopf(label, hint string) {
+	<div class="mx-6 mt-[18px] flex items-baseline gap-2.5 border-b border-line2 pb-2.5">
+		<span class="text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ label }</span>
+		if hint != "" {
+			<span class="text-[10.5px] text-faint">{ hint }</span>
+		}
+		<span class="flex-1"></span>
+		{ children... }
+	</div>
+}
+
+// einstiegKinder is the child register list — "Vorhaben" under an Engagement
+// or "Projekte" under a Vorhaben (d.Kinder, already sorted server-side by
+// BuildNodeEinstieg). The section drops entirely when the entry node's kind
+// carries no Kinder concept at all (KindRepo).
+templ einstiegKinder(d NodeEinstieg) {
+	if d.KinderLabelKey != "" {
+		@einstiegSectionKopf(components.T(ctx, d.KinderLabelKey), components.T(ctx, d.KinderHintKey)) {
+			<a
+				href={ templ.SafeURL("/nodes/" + d.N.ID + d.SortHref) }
+				class="text-[10.5px] font-bold uppercase tracking-[.14em] text-body2 hover:text-accent"
+			>
+				{ components.T(ctx, d.SortLabelKey) } <span class="font-mono text-[9px] text-accent">▾</span>
+			</a>
+		}
+		for _, row := range d.Kinder {
+			@einstiegKindRow(d, row)
+		}
+		if len(d.Kinder) > 0 {
+			@einstiegKinderScript()
+		}
+	}
+}
+
+// einstiegKindRow is one direct child row (Vorhaben or Projekt): a caret that
+// aufklapps its Repos (client-side only — see einstiegKinderScript), the
+// child's name (dimmed when paused/archived) and, on the right, either the
+// live "läuft · ‹Dauer›" marker or the child subtree's freshest Datumsstaffel.
+// Its Repos render directly beneath it, hidden by default unless row.Open
+// (the running child) says otherwise.
+templ einstiegKindRow(d NodeEinstieg, row EinstiegKindRow) {
+	<a
+		href={ templ.SafeURL("/nodes/" + row.ID) }
+		data-tint={ railTint(row.Kind) }
+		data-tint-on?={ row.RunningDur != "" }
+		class="flex items-baseline gap-2.5 border-b border-line border-l-[3px] border-l-transparent px-6 py-[13px] pl-[21px]"
+	>
+		if len(row.Repos) > 0 {
+			<button
+				type="button"
+				data-einstieg-caret={ row.ID }
+				data-einstieg-open={ einstiegOpenAttr(row.Open) }
+				aria-label={ components.T(ctx, "nav.collapseToggle") }
+				class="-ml-1 w-3.5 shrink-0 self-center text-center font-mono text-[9px] text-faint hover:text-accent"
+			>
+				if row.Open {
+					▾
+				} else {
+					▸
+				}
+			</button>
+		} else {
+			<span class="w-3.5 shrink-0" aria-hidden="true"></span>
+		}
+		<span class="min-w-0 flex-1">
+			<span class={ "block truncate text-[14px]", templ.KV("font-[650] text-ink", !row.Dimmed), templ.KV("font-medium text-muted", row.Dimmed) }>{ row.Name }</span>
+			<span class="block text-[10px] text-faint">{ components.Tn(ctx, "einstieg.cards", row.Cards) }</span>
+		</span>
+		if row.RunningDur != "" {
+			<span class="shrink-0 font-mono text-[11px] text-live">{ components.T(ctx, "cockpit.worktime.running") } · { row.RunningDur }</span>
+		} else if row.When != "" {
+			<span class="shrink-0 font-mono text-[11px]">{ row.When }</span>
+		}
+	</a>
+	for _, r := range row.Repos {
+		@einstiegRepoRow(r, row.Kind)
+	}
+}
+
+// einstiegRepoRow is one repo line: the Ebenen-square marker, the slug (mono)
+// with its Upstream (or "kein Upstream") underneath, and the card count on
+// the right. Commits/branches do not exist server-side yet (Slice 7).
+// data-einstieg-child is the collapse script's filter key — "" for
+// LoseRepos, which never collapses (nothing ever targets that empty key).
+templ einstiegRepoRow(row EinstiegRepoRow, kind domain.NodeKind) {
+	<a
+		href={ templ.SafeURL("/nodes/" + row.ID) }
+		data-einstieg-child={ row.ParentID }
+		class="flex items-baseline gap-2.5 border-b border-line border-l-[3px] border-l-transparent py-[9px] pl-[38px] pr-6"
+	>
+		<span class={ "h-[9px] w-[9px] shrink-0 self-center", einstiegSquareClass(kind) }></span>
+		<span class="min-w-0 flex-1">
+			// The DISPLAY name, the same one the Schiene shows. The row used
+			// to lead with the slug, so one repo answered to two names in two
+			// adjacent columns (Karteikasten-Kompass A2). The slug is an
+			// address — it belongs on the address line below, with the
+			// upstream.
+			<span class="block truncate font-mono text-[12px] font-semibold">{ einstiegRepoName(row) }</span>
+			<span class="block min-w-0 truncate text-[10.5px] text-muted">
+				if row.Upstream != "" {
+					{ row.Upstream }
+				} else {
+					{ components.T(ctx, "einstieg.repo.noUpstream") }
+				}
+			</span>
+		</span>
+		<span class="shrink-0 font-mono text-[10.5px] text-faint">{ itoa(row.Cards) }</span>
+	</a>
+}
+
+// einstiegOpenAttr renders a bool as the "true"/"false" string the collapse
+// script reads off data-einstieg-open.
+func einstiegOpenAttr(open bool) string {
+	if open {
+		return "true"
+	}
+	return "false"
+}
+
+// einstiegKinderScript wires the Kinder list's client-only aufklappen —
+// Muster railNavScript (rail.templ:196-235): no htmx, no server state beyond
+// the render itself. #einstieg-kasten reloads on 12 SSE triggers (any
+// activity.logged fires it), and the server always re-renders each caret's
+// data-einstieg-open at its OWN default (the running child open, everything
+// else closed) — so without holding state across the swap, an open Vorhaben
+// snaps back shut on the very next background event (F4/I3).
+//
+// window.__einstiegOpenState is a nodeID(root)→{childID: bool} map that
+// survives the innerHTML swap (it lives on window, not in the DOM that gets
+// replaced). htmx:beforeSwap captures the CURRENT caret states into it right
+// before #einstieg-kasten's content is torn out; the freshly rendered
+// script's own startup pass (and htmx:afterSwap, belt-and-braces) then
+// applies the map over the server defaults. The very first render has no
+// map entry yet, so the server default (running child open) governs exactly
+// once, on initial load — matching Ruling 7 ("flüchtig", not "resets on
+// every reload"). The click handler and both htmx listeners are bound on
+// document.body ONCE, guarded exactly like window.__tabstripRevealBound
+// (cockpit.templ:262), because a fresh addEventListener per swap would stack
+// duplicate handlers.
+templ einstiegKinderScript() {
+	<script>
+		(function () {
+			var kasten = document.getElementById('einstieg-kasten');
+			var rootID = kasten ? (kasten.getAttribute('data-node-id') || '') : '';
+			function stateForRoot() {
+				if (!window.__einstiegOpenState) { window.__einstiegOpenState = {}; }
+				if (!window.__einstiegOpenState[rootID]) { window.__einstiegOpenState[rootID] = {}; }
+				return window.__einstiegOpenState[rootID];
+			}
+			function applyCaret(btn) {
+				var id = btn.getAttribute('data-einstieg-caret');
+				var state = stateForRoot();
+				var open = Object.prototype.hasOwnProperty.call(state, id)
+					? state[id]
+					: btn.getAttribute('data-einstieg-open') === 'true';
+				btn.setAttribute('data-einstieg-open', open ? 'true' : 'false');
+				btn.textContent = open ? '▾' : '▸';
+				document.querySelectorAll('[data-einstieg-child="' + CSS.escape(id) + '"]').forEach(function (el) {
+					el.classList.toggle('hidden', !open);
+				});
+			}
+			function applyAll() {
+				document.querySelectorAll('[data-einstieg-caret]').forEach(applyCaret);
+			}
+			function captureAll() {
+				var state = stateForRoot();
+				document.querySelectorAll('[data-einstieg-caret]').forEach(function (btn) {
+					state[btn.getAttribute('data-einstieg-caret')] = btn.getAttribute('data-einstieg-open') === 'true';
+				});
+			}
+			applyAll();
+			if (!window.__einstiegKinderBound) {
+				window.__einstiegKinderBound = true;
+				document.body.addEventListener('click', function (e) {
+					var btn = e.target.closest('[data-einstieg-caret]');
+					if (!btn) { return; }
+					e.preventDefault();
+					e.stopPropagation();
+					var open = btn.getAttribute('data-einstieg-open') === 'true';
+					stateForRoot()[btn.getAttribute('data-einstieg-caret')] = !open;
+					btn.setAttribute('data-einstieg-open', open ? 'false' : 'true');
+					applyCaret(btn);
+				});
+				document.body.addEventListener('htmx:beforeSwap', function (e) {
+					if (!e.detail || !e.detail.target || e.detail.target.id !== 'einstieg-kasten') { return; }
+					captureAll();
+				});
+				document.body.addEventListener('htmx:afterSwap', function (e) {
+					if (!e.detail || !e.detail.target || e.detail.target.id !== 'einstieg-kasten') { return; }
+					applyAll();
+				});
+			}
+		})();
+	</script>
+}
+
+// einstiegLoseRepos is "Projekte ohne Vorhaben" — the Engagement's direct
+// repo children that hang under no Vorhaben. Never collapses (its rows'
+// data-einstieg-child is always "").
+templ einstiegLoseRepos(d NodeEinstieg) {
+	if len(d.LoseRepos) > 0 {
+		@einstiegSectionKopf(components.T(ctx, "einstieg.loseRepos"), "") {
+			<span class="text-[10.5px] text-faint">{ components.T(ctx, "einstieg.loseRepos.upstream") }</span>
+		}
+		for _, r := range d.LoseRepos {
+			@einstiegRepoRow(r, domain.KindRepo)
+		}
+	}
+}
+
+// einstiegBuchungen is "Buchungen im ‹Monat›" — drops entirely without a
+// single booking this month (no empty box, Spec C.1.9). The month span used
+// to repeat on every row (M7/F14/Ruling 18) — it now sits once in the
+// section head as a leise suffix: "Buchungen im August" · "01.–17.08.".
+templ einstiegBuchungen(d NodeEinstieg) {
+	if len(d.Buchungen) > 0 {
+		@einstiegSectionKopf(components.T(ctx, "einstieg.buchungen") + " " + d.MonthName, "· " + d.BuchungenSpan) {
+			<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=worktime") } class="text-[10.5px] font-bold uppercase tracking-[.14em] text-body2 hover:text-accent">
+				{ components.T(ctx, "einstieg.buchungen.all") }
+			</a>
+		}
+		for _, b := range d.Buchungen {
+			@einstiegBuchungRow(b)
+		}
+	}
+}
+
+// einstiegBuchungRow is one "Buchungen" line: title + duration subline on the
+// left, the money figure (or, without a rate, the duration again — this time
+// as the headline number) on the right. The month span moved to the section
+// head (einstiegBuchungen) — it repeated identically on every row before.
+templ einstiegBuchungRow(b EinstiegBuchungRow) {
+	<div class="flex items-baseline justify-between gap-3 border-b border-line px-6 py-[9px]">
+		<span class="min-w-0 flex-1">
+			<span class="block truncate text-[13px] font-semibold text-ink">{ b.Title }</span>
+			<span class="block text-[11px] text-muted">{ b.DurStr }</span>
+		</span>
+		<span class="shrink-0 font-mono text-[12.5px] font-semibold text-ink">
+			if b.Amount != "" {
+				{ b.Amount }
+			} else {
+				{ b.DurStr }
+			}
+		</span>
+	</div>
+}
+
+// einstiegWege carries the ways on from this register. It used to be
+// einstiegFuss, a quiet line at the BOTTOM of a column that scrolls a whole
+// project list — so the node's own navigation sat below the fold and the
+// only way to the register's knowledge was a lucky click in the feed
+// (Karteikasten-Kompass A4/Hoch-b). The ways belong to the identity, so they
+// now sit directly under the Kopf, before anything scrollable.
+//
+// "Wissen ‹N›" leads to the node's own card list; it is the way the Kasten
+// column will BECOME once Slice 4 lands (Screen 01).
+templ einstiegWege(d NodeEinstieg) {
+	<div class="mx-6 mt-3.5 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b border-line2 pb-3 text-[12.5px] font-semibold">
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=wissen") } class="text-accent hover:underline">
+			{ components.T(ctx, "einstieg.wissen") }
+			if d.CardsTotal > 0 {
+				<span class="ml-1 font-mono text-[11px] font-semibold tnum text-body2">{ itoa(d.CardsTotal) }</span>
+			}
+			<span class="text-faint" aria-hidden="true">›</span>
+		</a>
+		<a href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false" class="text-accent hover:underline">
+			{ components.T(ctx, "einstieg.neuesWissen") }
+		</a>
+		// Der Einstieg trägt bewusst keine Uhr (Soenne, 21.08.: mockup-treu —
+		// die Uhr sitzt in der Schiene). Damit der häufigste Handgriff des
+		// Tages trotzdem einen Weg hat, führt diese Zeile auf die Zeit-Fläche
+		// des Registers.
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=worktime") } class="text-body2 hover:text-ink">
+			{ components.T(ctx, "einstieg.zeitStarten") }
+		</a>
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=worktime") } class="text-body2 hover:text-ink">
+			{ components.T(ctx, "einstieg.zeitNachtragen") }
+		</a>
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=struktur") } class="text-body2 hover:text-ink">
+			{ components.T(ctx, "einstieg.verwalten") }
+		</a>
+	</div>
+}
+
+// einstiegReadmeKopf is the reading column's head: label, the README's slug
+// path, how long ago it changed, and the edit round-trip on the right — the
+// same label-row anatomy uebersichtBeschreibung used for the description.
+templ einstiegReadmeKopf(d NodeEinstieg) {
+	<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line2 pb-2.5">
+		<span class="shrink-0 text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "einstieg.readme") }</span>
+		// Path and age describe a text that exists. Without one they described
+		// nothing — the head named a file and an age right above "Noch keine
+		// README" (Karteikasten-Kompass A1). Empty README, empty claims.
+		if d.DescriptionHTML != "" {
+			<span class="min-w-0 truncate font-mono text-[11.5px] text-faint">{ d.ReadmePath }</span>
+			if d.ReadmeWhen != "" {
+				<span class="shrink-0 text-[11.5px] text-faint">{ components.T(ctx, "einstieg.readme.last") } { d.ReadmeWhen }</span>
+			}
+		}
+		<span class="flex-1"></span>
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/readme") } hx-boost="false" class="shrink-0 text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "common.edit") }</a>
+	</div>
+}
+
+// einstiegReadmeProsa renders the description at reading size, or — empty —
+// a single quiet line with the edit link. No skeleton, no spinner: an empty
+// README is a known, final state, not a loading one.
+templ einstiegReadmeProsa(d NodeEinstieg) {
+	if d.DescriptionHTML != "" {
+		<div class="prose mt-5 max-w-[720px] text-[18px]">@templ.Raw(string(d.DescriptionHTML))</div>
+	} else {
+		<div class="mt-5 text-[13px] text-faint">
+			<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/readme") } hx-boost="false" class="font-semibold text-accent hover:underline">{ components.T(ctx, "einstieg.readme.empty") }</a>
+		</div>
+	}
+}
+
+// einstiegReadmeEnde is the closing rule — wörtlich uebersichtBeschreibung's
+// end marker (cockpit_uebersicht.templ:37-41).
+templ einstiegReadmeEnde(d NodeEinstieg) {
+	// An end rule closes a text. Over an empty README it marked the end of
+	// nothing (Karteikasten-Kompass A1).
+	if d.DescriptionHTML != "" {
+		<div class="mt-9 flex items-center gap-3.5">
+			<span class="h-px flex-1 bg-hair2"></span>
+			<span class="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "einstieg.readme.end") }</span>
+			<span class="h-px flex-1 bg-hair2"></span>
+		</div>
+	}
+}
+
+// einstiegHighlights is "Woran zuletzt gearbeitet" — marked passages from
+// the daily notes, subtree-filtered and newest-first (d.Highlights, already
+// capped by BuildNodeEinstieg). The section drops entirely without any
+// marks — no empty box (Spec C.2.4).
+templ einstiegHighlights(d NodeEinstieg) {
+	if len(d.Highlights) > 0 {
+		<div class="mt-10 flex items-baseline gap-2.5 border-b border-line2 pb-2.5">
+			<span class="text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "einstieg.highlights") }</span>
+			<span class="text-[10.5px] text-faint">{ components.T(ctx, "einstieg.highlights.hint") }</span>
+		</div>
+		for _, row := range d.Highlights {
+			@einstiegHighlightRow(row)
+		}
+	}
+}
+
+// A highlight whose source card was deleted has no target left — it renders
+// as a plain row instead of a link into nothing. Same body, two wrappers.
+templ einstiegHighlightRow(row EinstiegHighlightRow) {
+	if row.Href != "" {
+		<a href={ templ.SafeURL(row.Href) } data-tint="green"
+			class="-mx-2.5 flex items-baseline gap-3.5 border-b border-line px-2.5 py-[13px]">
+			@einstiegHighlightBody(row)
+		</a>
+	} else {
+		<div class="-mx-2.5 flex items-baseline gap-3.5 border-b border-line px-2.5 py-[13px]">
+			@einstiegHighlightBody(row)
+		</div>
+	}
+}
+
+templ einstiegHighlightBody(row EinstiegHighlightRow) {
+	<span class="w-16 shrink-0 font-mono text-[11px] text-muted">{ row.Day }</span>
+	<span class="min-w-0 flex-1 truncate text-[14px] leading-[1.6] text-body">{ "„" + row.Quote + "“" }</span>
+	<span class="hidden w-[120px] shrink-0 truncate text-right text-[11.5px] text-faint lg:block">{ row.Where }</span>
+}
+
+// einstiegFeed is "Zuletzt in ‹Name›" — the subtree's activity feed with
+// per-kind type chips (d.Feed, already subtree-filtered and capped by
+// BuildNodeEinstieg). The section drops entirely without any subtree
+// activity (Spec C.2.5, same empty-state contract as Highlights).
+templ einstiegFeed(d NodeEinstieg) {
+	if len(d.Feed) > 0 {
+		<div class="mt-10 flex items-baseline gap-2.5 border-b border-line2 pb-2.5">
+			<span class="text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "einstieg.feed.title") } { d.N.Name }</span>
+			<span class="text-[10.5px] text-faint">{ components.T(ctx, "einstieg.feed.hint") }</span>
+		</div>
+		for _, row := range d.Feed {
+			@einstiegFeedRow(row)
+		}
+	}
+}
+
+// einstiegFeedRow is one "Zuletzt in" line: time, type chip, title (linked
+// when the target still exists), an optional note, and the Vorhaben the
+// target sits under — empty at the entry node itself.
+templ einstiegFeedRow(row EinstiegFeedRow) {
+	<div class="-mx-2.5 flex items-baseline gap-3.5 border-b border-line px-2.5 py-[13px]">
+		<span class="w-16 shrink-0 font-mono text-[11px] text-muted">{ row.When }</span>
+		<span class={ "w-14 shrink-0 text-[10px] font-bold uppercase tracking-[.1em]", row.ChipClass }>{ row.ChipLabel }</span>
+		<span class="min-w-0 flex-1">
+			if row.Href != "" {
+				<a href={ templ.SafeURL(row.Href) } class="block truncate font-semibold text-ink hover:text-accent">{ row.Title }</a>
+			} else {
+				<span class="block truncate font-semibold text-ink">{ row.Title }</span>
+			}
+			if row.Note != "" {
+				<span class="mt-0.5 block truncate text-[12px] text-muted">{ row.Note }</span>
+			}
+		</span>
+		<span class="hidden w-[120px] shrink-0 truncate text-right text-[11.5px] text-faint lg:block">{ row.Vorhaben }</span>
+	</div>
+}
+
+// einstiegCrumbs mirrors nodeCrumbs (node_tree_vm.go:290) over NodeEinstieg's
+// N/Ancestors instead of NodeCockpit's — same body, different VM.
+func einstiegCrumbs(d NodeEinstieg) (*components.Crumb, []components.Crumb, string) {
+	n := len(d.Ancestors)
+	chain := make([]domain.Node, 0, n)
+	for i := n - 1; i >= 0; i-- { // Ancestors is leaf→root; walk root→leaf.
+		chain = append(chain, d.Ancestors[i])
+	}
+	if len(chain) == 0 {
+		chain = []domain.Node{d.N} // defensive: no ancestor chain loaded
+	}
+	var back *components.Crumb
+	items := make([]components.Crumb, 0, len(chain))
+	for i, a := range chain {
+		isCurrent := a.ID == d.N.ID
+		if !isCurrent && i == len(chain)-2 {
+			back = &components.Crumb{Href: "/nodes/" + a.ID, Label: a.Name}
+			continue
+		}
+		c := components.Crumb{Label: a.Name, Level: string(a.Kind)}
+		if !isCurrent {
+			c.Href = "/nodes/" + a.ID
+		}
+		items = append(items, c)
+	}
+	return back, items, string(d.N.Kind)
+}

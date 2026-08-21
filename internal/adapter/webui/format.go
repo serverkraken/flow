@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
@@ -41,4 +42,35 @@ func RateLabel(rate *domain.Money) string {
 		sym = "€"
 	}
 	return fmt.Sprintf("%d %s/h", rate.Amount/100, sym)
+}
+
+// gitDisplay strips transport noise from an upstream URL so the eye sees
+// host/path: "git@github.com:x/y.git" and "https://github.com/x/y.git" both
+// render as "github.com/x/y".
+func gitDisplay(raw string) string {
+	if after, ok := strings.CutPrefix(raw, "git@"); ok {
+		colonIdx := strings.Index(after, ":")
+		if colonIdx > 0 {
+			host := after[:colonIdx]
+			path := strings.TrimSuffix(after[colonIdx+1:], ".git")
+			return host + "/" + path
+		}
+	}
+	for _, scheme := range []string{"https://", "http://"} {
+		if after, ok := strings.CutPrefix(raw, scheme); ok {
+			return strings.TrimSuffix(after, ".git")
+		}
+	}
+	return raw
+}
+
+// fmtFeedTime is the activity feed's clock column: today shows the time,
+// anything older the day and month. Deliberately NOT the Datumsstaffel — a
+// feed row is read as "when today", not "how long ago".
+func fmtFeedTime(at, now time.Time) string {
+	at, now = at.Local(), now.Local()
+	if at.Year() == now.Year() && at.YearDay() == now.YearDay() {
+		return at.Format("15:04")
+	}
+	return at.Format("02.01.")
 }
