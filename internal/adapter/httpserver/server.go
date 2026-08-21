@@ -75,6 +75,7 @@ type Server struct {
 	UploadNodeLogo usecase.UploadNodeLogo
 	DeleteNodeLogo usecase.DeleteNodeLogo
 	GetNodeLogo    usecase.GetNodeLogo
+	GetNodeBanner  usecase.GetNodeBanner
 
 	// slice 1 bulk ops
 	BulkAssignNode     usecase.BulkAssignNode
@@ -374,6 +375,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /nodes/{id}/main", s.webAuth(http.HandlerFunc(s.handleWebNodeMain)))
 	mux.Handle("GET /nodes/{id}/rail", s.webAuth(http.HandlerFunc(s.handleWebNodeRail)))
 	mux.Handle("GET /nodes/{id}/logo", s.webAuth(http.HandlerFunc(s.handleWebNodeLogo)))
+	mux.Handle("GET /nodes/{id}/banner", s.webAuth(http.HandlerFunc(s.handleWebNodeBanner)))
 	mux.Handle("GET /nodes/{id}/artifacts/{slug}", s.webAuth(http.HandlerFunc(s.handleServeArtifact)))
 	mux.Handle("GET /nodes/{id}/artifacts", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifacts)))
 	mux.Handle("POST /nodes/{id}/artifacts", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifactUpload)))

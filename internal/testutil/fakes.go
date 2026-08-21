@@ -2092,6 +2092,7 @@ const (
 	NodeAggregateFailRate   = "rate"
 	NodeAggregateFailTags   = "tags"
 	NodeAggregateFailLogo   = "logo"
+	NodeAggregateFailBanner = "banner"
 	NodeAggregateFailCommit = "commit"
 )
 
@@ -2237,6 +2238,9 @@ func (s *FakeNodeAggregateStore) CreateAggregate(ctx context.Context, n domain.N
 		if err := s.Banners.Put(ctx, changes.BannerValue); err != nil {
 			return rollback(err)
 		}
+		if err := s.fail(NodeAggregateFailBanner); err != nil {
+			return rollback(err)
+		}
 	}
 	if err := s.fail(NodeAggregateFailCommit); err != nil {
 		return rollback(err)
@@ -2327,6 +2331,11 @@ func (s *FakeNodeAggregateStore) UpdateAggregate(ctx context.Context, ownerID, n
 		}
 	case ports.NodeBannerDelete:
 		if err := s.Banners.Delete(ctx, ownerID, nodeID); err != nil {
+			return rollback(err)
+		}
+	}
+	if changes.Banner != ports.NodeBannerKeep {
+		if err := s.fail(NodeAggregateFailBanner); err != nil {
 			return rollback(err)
 		}
 	}

@@ -62,7 +62,7 @@ func TestWebNodeEditPage_NoNestedForms(t *testing.T) {
 	if seg == "" {
 		t.Fatal("edit form (action=/nodes/n-eng) not found")
 	}
-	if !strings.Contains(seg, `name="logo"`) {
+	if !strings.Contains(seg, `name="banner"`) {
 		t.Error("logo file input must sit inside the edit form")
 	}
 	if !strings.Contains(seg, `type="submit"`) {

@@ -243,35 +243,17 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 			</div>
 		</div>
 		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.glyph") }</label>
-			<div class="flex flex-wrap gap-2">
-				@nodeGlyphRadio("", d.Vals.Glyph)
-				for _, g := range domain.NodeGlyphs {
-					@nodeGlyphRadio(g, d.Vals.Glyph)
-				}
-			</div>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.icon") }</label>
-			<div class="flex flex-wrap gap-2">
-				@nodeIconRadio("", d.Vals.Icon)
-				for _, key := range domain.NodeIcons {
-					@nodeIconRadio(key, d.Vals.Icon)
-				}
-			</div>
-		</div>
-		<div>
-			<label class="block text-muted">{ components.T(ctx, "node.logo") }</label>
-			if editing != nil && editing.LogoRef != "" {
+			<label class="block text-muted">{ components.T(ctx, "node.banner") }</label>
+			if editing != nil && editing.BannerRef != "" {
 				<div class="mb-2 flex items-center gap-3">
-					<img src={ "/nodes/" + editing.ID + "/logo?v=" + editing.LogoRef } alt="" class="h-12 w-12 object-cover"/>
+					<img src={ "/nodes/" + editing.ID + "/banner?v=" + editing.BannerRef } alt="" class="h-[38px] w-full max-w-[240px] object-cover"/>
 					<label class="flex items-center gap-2 text-[.82rem]">
-						<input type="checkbox" name="logoRemove" value="1"/> { components.T(ctx, "node.logo.remove") }
+						<input type="checkbox" name="bannerRemove" value="1"/> { components.T(ctx, "node.banner.remove") }
 					</label>
 				</div>
 			}
-			<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" class="field"/>
-			<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.logo.hint") }</p>
+			<input type="file" name="banner" accept="image/png,image/jpeg,image/webp" class="field"/>
+			<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.banner.hint") }</p>
 		</div>
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "wissen.tags") }</label>
@@ -369,41 +351,6 @@ templ nodeColorRadio(name, current string) {
 		} else {
 			<span class="inline-block h-6 w-6 ring-offset-1 peer-checked:ring-2 peer-checked:ring-blue" style={ "background-color:" + ColorHex(name) }></span>
 		}
-	</label>
-}
-
-templ nodeGlyphRadio(g, current string) {
-	<label class="cursor-pointer">
-		if g == current {
-			<input type="radio" name="glyph" value={ g } checked class="peer sr-only"/>
-		} else {
-			<input type="radio" name="glyph" value={ g } class="peer sr-only"/>
-		}
-		<span class="inline-flex h-6 w-6 items-center justify-center rounded border border-line font-mono peer-checked:ring-2 peer-checked:ring-blue">
-			if g == "" {
-				∅
-			} else {
-				{ g }
-			}
-		</span>
-	</label>
-}
-
-// nodeIconRadio renders one icon-picker cell; "" is the no-icon choice.
-templ nodeIconRadio(key, current string) {
-	<label class="cursor-pointer" title={ key }>
-		if key == current {
-			<input type="radio" name="icon" value={ key } checked class="peer sr-only"/>
-		} else {
-			<input type="radio" name="icon" value={ key } class="peer sr-only"/>
-		}
-		<span class="inline-flex h-8 w-8 items-center justify-center rounded border border-line text-muted peer-checked:ring-2 peer-checked:ring-blue peer-checked:text-ink">
-			if key == "" {
-				∅
-			} else {
-				@NodeIcon(key, "h-5 w-5")
-			}
-		</span>
 	</label>
 }
 

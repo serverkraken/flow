@@ -638,7 +638,7 @@ func TestWebNodeForm_FieldClass(t *testing.T) {
 		{`name="upstreamGit"`, []string{"field", "font-mono"}},
 		{`name="status"`, []string{"field"}},
 		{`name="countsMode"`, []string{"field"}},
-		{`name="logo"`, []string{"field"}},
+		{`name="banner"`, []string{"field"}},
 		{`name="tags"`, []string{"field", "font-mono"}},
 		{`name="rateAmount"`, []string{"field", "w-32"}},
 		{`name="rateCurrency"`, []string{"field", "w-20"}},
@@ -652,15 +652,11 @@ func TestWebNodeForm_FieldClass(t *testing.T) {
 		}
 	}
 
-	// Radio grids preserved: color/glyph option values still render.
+	// The colour palette is the ONLY identity grid left — glyph and icon went
+	// with the Screen-08 doctrine (identity is monogram + colour).
 	for _, name := range domain.NodeColors {
 		if !strings.Contains(formBlock, `value="`+name+`"`) {
 			t.Errorf("color radio %q missing; body=%.500s", name, formBlock)
-		}
-	}
-	for _, g := range domain.NodeGlyphs {
-		if !strings.Contains(formBlock, `value="`+g+`"`) {
-			t.Errorf("glyph radio %q missing; body=%.500s", g, formBlock)
 		}
 	}
 
@@ -881,22 +877,25 @@ func TestWebNodeForm_CountsModeTriState(t *testing.T) {
 	}
 }
 
-// TestWebNodeForm_IconAndLogo pins the multipart node form: icon round-trips
-// as a plain form field, an uploaded logo is stored on create (LogoRef =
-// 12-hex content hash), the logoRemove checkbox clears it on update, and a
-// disguised-as-image bad upload (here: SVG, sniffed via ValidateNodeLogo)
-// rejects the whole create with 400 — no half-created node.
-func TestWebNodeForm_IconAndLogo(t *testing.T) {
+// TestWebNodeForm_BannerReplacesTheIdentityPickers pins the Screen-08
+// identity doctrine: identity is monogram + colour, so glyph, icon and logo
+// leave the form and the BANNER takes the file slot. Incoming glyph/icon/logo
+// fields are ignored rather than rejected — an old bookmark or a stale tab
+// must not fail, and it must not null out what the node already carries
+// (the domain fields and the MCP path keep them).
+func TestWebNodeForm_BannerReplacesTheIdentityPickers(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 
-	// multipart create: name + icon + logo file
+	// multipart create: name + a banner file, plus identity fields that the
+	// form no longer offers and the handler must ignore.
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	_ = mw.WriteField("name", "Iconic")
+	_ = mw.WriteField("name", "Bannerträger")
 	_ = mw.WriteField("kind", "engagement")
 	_ = mw.WriteField("status", "active")
 	_ = mw.WriteField("icon", "rocket")
-	fw, _ := mw.CreateFormFile("logo", "logo.png")
+	_ = mw.WriteField("glyph", "◆")
+	fw, _ := mw.CreateFormFile("banner", "banner.png")
 	_, _ = fw.Write(pngPixel(t))
 	_ = mw.Close()
 	res := postNMultipart(t, ts, c, "/nodes", mw.FormDataContentType(), &buf)
@@ -911,22 +910,21 @@ func TestWebNodeForm_IconAndLogo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("created node not found: %v", err)
 	}
-	if n.Icon != "rocket" {
-		t.Errorf("icon = %q, want rocket", n.Icon)
+	if len(n.BannerRef) != 12 {
+		t.Errorf("bannerRef = %q, want 12-hex hash (banner stored on create)", n.BannerRef)
 	}
-	if len(n.LogoRef) != 12 {
-		t.Errorf("logoRef = %q, want 12-hex hash (logo stored on create)", n.LogoRef)
+	if n.Icon != "" || n.Glyph != "" {
+		t.Errorf("form must ignore glyph/icon, got icon=%q glyph=%q", n.Icon, n.Glyph)
 	}
 
-	// multipart update: remove the logo via checkbox
+	// multipart update: remove the banner via checkbox
 	var buf2 bytes.Buffer
 	mw2 := multipart.NewWriter(&buf2)
-	_ = mw2.WriteField("name", "Iconic")
+	_ = mw2.WriteField("name", "Bannerträger")
 	_ = mw2.WriteField("slug", n.Slug)
 	_ = mw2.WriteField("kind", "engagement")
 	_ = mw2.WriteField("status", "active")
-	_ = mw2.WriteField("icon", "rocket")
-	_ = mw2.WriteField("logoRemove", "1")
+	_ = mw2.WriteField("bannerRemove", "1")
 	_ = mw2.Close()
 	res2 := postNMultipart(t, ts, c, "/nodes/"+n.ID, mw2.FormDataContentType(), &buf2)
 	if res2.StatusCode != http.StatusSeeOther {
@@ -937,19 +935,16 @@ func TestWebNodeForm_IconAndLogo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n2.LogoRef != "" {
-		t.Errorf("logoRef = %q after remove, want empty", n2.LogoRef)
-	}
-	if n2.Icon != "rocket" {
-		t.Errorf("icon after update = %q, want rocket (round-trips)", n2.Icon)
+	if n2.BannerRef != "" {
+		t.Errorf("bannerRef = %q after remove, want empty", n2.BannerRef)
 	}
 
-	// bad logo type rejects the whole create (400 re-render, no node created)
+	// bad banner type rejects the whole create (400 re-render, no node created)
 	var buf3 bytes.Buffer
 	mw3 := multipart.NewWriter(&buf3)
-	_ = mw3.WriteField("name", "BadLogo")
+	_ = mw3.WriteField("name", "BadBanner")
 	_ = mw3.WriteField("kind", "engagement")
-	fw3, _ := mw3.CreateFormFile("logo", "evil.svg")
+	fw3, _ := mw3.CreateFormFile("banner", "evil.svg")
 	_, _ = fw3.Write([]byte("<svg onload=alert(1)></svg>"))
 	_ = mw3.Close()
 	res3 := postNMultipart(t, ts, c, "/nodes", mw3.FormDataContentType(), &buf3)
@@ -958,20 +953,37 @@ func TestWebNodeForm_IconAndLogo(t *testing.T) {
 	}
 	body3, _ := io.ReadAll(res3.Body)
 	_ = res3.Body.Close()
-	if !strings.Contains(string(body3), "Logo muss PNG, JPEG oder WebP sein") {
-		t.Errorf("re-rendered form must show the node.err.logoType i18n message; body=%.500s", body3)
+	if !strings.Contains(string(body3), "Banner muss PNG, JPEG oder WebP sein") {
+		t.Errorf("re-rendered form must show the node.err.bannerType i18n message; body=%.500s", body3)
 	}
 	nodes, _ := ns.List(context.Background(), "u1")
 	for _, nn := range nodes {
-		if nn.Name == "BadLogo" {
+		if nn.Name == "BadBanner" {
 			t.Errorf("rejected upload must not create a half-configured node: %+v", nn)
 		}
 	}
 }
 
+// TestWebNodeForm_HasNoIdentityPickers keeps the pickers from creeping back.
+func TestWebNodeForm_HasNoIdentityPickers(t *testing.T) {
+	ts, c, _ := newWebNodesServer(t)
+	_, body := getN(t, ts, c, "/nodes/new")
+	for _, gone := range []string{`name="glyph"`, `name="icon"`, `name="logo"`, `name="logoRemove"`} {
+		if strings.Contains(body, gone) {
+			t.Errorf("the form still offers %s — identity is monogram + colour (Screen 08)", gone)
+		}
+	}
+	if !strings.Contains(body, `name="color"`) {
+		t.Errorf("the colour palette must stay; body=%.500s", body)
+	}
+	if !strings.Contains(body, `name="banner"`) {
+		t.Errorf("the banner upload must stay; body=%.500s", body)
+	}
+}
+
 func TestWebNodeCreate_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
 	ts, c, ns, _, agg, emitter := newWebNodesServerFull(t)
-	agg.FailStage = testutil.NodeAggregateFailLogo
+	agg.FailStage = testutil.NodeAggregateFailBanner
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -981,7 +993,7 @@ func TestWebNodeCreate_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
 	_ = mw.WriteField("rateAmount", "95.00")
 	_ = mw.WriteField("rateCurrency", "EUR")
 	_ = mw.WriteField("tags", "atomic")
-	fw, _ := mw.CreateFormFile("logo", "logo.png")
+	fw, _ := mw.CreateFormFile("banner", "banner.png")
 	_, _ = fw.Write(pngPixel(t))
 	_ = mw.Close()
 	res := postNMultipart(t, ts, c, "/nodes", mw.FormDataContentType(), &buf)
@@ -1000,11 +1012,11 @@ func TestWebNodeCreate_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
 func TestWebNodeUpdate_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
 	ts, c, ns, _, agg, emitter := newWebNodesServerFull(t)
 	n := seedTreeNode(t, ns, "n-rollback", "Old", domain.KindEngagement, nil)
-	agg.FailStage = testutil.NodeAggregateFailLogo
+	agg.FailStage = testutil.NodeAggregateFailBanner
 
 	res := postN(t, ts, c, "/nodes/"+n.ID, url.Values{
 		"name": {"New"}, "slug": {n.Slug}, "kind": {"engagement"},
-		"status": {"active"}, "tags": {"new"}, "logoRemove": {"1"},
+		"status": {"active"}, "tags": {"new"}, "bannerRemove": {"1"},
 	})
 	if res.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("aggregate update failure = %d, want 500", res.StatusCode)
@@ -1022,19 +1034,19 @@ func TestWebNodeUpdate_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
 	}
 }
 
-// TestWebNodeForm_EditShowsIconAndLogo pins the edit-GET rendering: the icon
-// radio group is always present (name="icon"), and once a node has a
-// LogoRef, the edit form also offers a logoRemove checkbox.
-func TestWebNodeForm_EditShowsIconAndLogo(t *testing.T) {
+// TestWebNodeForm_EditShowsStoredBanner pins the edit-GET rendering: once a
+// node carries a BannerRef, the form shows the image and offers the
+// bannerRemove checkbox. Identity itself is monogram + colour, so there is no
+// icon group to pre-select any more.
+func TestWebNodeForm_EditShowsStoredBanner(t *testing.T) {
 	ts, c, _ := newWebNodesServer(t)
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	_ = mw.WriteField("name", "Iconic2")
+	_ = mw.WriteField("name", "Bannerträger2")
 	_ = mw.WriteField("kind", "engagement")
 	_ = mw.WriteField("status", "active")
-	_ = mw.WriteField("icon", "rocket")
-	fw, _ := mw.CreateFormFile("logo", "logo.png")
+	fw, _ := mw.CreateFormFile("banner", "banner.png")
 	_, _ = fw.Write(pngPixel(t))
 	_ = mw.Close()
 	res := postNMultipart(t, ts, c, "/nodes", mw.FormDataContentType(), &buf)
@@ -1049,18 +1061,15 @@ func TestWebNodeForm_EditShowsIconAndLogo(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("edit GET = %d", code)
 	}
-	if !strings.Contains(body, `name="icon"`) {
-		t.Errorf("edit form must contain the icon radio group; body=%.500s", body)
+	if !strings.Contains(body, "/nodes/"+nodeID+"/banner?v=") {
+		t.Errorf("edit form must preview the stored banner; body=%.800s", body)
 	}
-	if !strings.Contains(body, `value="rocket" checked`) {
-		t.Errorf("edit form must pre-select the node's current icon (rocket); body=%.500s", body)
-	}
-	if !strings.Contains(body, `name="logoRemove"`) {
-		t.Errorf("edit form with LogoRef set must offer logoRemove checkbox; body=%.500s", body)
+	if !strings.Contains(body, `name="bannerRemove"`) {
+		t.Errorf("edit form with BannerRef set must offer bannerRemove checkbox; body=%.500s", body)
 	}
 }
 
-// TestWebNodeForm_LogoSizeLimit pins fix 1 (whole-branch review): the whole
+// TestWebNodeForm_BannerSizeLimit pins fix 1 (whole-branch review): the whole
 // multipart body is bounded via http.MaxBytesReader in the handler, so an
 // oversized logo upload fails fast with 400 + the i18n node.err.logoSize
 // message instead of buffering an unbounded body — and no half-configured
@@ -1072,14 +1081,14 @@ func TestWebNodeForm_EditShowsIconAndLogo(t *testing.T) {
 // inside the (doomed) body would come back empty too and trip the unrelated
 // "name required" check first. Query values are parsed separately (before
 // the multipart body is even touched) and survive, isolating the assertion
-// to the logo-size path.
-func TestWebNodeForm_LogoSizeLimit(t *testing.T) {
+// to the banner-size path.
+func TestWebNodeForm_BannerSizeLimit(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	fw, _ := mw.CreateFormFile("logo", "big.png")
-	_, _ = fw.Write(make([]byte, usecase.MaxNodeLogoBytes+128*1024)) // well past MaxBytesReader's cap
+	fw, _ := mw.CreateFormFile("banner", "big.png")
+	_, _ = fw.Write(make([]byte, usecase.MaxNodeBannerBytes+128*1024)) // well past MaxBytesReader's cap
 	_ = mw.Close()
 
 	res := postNMultipart(t, ts, c, "/nodes?name=TooBig&kind=engagement", mw.FormDataContentType(), &buf)
@@ -1088,8 +1097,8 @@ func TestWebNodeForm_LogoSizeLimit(t *testing.T) {
 	}
 	body, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
-	if !strings.Contains(string(body), "Logo zu groß") {
-		t.Errorf("re-rendered form must show the node.err.logoSize i18n message; body=%.500s", body)
+	if !strings.Contains(string(body), "Banner zu groß") {
+		t.Errorf("re-rendered form must show the node.err.bannerSize i18n message; body=%.500s", body)
 	}
 	nodes, _ := ns.List(context.Background(), "u1")
 	for _, n := range nodes {
