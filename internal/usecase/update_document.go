@@ -59,7 +59,7 @@ func (uc UpdateDocument) execute(ctx context.Context, ownerID, id string, in Pat
 			cur.Title = domain.StripHighlightSentinels(*in.Title)
 		}
 		if in.Body != nil {
-			cur.Body = domain.StripHighlightSentinels(*in.Body)
+			cur.Body = domain.StripHighlightSentinels(domain.NormalizeLineEndings(*in.Body))
 		}
 		_, bodyStart := domain.ParseFrontmatter(cur.Body)
 		updatedAt := uc.Clock.Now()

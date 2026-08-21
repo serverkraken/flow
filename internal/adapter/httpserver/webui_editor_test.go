@@ -524,3 +524,52 @@ func TestEditorCreate_InvalidType(t *testing.T) {
 		t.Fatalf("expected 400, got %d body=%.300s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestWebEditorUpdate_NormalisesCRLFFromTheBrowser pins the path that did the
+// damage: a browser submits a <textarea> with CRLF (HTML spec), and the
+// stored body must come out as LF with its frontmatter intact. 69 of 512
+// cards in the dev DB had been saved with CRLF before this existed — every
+// one had silently lost its frontmatter, because fencedBlock only knows
+// "---\n". The editor did not cause it; it made it visible.
+func TestWebEditorUpdate_NormalisesCRLFFromTheBrowser(t *testing.T) {
+	t.Parallel()
+	srv, _, docs, _ := newWebWissenServer(t)
+	seed := domain.Document{ID: "crlf-1", OwnerID: "u1", Type: domain.DocFree, Path: "crlf", Title: "T", Body: "---\ntags: [alt]\n---\n# T\n"}
+	if _, err := docs.Create(context.Background(), seed); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{
+		"type":  {"free"},
+		"path":  {"crlf"},
+		"title": {"T"},
+		"body":  {"---\r\ntags: [editor]\r\n---\r\n# T\r\n\r\nAbsatz.\r\n"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/wissen/crlf-1", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", "crlf-1")
+	req = req.WithContext(context.WithValue(req.Context(), userKey, domain.User{ID: "u1", Username: "msoent"}))
+	rec := httptest.NewRecorder()
+
+	srv.handleWebEditorUpdate(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d body=%.300s", rec.Code, rec.Body.String())
+	}
+	doc, err := docs.Get(context.Background(), "u1", "crlf-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsRune(doc.Body, '\r') {
+		t.Errorf("stored body still carries CR: %q", doc.Body)
+	}
+	if _, start := domain.ParseFrontmatter(doc.Body); start == 0 {
+		t.Errorf("frontmatter not recognised after save — fencedBlock saw something other than \"---\\n\": %q", doc.Body[:12])
+	}
+	// Tags come from the form field on the web path, never from the
+	// frontmatter (Bestand) — so the claim here is recognition, not
+	// derivation: ParseFrontmatter must see the fence again.
+	if tags, _ := domain.ParseFrontmatter(doc.Body); len(tags) != 1 || tags[0] != "editor" {
+		t.Errorf("frontmatter tags unreadable after save: %v", tags)
+	}
+}

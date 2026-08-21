@@ -38,7 +38,7 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	a := actor.FromContext(ctx)
 	d := domain.Document{
 		ID: uc.IDs.NewID(), OwnerID: ownerID, NodeID: in.NodeID, Type: in.Type,
-		Path: in.Path, Title: domain.StripHighlightSentinels(in.Title), Body: domain.StripHighlightSentinels(in.Body),
+		Path: in.Path, Title: domain.StripHighlightSentinels(in.Title), Body: domain.StripHighlightSentinels(domain.NormalizeLineEndings(in.Body)),
 		Tags:      domain.NormalizeTags(eff), // fake-store filter field only; pgstore reads tags from taggings (column dropped)
 		CreatedAt: now, UpdatedAt: now,
 		UpdatedByKind: string(a.Kind), UpdatedByRef: a.Ref,
