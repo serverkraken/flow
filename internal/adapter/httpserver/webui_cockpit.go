@@ -297,7 +297,7 @@ func (s *Server) fillSessionRows(r *http.Request, u domain.User, n domain.Node, 
 			out = append(out, all[i])
 		}
 	}
-	d.SessionRows = webui.BuildCockpitSessionRows(out, now, names, kinds)
+	d.SessionRows = webui.BuildCockpitSessionRows(r.Context(), out, now, names, kinds)
 
 	if sid := r.URL.Query().Get("edit"); sid != "" {
 		for i := range out {

@@ -189,7 +189,7 @@ type CockpitSessionRow struct {
 // display name/kind for the row's node-pill; a session whose node isn't in
 // either map (shouldn't happen — every row's node comes from the same subtree
 // query) degrades to an empty pill rather than panicking.
-func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time, names map[string]string, kinds map[string]domain.NodeKind) []CockpitSessionRow {
+func BuildCockpitSessionRows(ctx context.Context, sessions []domain.WorkSession, now time.Time, names map[string]string, kinds map[string]domain.NodeKind) []CockpitSessionRow {
 	rows := make([]CockpitSessionRow, 0, len(sessions))
 	for _, s := range sessions {
 		span := s.Start.Format("15:04") + "–"
@@ -203,8 +203,11 @@ func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time, names
 			nodeID = *s.NodeID
 		}
 		rows = append(rows, CockpitSessionRow{
-			ID:       s.ID,
-			Date:     s.Start.Format("Mon 02.01."),
+			ID: s.ID,
+			// Go's "Mon" is English — in a German surface that printed
+			// "Sun 16.08.". The weekday comes from the catalog like every
+			// other one on screen.
+			Date:     weekdayShort(ctx, s.Start) + " " + s.Start.Format("02.01."),
 			Span:     span,
 			Tag:      strings.Join(s.Tags, " "),
 			Dur:      fmtDurHM(s.Elapsed(now)),
@@ -394,4 +397,10 @@ func RateSourceName(ancestors []domain.Node, selfID string) string {
 		}
 	}
 	return ""
+}
+
+// weekdayShort names a weekday through the catalog. Go's own "Mon" layout is
+// English and printed "Sun 16.08." into a German surface.
+func weekdayShort(ctx context.Context, t time.Time) string {
+	return components.T(ctx, weekdayKeys[t.Local().Weekday()])
 }

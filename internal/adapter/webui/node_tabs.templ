@@ -36,7 +36,17 @@ templ nodeTabBody(d NodeCockpit, tab string) {
 			<span aria-hidden="true">‹</span>
 			{ components.T(ctx, "nodetab.back") } { ShortName(d.N.Name) }
 		</a>
-		<h1 class="mb-4 font-display text-[22px] font-bold text-ink">{ components.T(ctx, nodeTabTitleKey(tab)) }</h1>
+		<div class="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+			<h1 class="font-display text-[22px] font-bold text-ink">{ components.T(ctx, nodeTabTitleKey(tab)) }</h1>
+			if tab == "worktime" {
+				// Der Auslöser des Nachbuchen-Dialogs saß im Cockpit-KOPF, den
+				// diese Fläche nicht rendert. Ohne ihn wäre der Dialog montiert,
+				// aber unerreichbar.
+				<button type="button" class="btn btn-q btn-s" data-dialog-open="session-dialog">
+					{ components.T(ctx, "cockpit.worktime.add") }
+				</button>
+			}
+		</div>
 		// Die Abschnitte verdrahten ihre htmx-Ziele auf #cockpit-main — der
 		// Bereichsschalter, "alle N ›" und die Buchungsbearbeitung hängen
 		// daran. Ohne dieses Element liefen sie ins Leere, also spannt die
