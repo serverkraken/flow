@@ -769,6 +769,30 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .docrail { margin-top: 40px; padding-top: 0; }
   .prose { max-width: 100%; }
 }
+  /* ── Wissens-Editor (Milkdown) ────────────────────────────────────────
+     Der Stift schreibt in Eurer .prose; hier steht nur, was der Editor
+     zusätzlich braucht: Bedienfläche, Fokus, und die Knoten, die flows
+     Syntax beim Schreiben darstellen. Farben, Maße und Schrift kommen aus
+     .prose — der Editor hat keine eigene Typografie. */
+  .milkdown-host { min-height: 60vh; border: 1px solid rgb(var(--hair2)); background: rgb(var(--canvas)); padding: 18px 22px; }
+  .milkdown-host:focus-within { border-color: rgb(var(--accent)); }
+  .milkdown-host .ProseMirror { outline: none; min-height: 56vh; }
+  .milkdown-host .ProseMirror > *:first-child { margin-top: 0; }
+  /* [[ziel|anzeige]] als Knoten: derselbe Ton wie ein aufgelöster Wikilink
+     im Lesesaal, aber gepunktet — im Editor weiß niemand, ob er auflöst. */
+  .editor-wikilink { color: rgb(var(--accent)); border-bottom: 1px dotted currentColor; cursor: default; }
+  /* ![[slug]]: Adresse, also Mono — der Lesesaal zeigt das Bild, der Stift die Quelle. */
+  .editor-embed { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .9em; color: rgb(var(--meta)); }
+  /* > [!NOTE]: Typ-Marke in Mono, Rahmen im Akzent — wie die Server-Callouts. */
+  .milkdown-host blockquote[data-callout] { border-left: 3px solid rgb(var(--accent)); padding: 4px 14px 6px; background: rgb(var(--sheet)); margin: 1em 0; }
+  .milkdown-host blockquote[data-callout]::before { content: attr(data-callout); display: block; font: 700 10.5px/1 "JetBrains Mono", ui-monospace, monospace; letter-spacing: .1em; color: rgb(var(--accent)); margin: 6px 0 4px; }
+  /* GFM-Task: Milkdown schreibt li[data-item-type=task][data-checked], kein <input>. */
+  .milkdown-host li[data-item-type="task"] { list-style: none; position: relative; }
+  .milkdown-host li[data-item-type="task"]::before { content: "☐"; position: absolute; left: -1.4em; color: rgb(var(--meta)); }
+  .milkdown-host li[data-item-type="task"][data-checked="true"]::before { content: "☑"; color: rgb(var(--live)); }
+  /* Frontmatter ist Metadaten, kein Text — bleibt im Modell, verschwindet im Bild. */
+  .milkdown-host div[data-frontmatter] { display: none; }
+
 @media (max-width: 620px) {
   .projrow .right .k { display: none; }               /* §12 nur Hauptwert */
   .projrow .right .v { font-size: 12px; }

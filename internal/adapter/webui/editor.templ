@@ -23,6 +23,12 @@ templ editorBody(vm EditorVM) {
 	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
 	<script src={ AssetURL("js/editor-insert.js") } defer data-v={ AssetVersion() }></script>
 	<script src={ AssetURL("js/editor-metadata.js") } defer data-v={ AssetVersion() }></script>
+	// Der Stift: Milkdown ersetzt die Textarea, sobald es geladen ist, und
+	// schreibt bei jeder Änderung Markdown hinein — die htmx-Vorschau daneben
+	// bleibt die Wahrheit (RenderDocument). Fällt das Bundle aus, bleibt die
+	// Textarea bedienbar. type="module": das Bundle ist ESM, und ein
+	// src-Skript braucht unter der erzwingenden CSP keine Nonce.
+	<script type="module" src={ AssetURL("vendor/milkdown/editor.min.js") } data-v={ AssetVersion() }></script>
 }
 
 templ editorOuter(vm EditorVM) {

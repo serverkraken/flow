@@ -17,3 +17,6 @@ CLAUDE-*.md
 
 # brainstorming visual companion
 .superpowers/
+
+# Editor-Bundle-Quelle: Abhängigkeiten werden per npm ci geholt, nie committet
+web/editor/node_modules/

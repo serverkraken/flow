@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Milkdown-Spike — Euer .prose, Eure Spec</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  /* NUR Layout für den Spike. Alles Typografische kommt aus app.css (.prose). */
+  body { margin:0; background: rgb(var(--canvas)); }
+  .spike { display:grid; grid-template-columns: 1fr 1fr; min-height:100vh; }
+  .spike > section { padding: 30px 40px; min-width:0; }
+  .spike > section + section { border-left: 1px solid rgb(var(--hair2)); }
+  .eyebrow { font: 600 10.5px/1 "JetBrains Mono", monospace; letter-spacing:.14em; text-transform:uppercase; color: rgb(var(--meta)); margin-bottom:14px; }
+  .milkdown .ProseMirror { outline:none; min-height: 70vh; }
+  .editor-wikilink { color: rgb(var(--accent)); border-bottom: 1px dotted currentColor; }
+  .editor-embed { font-family: "JetBrains Mono", monospace; font-size:.9em; color: rgb(var(--meta)); }
+  blockquote[data-callout] { border-left: 3px solid rgb(var(--accent)); padding-left: 14px; background: rgb(var(--sheet)); }
+  blockquote[data-callout]::before { content: attr(data-callout); font: 700 10.5px/1 "JetBrains Mono", monospace; letter-spacing:.1em; color: rgb(var(--accent)); display:block; margin: 10px 0 4px; }
+  div[data-frontmatter] { display:none; }
+  /* GFM-Task: Milkdown schreibt li[data-item-type=task][data-checked], kein <input>. */
+  li[data-item-type="task"] { list-style:none; position:relative; }
+  li[data-item-type="task"]::before { content:"☐"; position:absolute; left:-1.4em; color: rgb(var(--meta)); }
+  li[data-item-type="task"][data-checked="true"]::before { content:"☑"; color: rgb(var(--live)); }
+</style>
+</head>
+<body>
+<div class="spike">
+  <section>
+    <div class="eyebrow">Schreiben — Milkdown, Schema = Eure .prose</div>
+    <div id="editor" class="prose milkdown"></div>
+  </section>
+  <section>
+    <div class="eyebrow">Markdown, das dabei herauskommt (live)</div>
+    <pre id="out" style="white-space:pre-wrap;font:12px/1.5 'JetBrains Mono',monospace;color:rgb(var(--body))"></pre>
+  </section>
+</div>
+<script type="module">
+  import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkStringifyOptionsCtx, commonmark, gfm, remarkGFMPlugin, history, listener, listenerCtx, flowSyntax } from './milkdown-flow.min.js';
+  const md = await (await fetch('hart.md')).text();
+  const out = document.getElementById('out');
+  await Editor.make()
+    .config(ctx => {
+      ctx.set(rootCtx, document.getElementById('editor'));
+      ctx.set(defaultValueCtx, md);
+      ctx.set(remarkGFMPlugin.options.key, { tablePipeAlign: false, tableCellPadding: true });
+      ctx.update(remarkStringifyOptionsCtx, o => ({ ...o, bullet:'-', listItemIndent:'one', emphasis:'*', strong:'*', rule:'-', handlers: { ...(o.handlers ?? {}), break: () => '  \n' } }));
+      ctx.get(listenerCtx).markdownUpdated((_, markdown) => { out.textContent = markdown; });
+    })
+    .use(commonmark).use(gfm).use(history).use(listener).use(flowSyntax)
+    .create();
+  out.textContent = md;
+</script>
+</body>
+</html>

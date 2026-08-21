@@ -55,6 +55,14 @@ dev-refresh-prod:
 # web builds the Tailwind v4 stylesheet. Requires the tailwindcss CLI (NOT part of make ci).
 web:
 	tailwindcss --input web/tailwind.css --output internal/adapter/webui/static/app.css --minify
+# editor bundles the Milkdown-based Wissens-Editor (web/editor) into a static
+# file that is COMMITTED like app.css. Node is a build requirement for editor
+# work only; the server stays Node-free at runtime.
+editor:
+	cd web/editor && npm ci --silent --no-audit --no-fund && npm run build --silent
+# verify-editor checks the committed bundle against a fresh build (CI drift gate).
+verify-editor:
+	@./scripts/verify-editor.sh
 # generate runs all code generators (templ, etc.).
 generate:
 	go tool templ generate
@@ -73,4 +81,4 @@ verify-css:
 # verify-no-popups bans native browser popups in the WebUI (use Dialog instead).
 verify-no-popups:
 	@./scripts/verify-no-popups.sh
-ci: lint verify-generate verify-css verify-no-popups cover build
+ci: lint verify-generate verify-css verify-editor verify-no-popups cover build
