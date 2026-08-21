@@ -70,3 +70,39 @@ func TestNodeTabPages_UnknownTabFallsBackToTheRegister(t *testing.T) {
 		t.Errorf("unknown tab must render the register entry point; body=%.400s", rec.Body.String())
 	}
 }
+
+// TestEinstieg_KastenReloadsItself pins which fragment the entry point's
+// Kasten column pulls on an SSE event. The draft branch REPURPOSED
+// /nodes/{id}/head to serve the Kasten; here that route still serves the
+// cockpit head, so the ported wiring would have swapped the Kasten column for
+// a different component on every timer start or document edit — silently, and
+// only in the browser.
+func TestEinstieg_KastenReloadsItself(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, Color: "cyan"})
+
+	rec := c.do(t, "GET", "/nodes/n1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `hx-get="/nodes/n1/kasten`) {
+		t.Errorf("the Kasten column must reload ITSELF, not another fragment; body=%.900s", body)
+	}
+	if strings.Contains(body, `hx-get="/nodes/n1/head`) {
+		t.Errorf("the entry point must not pull the cockpit head into its Kasten column; body=%.900s", body)
+	}
+
+	// And the route it names must actually answer with the Kasten.
+	frag := c.do(t, "GET", "/nodes/n1/kasten", nil)
+	if frag.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/n1/kasten = %d, want 200", frag.Code)
+	}
+	fb := frag.Body.String()
+	if strings.Contains(fb, "<!doctype html>") {
+		t.Errorf("the fragment route must answer with a fragment, not a whole page")
+	}
+	if !strings.Contains(fb, "flow") {
+		t.Errorf("Kasten fragment missing the register's name; body=%.500s", fb)
+	}
+}

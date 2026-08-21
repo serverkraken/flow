@@ -197,3 +197,26 @@ func (s *Server) handleWebNodeLese(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.EinstiegLese(d).Render(r.Context(), w)
 }
+
+// handleWebNodeKasten serves GET /nodes/{id}/kasten : the Kasten-column SSE
+// fragment (#einstieg-kasten).
+//
+// It exists because the draft branch REPURPOSED /nodes/{id}/head for this and
+// this line did not: here /head still serves the cockpit head. The ported
+// wiring would therefore have swapped the register's Kasten column for a
+// different component on every timer start or document edit — silently, and
+// only in a browser.
+func (s *Server) handleWebNodeKasten(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	d, err := s.einstiegData(r, u, r.PathValue("id"))
+	if errors.Is(err, ports.ErrNodeNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.EinstiegKasten(d).Render(r.Context(), w)
+}

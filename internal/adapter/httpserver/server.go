@@ -379,6 +379,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodeCreate)))
 	mux.Handle("GET /nodes/{id}", s.webAuth(http.HandlerFunc(s.handleWebNodeView)))
 	mux.Handle("GET /nodes/{id}/lese", s.webAuth(http.HandlerFunc(s.handleWebNodeLese)))
+	mux.Handle("GET /nodes/{id}/kasten", s.webAuth(http.HandlerFunc(s.handleWebNodeKasten)))
 	mux.Handle("GET /nodes/{id}/head", s.webAuth(http.HandlerFunc(s.handleWebNodeHead)))
 	mux.Handle("GET /nodes/{id}/main", s.webAuth(http.HandlerFunc(s.handleWebNodeMain)))
 	mux.Handle("GET /nodes/{id}/rail", s.webAuth(http.HandlerFunc(s.handleWebNodeRail)))

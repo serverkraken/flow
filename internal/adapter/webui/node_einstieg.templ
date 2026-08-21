@@ -27,7 +27,7 @@ templ einstiegOuter(d NodeEinstieg) {
 			id="einstieg-kasten"
 			data-node-id={ d.N.ID }
 			class="k3-panel flex flex-col bg-panel border-b border-hairp lg:border-b-0 lg:border-r lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto scroll-thin"
-			hx-get={ "/nodes/" + d.N.ID + "/head" + d.SortStateHref }
+			hx-get={ "/nodes/" + d.N.ID + "/kasten" + d.SortStateHref }
 			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted, sse:document.created, sse:document.updated, sse:document.deleted, sse:activity.logged"
 			hx-swap="innerHTML"
 		>
