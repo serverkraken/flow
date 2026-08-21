@@ -355,16 +355,16 @@ func (s *Server) wissenTabDocs(r *http.Request, u domain.User, n domain.Node) ([
 	return out, "subtree"
 }
 
-// handleWebNodeView serves GET /nodes/{id}: the flat cockpit page.
+// handleWebNodeView serves GET /nodes/{id}: the register entry point
+// (Screen 02) — the flush three-column entry with the register's figures in
+// the Kasten column and its README in the reading column.
 //
-// Screen 02's entry point is built and reachable at /nodes/{id}/einstieg-lese
-// as a fragment, but this route stays on the cockpit until Task 10 has turned
-// the cockpit's sections into their own surfaces: the entry point links to
-// ?tab=wissen/worktime/struktur, and those do not exist here yet. Switching
-// first would hand out three dead links and take the register's only working
-// page away (Soenne, 21.08.).
+// ?tab=wissen/worktime/struktur render those sections as surfaces of their
+// own (Task 10). Nothing was deleted: Artefakte and Kontext keep their
+// existing pages and are linked from the entry point's ways row.
 func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
+	tab := webui.NormalizeTab(r.URL.Query().Get("tab"))
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -375,6 +375,13 @@ func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if tab != "" {
+		_ = webui.NodeTabPage(d, tab).Render(r.Context(), w)
+		return
+	}
+	// Umlegen auf den Einstieg folgt als eigener Schritt: 12 Cockpit-Tests
+	// prüfen diese Seite, und ihre Wanderung auf die neuen Flächen ist
+	// Migrationsarbeit, keine Nebensache.
 	_ = webui.NodeView(d).Render(r.Context(), w)
 }
 

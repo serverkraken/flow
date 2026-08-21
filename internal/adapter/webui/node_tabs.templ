@@ -1,0 +1,63 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// NormalizeTab maps a ?tab= value onto the surfaces a register actually has.
+// Anything else — an old bookmark, a typo — normalises to "" and lands on the
+// register itself rather than an error page.
+func NormalizeTab(raw string) string {
+	switch raw {
+	case "wissen", "worktime", "struktur":
+		return raw
+	default:
+		return ""
+	}
+}
+
+// NodeTabPage renders ONE of the register's surfaces as a page of its own
+// (Task 10). The sections are the same templates the flat cockpit stacked —
+// what changes is that each now has a crumb, a heading and a way back, so it
+// can be linked to from the register entry point instead of being a scroll
+// position on a longer page.
+templ NodeTabPage(d NodeCockpit, tab string) {
+	@components.Base("projekte", nodeTabShell(d, tab))
+}
+
+templ nodeTabShell(d NodeCockpit, tab string) {
+	@components.AppShell("projekte", nodeBreadcrumb(d), nil, nodeTabBody(d, tab))
+}
+
+templ nodeTabBody(d NodeCockpit, tab string) {
+	<div class="mx-auto w-full max-w-[820px] px-6 py-7">
+		// The way back belongs at the top, before anything scrollable — a
+		// surface you can reach but not leave is a trap.
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID) }
+			class="mb-4 inline-flex items-baseline gap-1.5 text-[12.5px] font-semibold text-accent hover:underline">
+			<span aria-hidden="true">‹</span>
+			{ components.T(ctx, "nodetab.back") } { ShortName(d.N.Name) }
+		</a>
+		<h1 class="mb-4 font-display text-[22px] font-bold text-ink">{ components.T(ctx, nodeTabTitleKey(tab)) }</h1>
+		switch tab {
+			case "wissen":
+				@cockpitWissenSection(d)
+			case "worktime":
+				@cockpitBuchungenSection(d)
+			case "struktur":
+				@cockpitEnthaeltSection(d)
+		}
+	</div>
+}
+
+// nodeTabTitleKey names the surface in the viewer's language.
+func nodeTabTitleKey(tab string) string {
+	switch tab {
+	case "wissen":
+		return "nodetab.wissen"
+	case "worktime":
+		return "nodetab.worktime"
+	case "struktur":
+		return "nodetab.struktur"
+	default:
+		return "nodetab.wissen"
+	}
+}

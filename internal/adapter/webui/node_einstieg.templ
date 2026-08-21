@@ -456,6 +456,15 @@ templ einstiegWege(d NodeEinstieg) {
 		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=worktime") } class="text-body2 hover:text-ink">
 			{ components.T(ctx, "einstieg.zeitNachtragen") }
 		</a>
+		// Artefakte und Kontext haben eigene Flächen (Bestand). Ohne einen Weg
+		// von hier wären sie mit dem Umlegen der Registerseite unerreichbar
+		// geworden — der Plan verlangt ausdrücklich, dass nichts verschwindet.
+		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/artifacts") } class="text-body2 hover:text-ink">
+			{ components.T(ctx, "einstieg.artefakte") }
+		</a>
+		<a href={ templ.SafeURL("/kontext/" + d.N.ID) } class="text-body2 hover:text-ink">
+			{ components.T(ctx, "einstieg.kontext") }
+		</a>
 		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "?tab=struktur") } class="text-body2 hover:text-ink">
 			{ components.T(ctx, "einstieg.verwalten") }
 		</a>
