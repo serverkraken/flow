@@ -74,3 +74,7 @@ func fmtFeedTime(at, now time.Time) string {
 	}
 	return at.Format("02.01.")
 }
+
+
+// MonthText ist monthText für Aufrufer außerhalb des Pakets.
+func MonthText(ctx context.Context, m time.Month) string { return monthText(ctx, m) }

@@ -35,6 +35,19 @@ type HomeVM struct {
 	Puls []ActivityRowVM
 
 	Err string // inline error message (surfaced when a mutation failed)
+
+	// Start (Screen 24): Begrüßung und Kalenderwoche im Kopf, das Tagesziel
+	// neben der Uhr, und drei weitere Blöcke — was Aufmerksamkeit braucht,
+	// was gestern war, was angepinnt ist. Die Zahlen (Bestand, Erträge)
+	// stehen am Ende: Wissen vor Zahlen.
+	Greeting   string
+	Week       string // "KW 34"
+	TargetLine string // "Ziel 8:00 h · noch 1:48" / "Ziel erreicht" / ""
+	Attention  []AttentionRow
+	Yesterday  *YesterdayNote
+	Pinned     []WissenRowVM
+	Bestand    BestandVM
+	Ertraege   *ErtraegeVM
 }
 
 // RunningNowVM is the Jetzt-panelzeile's display state of the ONE running

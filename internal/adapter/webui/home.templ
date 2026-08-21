@@ -43,13 +43,17 @@ templ HomeFragment(vm HomeVM) {
 	}
 	<div class="narrow">
 		<div class="pagehead">
-			<span class="eyebrow">{ vm.Today }</span>
-			<h1>{ components.T(ctx, "home.desk") }</h1>
+			<span class="eyebrow">{ components.T(ctx, "home.desk") } · { vm.Today } · { vm.Week }</span>
+			<h1>{ vm.Greeting }</h1>
 			<p class="sub">{ components.T(ctx, "home.deskSub") }</p>
 		</div>
 		@homeNowSection(vm)
+		@homeAttentionSection(vm)
 		@homeContinueSection(vm)
 		@homeWissenSection(vm)
+		@homeYesterdaySection(vm)
+		@homePinnedSection(vm)
+		@homeBestandSection(vm)
 		@pulseSection("home.puls", vm.Puls)
 	</div>
 }
@@ -83,6 +87,9 @@ templ homeNowSection(vm HomeVM) {
 				<div class="right">
 					<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.Now.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.Now.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.Now.BaseSeconds) }</div>
 					<div class="k">{ fmt.Sprintf(components.T(ctx, "home.todayTotal"), vm.TodayLogged) }</div>
+					if vm.TargetLine != "" {
+						<div class="k">{ vm.TargetLine }</div>
+					}
 				</div>
 				if vm.Now.NodeID != "" {
 					<button type="button" class="btn btn-q btn-s" hx-post="/ui/timer/stop" hx-swap="none">{ components.T(ctx, "timer.stop") }</button>
@@ -93,7 +100,12 @@ templ homeNowSection(vm HomeVM) {
 				<div class="grow">
 					<div class="t">{ components.T(ctx, "home.noTimer") }</div>
 				</div>
-				<div class="right"><div class="k">{ fmt.Sprintf(components.T(ctx, "home.todayTotal"), vm.TodayLogged) }</div></div>
+				<div class="right">
+					<div class="k">{ fmt.Sprintf(components.T(ctx, "home.todayTotal"), vm.TodayLogged) }</div>
+					if vm.TargetLine != "" {
+						<div class="k">{ vm.TargetLine }</div>
+					}
+				</div>
 			</div>
 		}
 	</div>
@@ -145,4 +157,129 @@ templ homeWissenSection(vm HomeVM) {
 			}
 		}
 	</div>
+}
+
+// homeAttentionSection: was sich nicht von selbst erledigt — Kontext über
+// Budget, stille Register, alte Weisungen, der Eingang. Leer heißt: nichts
+// wartet, und das steht da.
+templ homeAttentionSection(vm HomeVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "home.attention") }</span>
+		</div>
+		if len(vm.Attention) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "home.attention.none") }</p>
+		} else {
+			for _, a := range vm.Attention {
+				<a class="row" data-tint={ attentionTint(a.Kind) } href={ templ.SafeURL(a.Href) } data-attention={ a.Kind }>
+					<div class="grow">
+						<div class="t">{ a.Title }</div>
+						<div class="s">{ a.Note }</div>
+					</div>
+					<span class="font-mono text-[11px] text-faint" aria-hidden="true">›</span>
+				</a>
+			}
+		}
+	</div>
+}
+
+// homeYesterdaySection: die gestrige Tagesnotiz als Auszug — der Faden von
+// gestern, und der Weg in die heutige.
+templ homeYesterdaySection(vm HomeVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "home.yesterday") }</span>
+			<a class="more" href="/tagebuch">{ components.T(ctx, "nav.tagebuch") } ›</a>
+		</div>
+		if vm.Yesterday != nil {
+			<a class="row" href={ templ.SafeURL("/wissen/" + vm.Yesterday.ID) } data-tint="green">
+				<div class="grow">
+					<div class="s">{ vm.Yesterday.Day }</div>
+					<div class="t text-[14px] font-normal leading-[1.5] text-body">{ vm.Yesterday.Excerpt }</div>
+				</div>
+			</a>
+		} else {
+			<p class="text-sm text-faint">
+				{ components.T(ctx, "home.yesterday.none") }
+				<button type="button" class="ml-2 font-semibold text-accent hover:underline" data-neue-karte>{ components.T(ctx, "home.yesterday.begin") }</button>
+			</p>
+		}
+	</div>
+}
+
+templ homePinnedSection(vm HomeVM) {
+	if len(vm.Pinned) > 0 {
+		<div class="sect">
+			<div class="sect-h">
+				<span class="eyebrow">{ components.T(ctx, "home.pinned") }</span>
+			</div>
+			for _, row := range vm.Pinned {
+				@wissenRow(row)
+			}
+		</div>
+	}
+}
+
+// homeBestandSection: die Zahlen, zuletzt. Drei Zellen Bestand, darunter
+// die Erträge des Monats je Engagement — nur, wenn im Monat gebucht wurde.
+templ homeBestandSection(vm HomeVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "home.bestand") }</span>
+			<a class="more" href="/nodes">{ components.T(ctx, "home.continueAll") } ›</a>
+		</div>
+		<div class="mt-4 grid grid-cols-3 gap-px border border-line2 bg-line2" data-bestand>
+			<div class="bg-sheet px-3 py-3">
+				<span class="block font-mono text-[18px] font-semibold tnum">{ strconv.Itoa(vm.Bestand.Engagements) } · { strconv.Itoa(vm.Bestand.Vorhaben) }</span>
+				<span class="mt-0.5 block text-[10.5px] text-muted">{ components.T(ctx, "home.bestand.registers") } · { components.Tn(ctx, "home.bestand.repos", vm.Bestand.Repos) }</span>
+			</div>
+			<div class="bg-sheet px-3 py-3">
+				<span class="block font-mono text-[18px] font-semibold tnum">{ strconv.Itoa(vm.Bestand.CardsTotal) }</span>
+				<span class="mt-0.5 block text-[10.5px] text-muted">{ components.T(ctx, "home.bestand.cards") } · { fmt.Sprintf(components.T(ctx, "home.bestand.cardsSub"), vm.Bestand.CardsActive, vm.Bestand.CardsArchived) }</span>
+			</div>
+			<div class="bg-sheet px-3 py-3">
+				if vm.Ertraege != nil && vm.Ertraege.TotalStr != "" {
+					<span class="block font-mono text-[18px] font-semibold tnum">{ vm.Ertraege.TotalStr }</span>
+				} else {
+					<span class="block font-mono text-[18px] font-semibold tnum text-faint">—</span>
+				}
+				<span class="mt-0.5 block text-[10.5px] text-muted">
+					if vm.Ertraege != nil {
+						{ fmt.Sprintf(components.T(ctx, "home.ertraege"), vm.Ertraege.Month) }
+						if vm.Ertraege.NoRateHours != "" {
+							· { vm.Ertraege.NoRateHours }
+						}
+					} else {
+						{ components.T(ctx, "home.ertraege.none") }
+					}
+				</span>
+			</div>
+		</div>
+		if vm.Ertraege != nil {
+			<div class="mt-2">
+				for _, r := range vm.Ertraege.Rows {
+					<a class="projrow" href={ templ.SafeURL("/nodes/" + r.ID + "?tab=worktime") }>
+						<div class="grow"><div class="t">{ r.Name }</div></div>
+						<div class="right"><div class="v">{ r.Hours }</div><div class="k">{ r.Amount }</div></div>
+					</a>
+				}
+				<a class="more mt-2 inline-block" href="/export">{ components.T(ctx, "home.ertraege.export") }</a>
+			</div>
+		}
+	</div>
+}
+
+// attentionTint färbt die Kante nach Art des Punkts: Kontext im Akzent,
+// Stille in Stahl, Alter in Rot, der Eingang in Blau.
+func attentionTint(kind string) string {
+	switch kind {
+	case "context":
+		return "accent"
+	case "idle":
+		return "steel"
+	case "stale":
+		return "red"
+	default:
+		return "blue"
+	}
 }

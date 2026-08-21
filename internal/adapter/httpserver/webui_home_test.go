@@ -418,3 +418,20 @@ func TestHomeLogstreamRoute_Retired(t *testing.T) {
 		t.Errorf("GET /ui/home/logstream = %d, want 404 (route retired)", rr.Code)
 	}
 }
+
+// Start (Screen 24): Begrüßung mit KW, „Braucht Aufmerksamkeit", Bestand
+// und die Zahlen zuletzt — Wissen vor Zahlen.
+func TestHomeHome_StartBlocks(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedBookableNode(t, "repo-start")
+	body := getBody(t, srv, "u1", "/")
+	for _, want := range []string{"Guten", "KW 25", "Braucht Aufmerksamkeit", "Nichts wartet.", "Bestand", `data-bestand`, "Karten insgesamt", "Tagesnotiz von gestern"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Start ohne %q", want)
+		}
+	}
+	iW, iB := strings.Index(body, "Zuletzt im Wissen"), strings.Index(body, `data-bestand`)
+	if iW < 0 || iB < 0 || iW > iB {
+		t.Errorf("Wissen vor Zahlen: Wissen=%d Bestand=%d", iW, iB)
+	}
+}

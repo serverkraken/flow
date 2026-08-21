@@ -2,11 +2,13 @@ package httpserver
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -58,7 +60,13 @@ func (s *Server) renderHomeFragment(w http.ResponseWriter, r *http.Request, u do
 // valid idle page — owner-scoped throughout (every call carries u.ID).
 func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) (webui.HomeVM, error) {
 	now := s.Clock.Now()
-	vm := webui.HomeVM{Today: webui.FmtDeskDate(now), Err: errMsg}
+	_, week := now.ISOWeek()
+	vm := webui.HomeVM{
+		Today:    webui.FmtDeskDate(now),
+		Week:     fmt.Sprintf(components.T(ctx, "home.week"), week),
+		Greeting: webui.Greeting(ctx, now, u.DisplayName),
+		Err:      errMsg,
+	}
 
 	// Jetzt: the one running timer's display state.
 	if s.GetRunningSession.Sessions != nil {
@@ -67,25 +75,36 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 		}
 	}
 
-	// Today's total logged time — feeds both the running and idle Jetzt-row.
+	// Today's total logged time — feeds both the running and idle Jetzt-row;
+	// the target line says how far the day is.
 	if s.Stats.Sessions != nil {
 		today, _ := s.Stats.Today(ctx, u.ID)
 		vm.TodayLogged = webui.FmtVerbose(today.Logged)
+		vm.TargetLine = webui.TargetLine(ctx, today.Logged, today.Target)
+	}
+
+	var allNodes []domain.Node
+	var recentSessions []domain.WorkSession
+	if s.ListNodes.Nodes != nil {
+		if nodes, nerr := s.ListNodes.Execute(ctx, u.ID); nerr == nil {
+			allNodes = nodes
+		} else {
+			slog.WarnContext(ctx, "home: list nodes failed", "err", nerr)
+		}
+	}
+	if s.ListSessions.Sessions != nil {
+		if sessions, serr := s.ListSessions.Execute(ctx, u.ID, now.AddDate(0, 0, -30)); serr == nil {
+			recentSessions = sessions
+		} else {
+			slog.WarnContext(ctx, "home: list sessions failed", "err", serr)
+		}
 	}
 
 	// Weiterarbeiten: MRU bookable nodes derived from the last 30 days of
 	// sessions — the exact ListSessions signature/window the ⌘K-Palette
 	// already uses (webui_palette.go), not ListSessionsRange.
 	if s.ListSessions.Sessions != nil && s.ListNodes.Nodes != nil {
-		sessions, serr := s.ListSessions.Execute(ctx, u.ID, now.AddDate(0, 0, -30))
-		if serr != nil {
-			slog.WarnContext(ctx, "home: list sessions failed", "err", serr)
-		}
-		nodes, nerr := s.ListNodes.Execute(ctx, u.ID)
-		if nerr != nil {
-			slog.WarnContext(ctx, "home: list nodes failed", "err", nerr)
-		}
-		vm.Continue = webui.BuildRecentNodes(sessions, nodes, now, homeContinueCap)
+		vm.Continue = webui.BuildRecentNodes(recentSessions, allNodes, now, homeContinueCap)
 	}
 
 	// Zuletzt im Wissen: newest documents, reusing SortedDocuments +
@@ -102,6 +121,7 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 		for _, d := range sorted {
 			vm.RecentWissen = append(vm.RecentWissen, webui.WissenRowFromDocument(d, now))
 		}
+		s.homeStart(ctx, u, now, allNodes, recentSessions, docs, &vm)
 	}
 
 	// Puls: account-wide activity feed.
