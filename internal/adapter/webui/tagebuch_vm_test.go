@@ -155,3 +155,24 @@ func TestBuildTagebuchMarkierenVM_AssignmentsAndTally(t *testing.T) {
 		t.Errorf("detail body should carry the inline mark: %s", vm.Doc.BodyHTML)
 	}
 }
+
+// TestDailyExcerpt_SkipsMarkupLines pins what the month list shows: the first
+// line a human would read. The ported version skipped headings only, so a note
+// that opens with a code fence or a frontmatter delimiter rendered "```" as
+// its excerpt — visible on screen in the live walkthrough, and no test saw it.
+func TestDailyExcerpt_SkipsMarkupLines(t *testing.T) {
+	for _, c := range []struct {
+		name, body, want string
+	}{
+		{"code fence first", "```\nkubectl get pods\n```\nDann weitergebaut.", "kubectl get pods"},
+		{"heading then fence", "# Freitag\n\n```bash\nmake ci\n```\nCI war grün.", "make ci"},
+		{"frontmatter", "---\ntype: daily\n---\n\nHeute am Karteikasten.", "Heute am Karteikasten."},
+		{"horizontal rule", "***\n\nEs ging weiter.", "Es ging weiter."},
+		{"plain prose wins", "Einfach nur Text.", "Einfach nur Text."},
+		{"nothing readable", "```\n```", ""},
+	} {
+		if got := dailyExcerpt(c.body); got != c.want {
+			t.Errorf("%s: dailyExcerpt = %q, want %q", c.name, got, c.want)
+		}
+	}
+}

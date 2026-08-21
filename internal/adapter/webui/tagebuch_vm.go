@@ -47,9 +47,17 @@ type TagebuchVM struct {
 // non-empty line, hard-capped) — mirrors docrow's Preview intent but plain
 // text only, since the middle-column list has no room for Markdown.
 func dailyExcerpt(body string) string {
+	// Frontmatter ist Metadaten, kein Text — dieselbe Abtrennung, die auch
+	// RenderDocument vornimmt, statt sie zeilenweise zu erraten.
+	if _, start := domain.ParseFrontmatter(body); start > 0 {
+		body = body[start:]
+	}
 	for _, line := range strings.Split(body, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+		// Überschriften, Code-Zäune, Frontmatter-Striche und Trennlinien sind
+		// Auszeichnung, kein Satz. Wer die Liste überfliegt, will die erste
+		// Zeile lesen, die etwas SAGT — nicht "```".
+		if line == "" || isDailyMarkupLine(line) {
 			continue
 		}
 		const maxLen = 90
@@ -60,6 +68,20 @@ func dailyExcerpt(body string) string {
 		return line
 	}
 	return ""
+}
+
+// isDailyMarkupLine reports whether a line carries markup rather than prose.
+func isDailyMarkupLine(line string) bool {
+	switch {
+	case strings.HasPrefix(line, "#"):
+		return true
+	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
+		return true
+	case strings.HasPrefix(line, "---"), strings.HasPrefix(line, "***"), strings.HasPrefix(line, "___"):
+		return true
+	default:
+		return false
+	}
 }
 
 // dailyStreak counts consecutive calendar days with a note, walking back
