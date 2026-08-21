@@ -8,14 +8,17 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
-// fmtDur renders a duration as HH:MM (clamped at zero).
-func fmtDur(d time.Duration) string {
+// fmtClock renders a running clock the way the mockups write it: hours
+// unpadded, minutes padded, no unit — "2:41", not "02:41" and not "2:41 h".
+// The rail still appends " h" via FmtDurHMExport; aligning it is its own pass.
+func fmtClock(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
-	return fmt.Sprintf("%02d:%02d", int(d.Hours()), int(d.Minutes())%60)
+	return fmt.Sprintf("%d:%02d", int(d.Hours()), int(d.Minutes())%60)
 }
 
 // monthText localizes a month name through the catalog (date.month.1 … .12).
@@ -24,4 +27,18 @@ func fmtDur(d time.Duration) string {
 // locale from; pulling it onto this helper is its own step.
 func monthText(ctx context.Context, m time.Month) string {
 	return components.T(ctx, "date.month."+strconv.Itoa(int(m)))
+}
+
+// RateLabel formats an optional per-hour rate as "95 €/h" or "—". It lives in
+// webui because both the view models and the handlers need it; the handler's
+// rateLabel delegates here so there is one formatting rule, not two.
+func RateLabel(rate *domain.Money) string {
+	if rate == nil {
+		return "—"
+	}
+	sym := rate.Currency
+	if rate.Currency == "EUR" {
+		sym = "€"
+	}
+	return fmt.Sprintf("%d %s/h", rate.Amount/100, sym)
 }

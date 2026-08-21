@@ -302,17 +302,10 @@ func glyphOr(g string) string {
 	return g
 }
 
-// rateLabel formats an optional per-hour rate as "95 €/h" or "—".
-func rateLabel(rate *domain.Money) string {
-	if rate == nil {
-		return "—"
-	}
-	sym := rate.Currency
-	if rate.Currency == "EUR" {
-		sym = "€"
-	}
-	return fmt.Sprintf("%d %s/h", rate.Amount/100, sym)
-}
+// rateLabel formats an optional per-hour rate as "95 €/h" or "—". The rule
+// lives in webui.RateLabel — the view models need the same one, and two
+// copies of a formatting rule drift.
+func rateLabel(rate *domain.Money) string { return webui.RateLabel(rate) }
 
 // isoWeek returns the ISO-8601 week number for t (still used by wocheDataFor,
 // webui_woche.go).

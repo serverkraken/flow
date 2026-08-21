@@ -7,24 +7,6 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func TestFmtDur(t *testing.T) {
-	cases := []struct {
-		d    time.Duration
-		want string
-	}{
-		{90 * time.Minute, "01:30"},
-		{0, "00:00"},
-		{-time.Minute, "00:00"},
-		{61 * time.Minute, "01:01"},
-	}
-	for _, tc := range cases {
-		got := fmtDur(tc.d)
-		if got != tc.want {
-			t.Errorf("fmtDur(%v) = %q, want %q", tc.d, got, tc.want)
-		}
-	}
-}
-
 func TestWeekDay_Total_ActivePath(t *testing.T) {
 	now := time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)
 	// An active session that started today at 12:00 → 2h elapsed.
@@ -60,5 +42,26 @@ func TestWeekDay_Total_ActiveBeforeMidnight(t *testing.T) {
 	want := time.Hour
 	if got != want {
 		t.Errorf("WeekDay.Total(active before midnight): want %v, got %v", want, got)
+	}
+}
+
+// TestFmtClock pins the running clock's shape against the mockups: hours
+// unpadded, minutes padded, no unit. The draft branch and this one both had a
+// helper called fmtDur with DIFFERENT padding — a ported caller silently got
+// the wrong one, which is why this format now has its own name and its own
+// test.
+func TestFmtClock(t *testing.T) {
+	for _, c := range []struct {
+		d    time.Duration
+		want string
+	}{
+		{2*time.Hour + 41*time.Minute, "2:41"},
+		{9 * time.Minute, "0:09"},
+		{12 * time.Hour, "12:00"},
+		{-time.Hour, "0:00"},
+	} {
+		if got := fmtClock(c.d); got != c.want {
+			t.Errorf("fmtClock(%v) = %q, want %q", c.d, got, c.want)
+		}
 	}
 }
