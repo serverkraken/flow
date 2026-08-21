@@ -258,7 +258,6 @@ func fmtDurHM(d time.Duration) string {
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
 }
 
-
 // cockpitStatusWord maps a node status to its i18n KEY (not the resolved
 // label) — the VM stays domain-free/i18n-free, the templ resolves it via
 // components.T. Deliberately NOT StatusBadge: its amber/slate/emerald chip
@@ -379,4 +378,20 @@ func readTimeLabel(body string) string {
 		mins = 1
 	}
 	return strconv.Itoa(mins) + " min"
+}
+
+// RateSourceName names the ancestor whose rate a node inherits ("" when the
+// node carries its own or nobody in the chain has one). The chain may include
+// the node itself, so self is skipped — otherwise a node with its own rate
+// would report itself as the source.
+func RateSourceName(ancestors []domain.Node, selfID string) string {
+	for _, a := range ancestors {
+		if a.ID == selfID {
+			continue
+		}
+		if a.Rate != nil {
+			return a.Name
+		}
+	}
+	return ""
 }

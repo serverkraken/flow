@@ -356,6 +356,13 @@ func (s *Server) wissenTabDocs(r *http.Request, u domain.User, n domain.Node) ([
 }
 
 // handleWebNodeView serves GET /nodes/{id}: the flat cockpit page.
+//
+// Screen 02's entry point is built and reachable at /nodes/{id}/einstieg-lese
+// as a fragment, but this route stays on the cockpit until Task 10 has turned
+// the cockpit's sections into their own surfaces: the entry point links to
+// ?tab=wissen/worktime/struktur, and those do not exist here yet. Switching
+// first would hand out three dead links and take the register's only working
+// page away (Soenne, 21.08.).
 func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))

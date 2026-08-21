@@ -19,14 +19,18 @@ import (
 // handler does the I/O. Keeping the seam here makes every Screen-02 figure a
 // plain table test instead of an HTTP round trip.
 type EinstiegInput struct {
-	N               domain.Node
-	Ancestors       []domain.Node          // leaf→root, self included (NodeStore.Ancestors order)
-	AllNodes        []domain.Node          // the owner's nodes — names/kinds/parents beyond the subtree
-	Subtree         []domain.Node          // N + descendants (root→leaf)
-	Sessions        []domain.WorkSession   // the owner's sessions, oldest first (ListSessionsRange order)
-	Docs            []domain.Document      // the owner's documents
-	Activity        []domain.ActivityEntry // the owner's activity feed, newest first — capped for the Feed section (Spec C.2.5)
-	ActivityToday   []domain.ActivityEntry // the owner's activity since dayStart, UNcapped by "want" — feeds AgentsActiveToday (F6/I5)
+	N         domain.Node
+	Ancestors []domain.Node          // leaf→root, self included (NodeStore.Ancestors order)
+	AllNodes  []domain.Node          // the owner's nodes — names/kinds/parents beyond the subtree
+	Subtree   []domain.Node          // N + descendants (root→leaf)
+	Sessions  []domain.WorkSession   // the owner's sessions, oldest first (ListSessionsRange order)
+	Docs      []domain.Document      // the owner's documents
+	Activity  []domain.ActivityEntry // the owner's activity feed, newest first — capped for the Feed section (Spec C.2.5)
+	// AgentsToday is the count of distinct AGENT actors that touched this
+	// subtree since midnight. It arrives as a number, not as rows to count:
+	// the store answers it directly (DistinctAgentsSince), so no owner-wide
+	// feed has to be scanned and no neighbour can distort the tally.
+	AgentsToday     int
 	Highlights      []domain.NodeHighlight // the owner's newest highlights, newest first
 	Rollup          domain.NodeRollup
 	Rate            *domain.Money // resolved over N + ancestors, nil = none anywhere
@@ -196,8 +200,7 @@ func BuildNodeEinstieg(ctx context.Context, in EinstiegInput) NodeEinstieg {
 		level1[c.ID] = true
 	}
 
-	dayStart := time.Date(in.Now.Year(), in.Now.Month(), in.Now.Day(), 0, 0, 0, 0, in.Now.Location())
-	agents := AgentsActiveToday(in.ActivityToday, subtreeIDs, dayStart)
+	agents := in.AgentsToday
 
 	// --- Kopf: MetaParts ---
 	var meta []string
@@ -604,25 +607,6 @@ func FirstBookingStart(sessions []domain.WorkSession, ids map[string]bool) (time
 		}
 	}
 	return earliest, found
-}
-
-// AgentsActiveToday counts DISTINCT agent actors (ActorKind == "agent") whose
-// subtree activity happened at or after dayStart.
-func AgentsActiveToday(entries []domain.ActivityEntry, ids map[string]bool, dayStart time.Time) int {
-	seen := map[string]bool{}
-	for _, e := range entries {
-		if e.ActorKind != "agent" {
-			continue
-		}
-		if e.NodeRef == nil || !ids[*e.NodeRef] {
-			continue
-		}
-		if e.At.Before(dayStart) {
-			continue
-		}
-		seen[e.ActorRef] = true
-	}
-	return len(seen)
 }
 
 // AgeYearsMonths returns whole years and remaining whole months between from

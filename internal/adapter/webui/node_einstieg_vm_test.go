@@ -131,25 +131,6 @@ func TestFirstBookingStart(t *testing.T) {
 // AgentsActiveToday
 // ---------------------------------------------------------------------------
 
-func TestAgentsActiveToday(t *testing.T) {
-	t.Parallel()
-	dayStart := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
-	today := dayStart.Add(9 * time.Hour)
-	yesterday := dayStart.Add(-2 * time.Hour)
-	ids := map[string]bool{"n1": true}
-
-	entries := []domain.ActivityEntry{
-		{ActorKind: "agent", ActorRef: "botA", NodeRef: ptr("n1"), At: today},
-		{ActorKind: "agent", ActorRef: "botA", NodeRef: ptr("n1"), At: today.Add(time.Minute)}, // same agent again
-		{ActorKind: "human", ActorRef: "soenne", NodeRef: ptr("n1"), At: today},                // human — excluded
-		{ActorKind: "agent", ActorRef: "botB", NodeRef: ptr("n1"), At: yesterday},              // yesterday — excluded
-		{ActorKind: "agent", ActorRef: "botC", NodeRef: ptr("foreign"), At: today},             // outside subtree — excluded
-	}
-	if got := AgentsActiveToday(entries, ids, dayStart); got != 1 {
-		t.Errorf("AgentsActiveToday = %d, want 1 (distinct agent, in-subtree, today)", got)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // AgeYearsMonths
 // ---------------------------------------------------------------------------
@@ -365,7 +346,7 @@ func TestBuildNodeEinstieg(t *testing.T) {
 		Sessions:      sessions,
 		Docs:          docs,
 		Activity:      activity,
-		ActivityToday: activity, // F6/I5: agents count reads ActivityToday, not the (want-capped) Activity
+		AgentsToday:   1, // der Store zählt das jetzt selbst (DistinctAgentsSince)
 		Highlights:    highlights,
 		Rollup:        domain.NodeRollup{Week: 18*time.Hour + 30*time.Minute, Month: 55*time.Hour + 30*time.Minute, Year: 118 * time.Hour, PrevYearToDate: 100 * time.Hour, Total: 200 * time.Hour},
 		Rate:          nil,
