@@ -360,7 +360,7 @@ func TestCockpitMain_ReloadURLTargetsSelf(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "e1", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
 
-	rec := c.do(t, "GET", "/nodes/e1?tab=wissen", nil)
+	rec := c.do(t, "GET", "/nodes/e1?tab=worktime", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
@@ -521,7 +521,7 @@ func TestCockpitWissen_ScopeSelfSSEReloadPreservesScope(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
 
-	rec := c.do(t, "GET", "/nodes/eng?tab=wissen&scope=self", nil)
+	rec := c.do(t, "GET", "/nodes/eng?tab=worktime&scope=self", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -538,7 +538,7 @@ func TestCockpitWissen_ScopeSubtreeSSEReloadOmitsScope(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
 
-	rec := c.do(t, "GET", "/nodes/eng?tab=wissen", nil)
+	rec := c.do(t, "GET", "/nodes/eng?tab=worktime", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}

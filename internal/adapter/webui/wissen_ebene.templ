@@ -1,0 +1,193 @@
+package webui
+
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// NodeWissenPage ist der Wissens-Überblick je Ebene als eigene Fläche des
+// Registers (?tab=wissen). d trägt nur, was die Brotkrume braucht.
+templ NodeWissenPage(d NodeCockpit, vm WissenEbeneVM) {
+	@components.Base("projekte", nodeWissenShell(d, vm))
+}
+
+templ nodeWissenShell(d NodeCockpit, vm WissenEbeneVM) {
+	@components.AppShell("projekte", nodeBreadcrumb(d), nil, nodeWissenBody(vm))
+}
+
+templ nodeWissenBody(vm WissenEbeneVM) {
+	<div class="mx-auto w-full max-w-[820px] px-6 py-7">
+		<a href={ templ.SafeURL("/nodes/" + vm.NodeID) }
+			class="mb-4 inline-flex items-baseline gap-1.5 text-[12.5px] font-semibold text-accent hover:underline">
+			<span aria-hidden="true">‹</span>
+			{ components.T(ctx, "nodetab.back") } { ShortName(vm.NodeName) }
+		</a>
+		<div class="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+			<h1 class="font-display text-[22px] font-bold text-ink">{ components.T(ctx, "nodetab.wissen") }</h1>
+			<div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+				<a class="more" href={ templ.SafeURL(vm.ManagerHref) } hx-boost="false">
+					{ fmt.Sprintf(components.T(ctx, "cockpit.wissen.manage"), vm.Total, vm.ArchivedTotal) }
+				</a>
+				<a class="more" href={ templ.SafeURL(vm.CurateHref) }>{ components.T(ctx, "wissen.ebene.curate") }</a>
+				<a class="more" href={ templ.SafeURL(vm.NewHref) } hx-boost="false">+ { components.T(ctx, "cockpit.wissen.add") }</a>
+			</div>
+		</div>
+		@wissenEbeneSuche(vm)
+		@WissenEbeneFragment(vm)
+	</div>
+}
+
+// wissenEbeneSuche ist ein schlichtes GET-Formular: die Suche ist Zustand
+// der Seite, also steht sie in der URL. Die Beschriftung steht über dem
+// Feld, nie als Platzhalter darin (Katalog 3.9). Sortierung, Filter und
+// offene Gruppen reisen als verborgene Felder mit.
+templ wissenEbeneSuche(vm WissenEbeneVM) {
+	<form method="get" action={ templ.SafeURL("/nodes/" + vm.NodeID) } class="mb-5" role="search">
+		<input type="hidden" name="tab" value="wissen"/>
+		if vm.Query.Sort != SortChanged {
+			<input type="hidden" name="sort" value={ string(vm.Query.Sort) }/>
+		}
+		if vm.Query.Typ != "" {
+			<input type="hidden" name="typ" value={ string(vm.Query.Typ) }/>
+			if vm.Query.In != "" {
+				<input type="hidden" name="in" value={ vm.Query.In }/>
+			}
+		}
+		for _, o := range vm.Query.Open {
+			<input type="hidden" name="open" value={ o }/>
+		}
+		<label class="block">
+			<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.ebene.search") }</span>
+			<span class="flex items-baseline gap-3">
+				<input type="search" name="q" value={ vm.Query.Q } class="field" autocomplete="off"/>
+				<button type="submit" class="btn btn-q btn-s">{ components.T(ctx, "wissen.ebene.search.go") }</button>
+			</span>
+		</label>
+	</form>
+}
+
+// WissenEbeneFragment ist der Listenteil samt Hülle: das Fragment trägt
+// seine eigene Hülle, damit jeder Tausch (Aufklappen, Filter, SSE) den
+// Neulade-Link mit dem dann gültigen Zustand ersetzt — sonst würde das
+// nächste Ereignis eine aufgeklappte Gruppe wieder zuklappen.
+templ WissenEbeneFragment(vm WissenEbeneVM) {
+	<div
+		id="wissen-ebene"
+		hx-get={ vm.FragmentHref }
+		hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted, sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted"
+		hx-target="#wissen-ebene"
+		hx-swap="outerHTML"
+	>
+		<div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line2 pb-2.5">
+			<span class="text-[12.5px] text-meta">
+				if vm.Filtered {
+					{ fmt.Sprintf(components.T(ctx, "wissen.ebene.shown"), vm.Matching, vm.Total) }
+				} else {
+					{ components.Tn(ctx, "einstieg.cards", vm.Total) }
+				}
+			</span>
+			if vm.Filtered {
+				<a class="more" href={ templ.SafeURL(vm.ResetHref) }>{ components.T(ctx, "wissen.ebene.reset") }</a>
+			}
+			<span class="flex-1"></span>
+			@components.SortHead(BuildSortHead(vm.Sort, vm.SortBaseHref))
+		</div>
+		if !vm.Grouped && len(vm.Types) > 0 {
+			<div class="mt-3">
+				@wissenTypZaehler(vm.Types)
+			</div>
+		}
+		if vm.Total == 0 {
+			<p class="mt-4 text-sm text-faint">{ components.T(ctx, "wissen.ebene.none") }</p>
+		}
+		for _, g := range vm.Groups {
+			if vm.Total > 0 || !g.Self {
+				@wissenGruppe(vm, g)
+			}
+		}
+	</div>
+}
+
+// wissenTypZaehler sind die Typen einer Kartenmenge als klickbare Zähler.
+// Der aktive Zähler ist markiert und sein Link hebt den Filter wieder auf.
+templ wissenTypZaehler(zs []WissenTypZaehler) {
+	<span class="wtypes">
+		for _, z := range zs {
+			<a href={ templ.SafeURL(z.Href) }
+				hx-get={ z.Fragment } hx-target="#wissen-ebene" hx-swap="outerHTML" hx-push-url={ z.Href }
+				class={ "wtype", templ.KV("on", z.Active) } aria-pressed={ ariaBoolAttr(z.Active) }>
+				<span class="tnum">{ itoa(z.Count) }</span> { z.Label }
+			</a>
+		}
+	</span>
+}
+
+// wissenGruppe ist eine Herkunft: am Vorhaben mit Kopf (Register, Anzahl,
+// Typ-Zähler, Neu), am Repo ohne. Die Zeilen tragen Chip, Titel, Pfad,
+// Akteur, Kuratier-Marke und Datumsstaffel.
+templ wissenGruppe(vm WissenEbeneVM, g WissenGruppe) {
+	<div class={ "wgroup", templ.KV("sect", vm.Grouped) } data-wissen-gruppe={ g.NodeID }>
+		if vm.Grouped {
+			<div class="sect-h flex-wrap gap-y-1">
+				<span class={ "h-[9px] w-[9px] shrink-0 self-center", einstiegSquareClass(g.Kind) } aria-hidden="true"></span>
+				<a class="text-[15px] font-semibold text-ink hover:underline" href={ templ.SafeURL("/nodes/" + g.NodeID) }>{ g.Name }</a>
+				if g.Self {
+					<span class="text-[11px] text-faint">{ components.T(ctx, "wissen.ebene.self") }</span>
+				}
+				<span class="text-[12.5px] text-meta">— { components.Tn(ctx, "einstieg.cards", g.Total) }</span>
+				if len(g.Types) > 0 {
+					@wissenTypZaehler(g.Types)
+				}
+				<a class="more" href={ templ.SafeURL(g.NewHref) } hx-boost="false">+ { components.T(ctx, "cockpit.wissen.add") }</a>
+			</div>
+		}
+		if len(g.Rows) == 0 {
+			if g.Self && g.Total == 0 {
+				<p class="mt-3 text-sm text-faint">{ components.T(ctx, "wissen.ebene.emptySelf") }</p>
+			} else {
+				<p class="mt-3 text-sm text-faint">{ components.T(ctx, "wissen.ebene.empty") }</p>
+			}
+		}
+		for _, r := range g.Rows {
+			@wissenEbeneRow(vm, r)
+		}
+		if g.Hidden > 0 {
+			<a class="more mt-2 inline-block" href={ templ.SafeURL(g.MoreHref) }
+				hx-get={ g.MoreFragment } hx-target="#wissen-ebene" hx-swap="outerHTML" hx-push-url={ g.MoreHref }>
+				{ fmt.Sprintf(components.T(ctx, "wissen.ebene.all"), g.Matching) }
+			</a>
+		} else if g.Collapsible {
+			<a class="more mt-2 inline-block" href={ templ.SafeURL(g.LessHref) }
+				hx-get={ g.LessFragment } hx-target="#wissen-ebene" hx-swap="outerHTML" hx-push-url={ g.LessHref }>
+				{ components.T(ctx, "wissen.ebene.less") }
+			</a>
+		}
+	</div>
+}
+
+templ wissenEbeneRow(vm WissenEbeneVM, r WissenEbeneRow) {
+	<div class="projrow">
+		<span class={ "typechip", r.ChipClass }>{ r.ChipLabel }</span>
+		<div class="grow">
+			<a class="t hover:underline" href={ templ.SafeURL("/wissen/" + r.ID) }>{ r.Title }</a>
+			<div class="s">
+				<span class="font-mono text-[12px]">{ r.Path }</span>
+				if r.Actor != "" {
+					· { r.Actor }
+				}
+			</div>
+		</div>
+		if r.Mode != "" {
+			// Sichtbar hier, bedienbar auf der Kuratieren-Fläche (Screen 07).
+			<a class={ "wmark", "wmark-" + string(r.Mode) } href={ templ.SafeURL(vm.CurateHref) }
+				title={ components.T(ctx, "wissen.ebene.mark") }>{ components.T(ctx, "context.mode." + string(r.Mode)) }</a>
+		}
+		<div class="right">
+			<div class="v">{ r.When }</div>
+			if r.ReadTime != "" {
+				<div class="k">{ r.ReadTime }</div>
+			}
+		</div>
+	</div>
+}

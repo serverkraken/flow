@@ -365,6 +365,12 @@ func (s *Server) wissenTabDocs(r *http.Request, u domain.User, n domain.Node) ([
 func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	tab := webui.NormalizeTab(r.URL.Query().Get("tab"))
+	if tab == "wissen" {
+		// Der Wissens-Überblick je Ebene hat seinen eigenen Datenpfad — er
+		// braucht Karten und Teilbaum, nicht das ganze Cockpit.
+		s.handleWebNodeWissen(w, r)
+		return
+	}
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
 	if errors.Is(err, ports.ErrNodeNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)

@@ -800,6 +800,16 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     .editor-grid:not([data-preview="hidden"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   }
   .editor-grid[data-preview="hidden"] > [data-preview-pane] { display: none; }
+  /* Wissens-Überblick je Ebene: Typ-Zähler als Filter und die Kuratier-Marke.
+     Zähler sind Chips im Mono-Ton des typechip; der aktive trägt den Akzent. */
+  .wtypes { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+  .wtype { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(var(--meta)); border: 1px solid rgb(var(--hair2)); padding: 1.5px 7px; background: rgb(var(--surface)); white-space: nowrap; }
+  .wtype:hover { color: rgb(var(--ink)); border-color: rgb(var(--ink)); }
+  .wtype.on { color: rgb(var(--accent)); border-color: rgb(var(--accent)); background: rgb(var(--accent-wash)); }
+  .wmark { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: rgb(var(--meta)); flex-shrink: 0; }
+  .wmark:hover { color: rgb(var(--ink)); }
+  .wmark-immer { color: rgb(var(--accent)); }
+  .wmark-nie { color: rgb(var(--faint)); text-decoration: line-through; }
 
 @media (max-width: 620px) {
   .projrow .right .k { display: none; }               /* §12 nur Hauptwert */
