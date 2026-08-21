@@ -73,7 +73,6 @@ type NodeCockpit struct {
 	Earnings     string            // ResolveRate(chain) × Total, "" if no rate in chain
 	Rate         string            // inherited rate label, "" if none
 	Timer        CockpitTimer
-	LogoShape    string   // ""|"hex"|"tile" — LogoShape(w,h) of the uploaded logo, if any
 	TodayHere    string   // today's own-node time (fmtDurHM), NOT subtree
 	CountsWork   bool     // effective Work/Privat flag (domain.ResolveCountsTowardTarget)
 	Contributors []string // distinct actors active in the subtree; filled by T5, empty until then

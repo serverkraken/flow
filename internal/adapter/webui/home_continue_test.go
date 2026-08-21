@@ -38,12 +38,6 @@ func TestBuildRecentNodes_RunningFirstDistinctBookable(t *testing.T) {
 	if rows[1].ID != "b" || rows[1].LabelKey != "home.lastActive" {
 		t.Errorf("stopped node must carry lastActive label, got %+v", rows[1])
 	}
-	if rows[0].LogoRef != "" {
-		t.Errorf("node without a logo must carry empty LogoRef, got %+v", rows[0])
-	}
-	if rows[1].LogoRef != "hash123" {
-		t.Errorf("LogoRef must flow through from domain.Node, got %+v", rows[1])
-	}
 }
 
 func TestBuildRecentNodes_CapsAtN(t *testing.T) {

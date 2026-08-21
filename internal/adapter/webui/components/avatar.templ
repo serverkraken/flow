@@ -1,7 +1,9 @@
 package components
 
-// Avatar rendert die Identität eines Namens: getönte Initialen-Kachel
-// (Logo-Variante: siehe NodeAvatar). sizeClass: av-28|av-36|av-64|av-96.
+// Avatar rendert die Identität eines Namens: getönte Initialen-Kachel.
+// Es gibt keine Logo-Variante mehr — Identität ist überall Monogramm und
+// Farbe (Screen-08-Doktrin); das Bild eines Registers ist sein Banner auf
+// der Einstiegsseite. sizeClass: av-28|av-36|av-64|av-96.
 templ Avatar(initials string, tone string, sizeClass string) {
 	<span class={ "ava", tone, sizeClass } aria-hidden="true">{ initials }</span>
 }
@@ -9,19 +11,4 @@ templ Avatar(initials string, tone string, sizeClass string) {
 // AgentAvatar ist die neutrale, gestrichelte Akteurs-Kachel für Agenten.
 templ AgentAvatar(initials string, sizeClass string) {
 	<span class={ "ava ava-agent", sizeClass } aria-hidden="true">{ initials }</span>
-}
-
-// NodeAvatar rendert die Identität eines Knotens: ein hochgeladenes Logo
-// (content-contained, nie beschnitten) wenn logoRef != "", sonst die
-// deterministische Initialen-Avatar (Avatar, Bestand). Single Source (Spec
-// §8: Logo-oder-Initialen überall, Größen 28/36/56/96) — wörtlich aus
-// cockpit_head.templ's früherer cockpitIdentity-Inline-Logik gehoben (L4
-// Task 2), dem einzigen Aufrufer, der vor dieser Extraktion Logos rendert
-// (Offene Entsch. #12).
-templ NodeAvatar(nodeID string, logoRef string, initials string, tone string, sizeClass string) {
-	if logoRef != "" {
-		<span class={ "ava ava-logo", sizeClass } aria-hidden="true"><img src={ "/nodes/" + nodeID + "/logo?v=" + logoRef } alt="" class="h-full w-full object-contain p-2"/></span>
-	} else {
-		@Avatar(initials, tone, sizeClass)
-	}
 }

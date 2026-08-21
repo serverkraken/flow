@@ -69,7 +69,7 @@ templ homeNowSection(vm HomeVM) {
 		</div>
 		if vm.Now != nil {
 			<div class="row panelrow" data-tint="accent">
-				@components.NodeAvatar(vm.Now.NodeID, vm.Now.LogoRef, vm.Now.Initials, vm.Now.Tone, "av-36")
+				@components.Avatar(vm.Now.Initials, vm.Now.Tone, "av-36")
 				<div class="grow">
 					<div class="t">
 						{ components.T(ctx, "home.timerOn") }
@@ -112,7 +112,7 @@ templ homeContinueSection(vm HomeVM) {
 		} else {
 			for _, row := range vm.Continue {
 				<a class="row" data-tint="accent" href={ templ.SafeURL("/nodes/" + row.ID) }>
-					@components.NodeAvatar(row.ID, row.LogoRef, row.Initials, row.Tone, "av-36")
+					@components.Avatar(row.Initials, row.Tone, "av-36")
 					<div class="grow">
 						<div class="t">{ row.Name }</div>
 						<div class="path">{ row.FullPath }</div>

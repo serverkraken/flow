@@ -269,7 +269,7 @@ func cockpitIdentity(d NodeCockpit) templ.Component {
 			templ_7745c5c3_Var16 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.NodeAvatar(d.N.ID, d.N.LogoRef, Initials(ShortName(d.N.Name)), AvatarTone(d.N.Name), "av-96").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.Avatar(Initials(ShortName(d.N.Name)), AvatarTone(d.N.Name), "av-96").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

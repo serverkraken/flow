@@ -44,7 +44,7 @@ templ CockpitHead(d NodeCockpit) {
 // initials avatar. Kein Hex-Clip mehr (Kristall tot). Mobile 64 comes for
 // free via the Task-1 responsive rule (.av-96 → 64 below 620px).
 templ cockpitIdentity(d NodeCockpit) {
-	@components.NodeAvatar(d.N.ID, d.N.LogoRef, Initials(ShortName(d.N.Name)), AvatarTone(d.N.Name), "av-96")
+	@components.Avatar(Initials(ShortName(d.N.Name)), AvatarTone(d.N.Name), "av-96")
 }
 
 // cockpitInstr is the instr-band (Mockup Z.592–597): timer-state action(s) +

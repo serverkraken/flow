@@ -293,7 +293,7 @@ func homeNowSection(vm HomeVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.NodeAvatar(vm.Now.NodeID, vm.Now.LogoRef, vm.Now.Initials, vm.Now.Tone, "av-36").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Avatar(vm.Now.Initials, vm.Now.Tone, "av-36").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -582,7 +582,7 @@ func homeContinueSection(vm HomeVM) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.NodeAvatar(row.ID, row.LogoRef, row.Initials, row.Tone, "av-36").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Avatar(row.Initials, row.Tone, "av-36").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -30,8 +30,8 @@ func TestLoopback_NodeToolSurfaceIsComplete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 32 {
-		t.Fatalf("tool count = %d, want 32 (25 before node-mgmt + 6 node tools + fr-node-logo); got %v",
+	if len(tools.Tools) != 33 {
+		t.Fatalf("tool count = %d, want 33 (25 before node-mgmt + 6 node tools + fr-node-logo + flow_set_node_banner); got %v",
 			len(tools.Tools), toolNames(tools.Tools))
 	}
 	for _, name := range newNodeTools {

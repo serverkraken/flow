@@ -82,17 +82,6 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	}
 	d.Timer = webui.NodeTimer(running, n.ID, domain.IsBookable(n.Kind), now, func(id string) string { return names[id] })
 
-	// Spine identity: logo auto-crop decision (LogoShape errors default to the
-	// pre-existing hex-crop behavior — never block rendering on a logo read).
-	if n.LogoRef != "" {
-		d.LogoShape = "hex"
-		if s.GetNodeLogo.Logos != nil {
-			if logo, lerr := s.GetNodeLogo.Execute(ctx, u.ID, n.ID); lerr == nil {
-				d.LogoShape = webui.LogoShape(logo.Width, logo.Height)
-			}
-		}
-	}
-
 	// instr-band: today's OWN-node time (not subtree — mirrors heuteDataFor's
 	// day-range source: startOfDay(now)..+1d via ListSessionsRange).
 	d.TodayHere = webui.FmtDurHMExport(0)

@@ -299,13 +299,11 @@ func TestWebNodesPage_QuietCTAAndAvatarIdentity(t *testing.T) {
 	}
 }
 
-// TestWebNodesPage_LogoOrInitials verifies that /nodes renders the shared
-// components.NodeAvatar (L4 Task 2, Offene Entsch. #12): a node carrying a
-// LogoRef shows its uploaded logo (<img src=".../logo?v=...">) at the
-// engagement (av-36) or repo (av-28) row, while a node without one still
-// falls back to the deterministic initials tile — Logos no longer appear
-// only on the cockpit.
-func TestWebNodesPage_LogoOrInitials(t *testing.T) {
+// TestWebNodesPage_RendersMonogramsOnly pins the Screen-08 doctrine on the
+// register list: every row shows the same monogram tile, whether or not the
+// node carries a stored LogoRef. The picture of a register is its banner on
+// the landing page; a list mixing pictures and tiles never scanned well.
+func TestWebNodesPage_RendersMonogramsOnly(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 
 	engWithLogo := seedTreeNode(t, ns, "eng-logo", "Mit Logo", domain.KindEngagement, nil)
@@ -320,18 +318,16 @@ func TestWebNodesPage_LogoOrInitials(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("GET /nodes = %d; body=%.500s", code, body)
 	}
-
-	if !strings.Contains(body, `/nodes/`+engWithLogo.ID+`/logo?v=abc123`) {
-		t.Errorf("engagement with LogoRef must render its logo <img>; body=%.2000s", body)
+	if strings.Contains(body, `/logo?v=`) {
+		t.Errorf("no row may render a logo <img> any more; body=%.2000s", body)
 	}
-	if !strings.Contains(body, `/nodes/`+repoWithLogo.ID+`/logo?v=def456`) {
-		t.Errorf("repo with LogoRef must render its logo <img>; body=%.2000s", body)
+	for _, n := range []domain.Node{engWithLogo, repoWithLogo, repoNoLogo} {
+		if !strings.Contains(body, `href="/nodes/`+n.ID+`"`) {
+			t.Errorf("row for %s missing; body=%.2000s", n.ID, body)
+		}
 	}
-
-	// The plain repo's row must fall back to initials — no logo <img> for its
-	// own node id anywhere in the body.
-	if strings.Contains(body, `/nodes/`+repoNoLogo.ID+`/logo?v=`) {
-		t.Errorf("repo without LogoRef must not render a logo <img>; body=%.2000s", body)
+	if !strings.Contains(body, `class="ava`) {
+		t.Errorf("rows must render monogram tiles; body=%.2000s", body)
 	}
 }
 

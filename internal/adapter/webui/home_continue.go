@@ -14,7 +14,6 @@ import (
 // instead of a ranking score. No new schema.
 type RecentNode struct {
 	ID, Name, FullPath, Tone, Initials string
-	LogoRef                            string // domain.Node.LogoRef, "" = no logo (NodeAvatar)
 	ValueStr, LabelKey                 string
 }
 
@@ -54,7 +53,6 @@ func BuildRecentNodes(sessions []domain.WorkSession, nodes []domain.Node, now ti
 			FullPath: nd.Name,
 			Tone:     AvatarTone(nd.Name),
 			Initials: Initials(nd.Name),
-			LogoRef:  nd.LogoRef,
 		}
 		if ws.Running() {
 			row.ValueStr = FmtVerbose(ws.Elapsed(now))

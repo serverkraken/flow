@@ -144,7 +144,6 @@ func (s *Server) homeRunningNowVM(ctx context.Context, u domain.User, rs domain.
 	nowVM.NodeHref = "/nodes/" + n.ID
 	nowVM.Initials = webui.Initials(n.Name)
 	nowVM.Tone = webui.AvatarTone(n.Name)
-	nowVM.LogoRef = n.LogoRef
 	if s.NodeAncestors.Nodes != nil {
 		if chain, aerr := s.NodeAncestors.Execute(ctx, u.ID, n.ID); aerr == nil {
 			full := chain

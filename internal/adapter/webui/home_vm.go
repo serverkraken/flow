@@ -48,7 +48,6 @@ type RunningNowVM struct {
 	NodeHref    string
 	Initials    string
 	Tone        string
-	LogoRef     string // domain.Node.LogoRef, "" = no logo (NodeAvatar)
 	BaseSeconds int64
 	SinceEpoch  int64 // unix epoch of the effective start (now-elapsed) — absolute data-since anchor
 	SinceStr    string // "HH:MM" the session started at

@@ -191,18 +191,21 @@ func TestHomeFragment_RunningUnboundHidesStop(t *testing.T) {
 	}
 }
 
-// TestHomeFragment_RunningBoundWithLogoUsesNodeAvatar verifies the Jetzt
-// row's avatar is the shared components.NodeAvatar (L4 Task 2, Offene
-// Entsch. #12): a bound running session on a node with a LogoRef renders
-// its uploaded logo, not the initials tile.
-func TestHomeFragment_RunningBoundWithLogoUsesNodeAvatar(t *testing.T) {
+// TestHomeFragment_RunningBoundRendersMonogramNotLogo pins the Screen-08
+// doctrine on the Jetzt row: identity is monogram + colour everywhere, so
+// even a node carrying a LogoRef (set via flow_set_node_logo) renders its
+// initials tile. The register's picture lives in its banner now.
+func TestHomeFragment_RunningBoundRendersMonogramNotLogo(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	nodeID := srv.seedBookableNodeWithLogo(t, "repo-logo", "logohash1")
 	srv.startSession(t, "u1", &nodeID)
 
 	body := getBody(t, srv, "u1", "/")
-	if !strings.Contains(body, `/nodes/`+nodeID+`/logo?v=logohash1`) {
-		t.Errorf("Jetzt row must render the bound node's logo via NodeAvatar: %.2000s", body)
+	if strings.Contains(body, `/nodes/`+nodeID+`/logo?v=`) {
+		t.Errorf("Jetzt row must not render a logo <img> any more: %.2000s", body)
+	}
+	if !strings.Contains(body, `class="ava`) {
+		t.Errorf("Jetzt row must render the monogram tile: %.2000s", body)
 	}
 }
 
@@ -226,11 +229,11 @@ func TestHomeFragment_ContinueShowsMRUNodesNewestFirst(t *testing.T) {
 	}
 }
 
-// TestHomeFragment_ContinueNodeAvatarLogoOrInitials verifies "Weiterarbeiten"
-// rows use the shared components.NodeAvatar: a node with a LogoRef shows its
-// logo, a node without one falls back to initials (Mockup Z.382 shows a
-// logo-avatar in this exact section).
-func TestHomeFragment_ContinueNodeAvatarLogoOrInitials(t *testing.T) {
+// TestHomeFragment_ContinueRendersMonogramsOnly is the same doctrine in the
+// "Weiterarbeiten" section: one identity treatment for every row, whether or
+// not the node carries a stored logo. Uniform rows were the point — a mixed
+// list of pictures and tiles never scanned well.
+func TestHomeFragment_ContinueRendersMonogramsOnly(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	withLogo := srv.seedBookableNodeWithLogo(t, "repo-logo", "logohash2")
 	plain := srv.seedBookableNode(t, "repo-plain")
@@ -238,11 +241,13 @@ func TestHomeFragment_ContinueNodeAvatarLogoOrInitials(t *testing.T) {
 	srv.seedStoppedSession(t, "u1", plain, srv.clk.T.Add(-4*time.Hour), srv.clk.T.Add(-3*time.Hour))
 
 	body := getBody(t, srv, "u1", "/")
-	if !strings.Contains(body, `/nodes/`+withLogo+`/logo?v=logohash2`) {
-		t.Errorf("Weiterarbeiten row with a LogoRef must render its logo: %.2000s", body)
+	if strings.Contains(body, `/logo?v=`) {
+		t.Errorf("Weiterarbeiten rows must not render logo <img> any more: %.2000s", body)
 	}
-	if strings.Contains(body, `/nodes/`+plain+`/logo?v=`) {
-		t.Errorf("Weiterarbeiten row without a LogoRef must not render a logo <img>: %.2000s", body)
+	for _, id := range []string{withLogo, plain} {
+		if !strings.Contains(body, `href="/nodes/`+id+`"`) {
+			t.Errorf("row for %s missing: %.2000s", id, body)
+		}
 	}
 }
 
