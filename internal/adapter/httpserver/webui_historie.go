@@ -59,6 +59,16 @@ func splitIDs(s string) []string {
 // GET /historie?view=cal|list&cal=week|month&week=YYYY-MM-DD&page=N.
 func (s *Server) handleHistorieHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
+	if r.URL.Query().Get("view") == "monate" {
+		vm, err := s.historieMonateData(r.Context(), u, r)
+		if err != nil {
+			s.webServerError(w, r, err)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = webui.HistorieMonatePage(vm).Render(r.Context(), w)
+		return
+	}
 	if r.URL.Query().Get("view") == "list" {
 		vm, err := s.historieListData(r.Context(), u, r, "")
 		if err != nil {
@@ -76,6 +86,39 @@ func (s *Server) handleHistorieHome(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.HistoriePage(vm).Render(r.Context(), w)
+}
+
+// historieMonateData baut die Jahressicht (Screen 32): Monatsbilanz aus
+// dem Rechner, Karten je Monat aus dem Bestand. ?jahr= wählt das Jahr.
+func (s *Server) historieMonateData(ctx context.Context, u domain.User, r *http.Request) (webui.HistorieMonateVM, error) {
+	now := s.Clock.Now()
+	year := now.Year()
+	if y, err := strconv.Atoi(r.URL.Query().Get("jahr")); err == nil && y > 2000 && y <= now.Year() {
+		year = y
+	}
+	months, err := s.Stats.Months(ctx, u.ID, year)
+	if err != nil {
+		return webui.HistorieMonateVM{}, err
+	}
+	var docs []domain.Document
+	if s.ListDocuments.Docs != nil {
+		docs, _ = s.ListDocuments.Execute(ctx, u.ID, nil, nil)
+	}
+	vm := webui.BuildHistorieMonate(ctx, year, months, docs, now)
+	vm.User = u.Username
+	return vm, nil
+}
+
+// handleHistorieMonateFragment renders the inner Monate fragment (SSE swap).
+func (s *Server) handleHistorieMonateFragment(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	vm, err := s.historieMonateData(r.Context(), u, r)
+	if err != nil {
+		s.webServerError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.HistorieMonateFragment(vm).Render(r.Context(), w)
 }
 
 // handleHistorieCalendarFragment renders the inner calendar fragment (SSE/nav swap).

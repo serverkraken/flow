@@ -72,6 +72,7 @@ templ historieToolbar(vm HistorieVM) {
 			@historieSeg([]components.SegOption{
 				{Key: "cal", LabelKey: "historie.calendar", Href: vm.CalWeekURL},
 				{Key: "list", LabelKey: "historie.list", Href: vm.ListHref},
+				{Key: "monate", LabelKey: "historie.monate", Href: "/historie?view=monate"},
 			}, "cal")
 			@historieSeg([]components.SegOption{
 				{Key: "week", LabelKey: "historie.week", Href: vm.CalWeekURL},
@@ -396,6 +397,7 @@ templ HistorieListFragment(vm HistorieListVM) {
 			@historieSeg([]components.SegOption{
 				{Key: "cal", LabelKey: "historie.calendar", Href: "/historie?view=cal&cal=week"},
 				{Key: "list", LabelKey: "historie.list", Href: "/historie?view=list"},
+				{Key: "monate", LabelKey: "historie.monate", Href: "/historie?view=monate"},
 			}, "list")
 			<button type="button" data-select-toggle
 				data-label-select={ components.T(ctx, "historie.select") }

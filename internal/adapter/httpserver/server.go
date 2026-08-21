@@ -292,6 +292,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /historie", s.webAuth(http.HandlerFunc(s.handleHistorieHome)))
 	mux.Handle("GET /ui/historie/calendar", s.webAuth(http.HandlerFunc(s.handleHistorieCalendarFragment)))
 	mux.Handle("GET /ui/historie/list", s.webAuth(http.HandlerFunc(s.handleHistorieListFragment)))
+	mux.Handle("GET /ui/historie/monate", s.webAuth(http.HandlerFunc(s.handleHistorieMonateFragment)))
 	mux.Handle("POST /ui/historie/reassign", s.webAuth(http.HandlerFunc(s.handleHistorieReassign)))
 	mux.Handle("POST /ui/historie/bulk-delete", s.webAuth(http.HandlerFunc(s.handleHistorieBulkDelete)))
 

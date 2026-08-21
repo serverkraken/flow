@@ -69,3 +69,18 @@ func TestWebNodesHome_FirstStart(t *testing.T) {
 		t.Errorf("mit Register kein erster Start")
 	}
 }
+
+// Screen 32: die Jahressicht der Historie steht neben Kalender und Liste.
+func TestHistorie_MonateView(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	body := getBody(t, srv, "u1", "/historie?view=monate")
+	for _, want := range []string{`data-monate`, "Januar", "Dezember", "gesamt", `href="/historie?view=monate&amp;jahr=2025"`, `aria-pressed="true"`, "läuft"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Monate ohne %q", want)
+		}
+	}
+	frag := getBody(t, srv, "u1", "/ui/historie/monate?jahr=2025")
+	if strings.Contains(frag, "<html") || !strings.Contains(frag, "2025") {
+		t.Errorf("Fragment: %.300s", frag)
+	}
+}

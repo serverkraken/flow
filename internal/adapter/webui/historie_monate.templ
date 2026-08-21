@@ -1,0 +1,92 @@
+package webui
+
+import (
+	"strconv"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// HistorieMonatePage ist die Jahressicht der Historie (Screen 32).
+templ HistorieMonatePage(vm HistorieMonateVM) {
+	@components.Base("historie", historieMonateBody(vm))
+}
+
+templ historieMonateBody(vm HistorieMonateVM) {
+	@components.AppShell("zeit", nil, nil, historieMonateOuter(vm))
+}
+
+templ historieMonateOuter(vm HistorieMonateVM) {
+	<div id="content"
+		hx-get={ vm.FragmentURL }
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:dayoff.changed, sse:settings.changed, sse:document.created, sse:document.deleted"
+		hx-swap="innerHTML">
+		@HistorieMonateFragment(vm)
+	</div>
+}
+
+// HistorieMonateFragment: Spine, Kopf, die drei Sichten, Jahreswahl, die
+// Tabelle mit Summenzeile.
+templ HistorieMonateFragment(vm HistorieMonateVM) {
+	<div class="narrow">
+		<div class="spine">
+			<div class="up">
+				<a href="/zeit">{ components.T(ctx, "zeit.back") }</a>
+			</div>
+		</div>
+		<div class="pagehead">
+			<span class="eyebrow">{ components.T(ctx, "historie.eyebrow") }</span>
+			<h1>{ components.T(ctx, "historie.title") }</h1>
+		</div>
+		if vm.Err != "" {
+			<p class="alert-err" role="alert">{ vm.Err }</p>
+		}
+		<div class="sect-h flex-wrap gap-y-2.5">
+			@historieSeg([]components.SegOption{
+				{Key: "cal", LabelKey: "historie.calendar", Href: "/historie?view=cal&cal=week"},
+				{Key: "list", LabelKey: "historie.list", Href: "/historie?view=list"},
+				{Key: "monate", LabelKey: "historie.monate", Href: "/historie?view=monate"},
+			}, "monate")
+			<span class="flex items-center gap-2">
+				<a href={ templ.SafeURL(vm.PrevHref) } class="btn btn-q btn-s" aria-label={ components.T(ctx, "woche.prev") }><span aria-hidden="true">‹</span></a>
+				<span class="led-when">{ vm.YearStr }</span>
+				if vm.NextHref != "" {
+					<a href={ templ.SafeURL(vm.NextHref) } class="btn btn-q btn-s" aria-label={ components.T(ctx, "woche.next") }><span aria-hidden="true">›</span></a>
+				} else {
+					<span class="text-faint" aria-hidden="true">›</span>
+				}
+			</span>
+			<a href="/export" class="more ml-auto">{ components.T(ctx, "home.ertraege.export") }</a>
+		</div>
+		<div class="mt-3 grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-5 text-[13px]" data-monate>
+			<div class="contents text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">
+				<span class="border-b border-line2 pb-2">{ components.T(ctx, "historie.monate.month") }</span>
+				<span class="border-b border-line2 pb-2 text-right">{ components.T(ctx, "historie.monate.logged") }</span>
+				<span class="border-b border-line2 pb-2 text-right">{ components.T(ctx, "historie.monate.target") }</span>
+				<span class="border-b border-line2 pb-2 text-right">{ components.T(ctx, "historie.monate.diff") }</span>
+				<span class="border-b border-line2 pb-2 text-right">{ components.T(ctx, "historie.monate.cards") }</span>
+			</div>
+			for _, r := range vm.Rows {
+				<a href={ templ.SafeURL(r.Href) } class={ "contents", templ.KV("text-faint", r.Future) } data-monat={ r.Label }>
+					<span class="border-b border-line py-2.5 font-medium text-ink">
+						{ r.Label }
+						if r.Current {
+							<span class="ml-2 text-[11px] font-normal text-live">{ components.T(ctx, "historie.monate.running") }</span>
+						}
+					</span>
+					<span class="border-b border-line py-2.5 text-right font-mono tnum">{ r.Logged }</span>
+					<span class="border-b border-line py-2.5 text-right font-mono tnum text-meta">{ r.Target }</span>
+					<span class={ "border-b border-line py-2.5 text-right font-mono tnum", r.DiffTone }>{ r.Diff }</span>
+					<span class="border-b border-line py-2.5 text-right font-mono tnum text-meta">{ strconv.Itoa(r.Cards) }</span>
+				</a>
+			}
+			<div class="contents font-semibold">
+				<span class="py-2.5 text-ink">{ vm.YearStr } { components.T(ctx, "historie.monate.total") }</span>
+				<span class="py-2.5 text-right font-mono tnum">{ vm.TotalLogged }</span>
+				<span class="py-2.5 text-right font-mono tnum text-meta">{ vm.TotalTarget }</span>
+				<span class={ "py-2.5 text-right font-mono tnum", vm.TotalTone }>{ vm.TotalDiff }</span>
+				<span class="py-2.5 text-right font-mono tnum text-meta">{ strconv.Itoa(vm.TotalCards) }</span>
+			</div>
+		</div>
+		<p class="mt-3 text-[11.5px] text-faint">{ components.T(ctx, "historie.monate.hint") }</p>
+	</div>
+}
