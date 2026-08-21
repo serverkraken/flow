@@ -13,14 +13,14 @@ func hueText(hue string) string {
 // Eckig, ohne Radius (R5) — die runde Pille kam aus der Kristall-Zeit.
 // Chip is a project pill in the given hue (blue|cyan|green|purple|magenta|yellow|orange|red|teal).
 templ Chip(label, hue string) {
-	<span class={ "inline-flex items-center gap-1.5 px-2.5 py-1 text-[.78rem] font-medium", hueText(hue) }>
+	<span class={ "inline-flex items-center gap-1.5 px-2.5 py-1 text-[12.5px] font-medium", hueText(hue) }>
 		{ label }
 	</span>
 }
 
 // Tag is a neutral "#"-prefixed tag chip.
 templ Tag(label string) {
-	<span class="inline-flex items-center bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">
+	<span class="inline-flex items-center bg-sunken px-1.5 py-0.5 text-[11px] font-medium text-body">
 		#{ label }
 	</span>
 }

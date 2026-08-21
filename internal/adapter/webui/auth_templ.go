@@ -75,27 +75,27 @@ func authBody(vm AuthVM) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"grid place-items-center px-6 py-12\"><div class=\"glass p-6 max-w-sm w-full text-center\"><p class=\"eyebrow mb-2 text-[.72rem] font-semibold uppercase text-cyan\">flow</p><h1 class=\"font-display text-2xl font-semibold text-ink mb-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"grid place-items-center px-6 py-12\"><div class=\"glass p-6 max-w-sm w-full text-center\"><p class=\"eyebrow mb-2 text-[10.5px] font-semibold uppercase text-cyan\">flow</p><h1 class=\"font-display text-[26px] font-semibold text-ink mb-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, vm.TitleKey))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/auth.templ`, Line: 28, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/auth.templ`, Line: 28, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</h1><p class=\"text-[.92rem] text-muted mb-6\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</h1><p class=\"text-[14px] text-muted mb-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, vm.MsgKey))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/auth.templ`, Line: 29, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/auth.templ`, Line: 29, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -106,7 +106,7 @@ func authBody(vm AuthVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if vm.ShowLogin {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<a href=\"/auth/login\" hx-boost=\"false\" class=\"inline-flex items-center justify-center bg-accent px-5 py-2.5 text-[.92rem] font-semibold text-oncolor\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<a href=\"/auth/login\" hx-boost=\"false\" class=\"inline-flex items-center justify-center bg-accent px-5 py-2.5 text-[14px] font-semibold text-oncolor\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -39,7 +39,7 @@ func StatTile(labelKey, value, hue string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"relative overflow-hidden glass py-3 px-4 text-center\"><div class=\"eyebrow uppercase text-[.62rem] font-semibold text-faint\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"relative overflow-hidden glass py-3 px-4 text-center\"><div class=\"eyebrow uppercase text-[10.5px] font-semibold text-faint\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -56,7 +56,7 @@ func StatTile(labelKey, value, hue string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var3 = []any{"mt-1 font-display text-[1.35rem] font-semibold tnum", valueHue(hue)}
+		var templ_7745c5c3_Var3 = []any{"mt-1 font-display text-[20px] font-semibold tnum", valueHue(hue)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var3...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -81,7 +81,7 @@ func StatTile(labelKey, value, hue string) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/stattile.templ`, Line: 16, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/stattile.templ`, Line: 16, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {

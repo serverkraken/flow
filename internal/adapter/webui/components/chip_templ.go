@@ -41,7 +41,7 @@ func Chip(label, hue string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var2 = []any{"inline-flex items-center gap-1.5 px-2.5 py-1 text-[.78rem] font-medium", hueText(hue)}
+		var templ_7745c5c3_Var2 = []any{"inline-flex items-center gap-1.5 px-2.5 py-1 text-[12.5px] font-medium", hueText(hue)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -102,7 +102,7 @@ func Tag(label string) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<span class=\"inline-flex items-center bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body\">#")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<span class=\"inline-flex items-center bg-sunken px-1.5 py-0.5 text-[11px] font-medium text-body\">#")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

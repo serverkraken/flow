@@ -234,20 +234,20 @@ func ConfirmDialog(spec ConfirmSpec) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</h2><p class=\"mt-2 text-[.9rem] text-body\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</h2><p class=\"mt-2 text-[14px] text-body\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, s.BodyKey))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/dialog.templ`, Line: 54, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/dialog.templ`, Line: 54, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</p><div class=\"mt-6 flex items-center justify-end gap-3\"><button type=\"button\" data-dialog-close autofocus class=\"inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</p><div class=\"mt-6 flex items-center justify-end gap-3\"><button type=\"button\" data-dialog-close autofocus class=\"inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[14px] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

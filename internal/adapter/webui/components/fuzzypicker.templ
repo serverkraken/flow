@@ -20,24 +20,24 @@ templ ProjectFuzzyPicker(vm NodePickerVM) {
 		role="listbox" aria-label={ T(ctx, "historie.assignProject") }>
 		<div class="px-1.5 pb-2">
 			<label class="relative block">
-				<span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-[.8rem]" aria-hidden="true">›</span>
+				<span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-[12.5px]" aria-hidden="true">›</span>
 				<input type="text" data-fuzzy-filter placeholder={ T(ctx, "picker.filter") } aria-label={ T(ctx, "picker.filter") }
-					class="w-full border border-line bg-sunken/60 py-2 pl-7 pr-2 text-[.85rem] placeholder:text-faint focus:border-blue/40 transition-colors"/>
+					class="w-full border border-line bg-sunken/60 py-2 pl-7 pr-2 text-[13px] placeholder:text-faint focus:border-blue/40 transition-colors"/>
 			</label>
 		</div>
 		<ul class="max-h-[230px] overflow-auto scroll-thin">
 			for _, p := range vm.Nodes {
 				<li class="pick-row flex items-center justify-between gap-2 px-2.5 py-2 cursor-pointer hover:bg-sunken"
 					role="option" aria-selected="false" data-project-id={ p.ID } data-project-name={ p.Name }>
-					<span class="flex items-center gap-2.5 text-[.9rem] font-medium">
+					<span class="flex items-center gap-2.5 text-[14px] font-medium">
 						<span class={ pickGlyphClass(p.Hue) } aria-hidden="true">{ p.Glyph }</span> { p.Name }
 					</span>
-					<span class="font-mono text-[.7rem] tnum text-muted">{ p.Rate }</span>
+					<span class="font-mono text-[11px] tnum text-muted">{ p.Rate }</span>
 				</li>
 			}
 			<li class="border-t border-line2 mt-1 pt-1">
 				<button type="button" data-new-project
-					class="pick-row flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[.9rem] font-medium text-green hover:bg-green/10"
+					class="pick-row flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[14px] font-medium text-green hover:bg-green/10"
 					role="option" aria-selected="false">
 					<span aria-hidden="true">✚</span> { T(ctx, "picker.new") }: <span data-new-project-label class="font-mono"></span>
 				</button>

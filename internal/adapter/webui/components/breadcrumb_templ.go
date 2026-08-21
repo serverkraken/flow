@@ -89,7 +89,7 @@ func Breadcrumb(back *Crumb, items []Crumb, level string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav class=\"mb-4 flex flex-wrap items-center gap-2 border-b border-line2 pb-3.5 text-[.8rem]\" aria-label=\"Breadcrumb\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav class=\"mb-4 flex flex-wrap items-center gap-2 border-b border-line2 pb-3.5 text-[12.5px]\" aria-label=\"Breadcrumb\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

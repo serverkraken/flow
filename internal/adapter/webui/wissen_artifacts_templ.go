@@ -104,7 +104,7 @@ func wissenArtifactsOuter(vm WissenArtifactsVM) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"pagehead\"><a href=\"/wissen\" class=\"mb-2 inline-block text-[.8rem] text-muted underline underline-offset-2 hover:text-ink\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"pagehead\"><a href=\"/wissen\" class=\"mb-2 inline-block text-[12.5px] text-muted underline underline-offset-2 hover:text-ink\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

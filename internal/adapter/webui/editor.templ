@@ -46,11 +46,11 @@ templ editorOuter(vm EditorVM) {
 				<button type="button" class="btn btn-q btn-s" data-dialog-open={ "del-" + vm.ID }>
 					{ components.T(ctx, "common.delete") }
 				</button>
-				<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+				<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[12.5px] text-muted underline underline-offset-2 hover:text-ink">
 					{ components.T(ctx, "common.cancel") }
 				</a>
 			} else {
-				<a href="/wissen" class="text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+				<a href="/wissen" class="text-[12.5px] text-muted underline underline-offset-2 hover:text-ink">
 					{ components.T(ctx, "common.cancel") }
 				</a>
 			}
@@ -70,7 +70,7 @@ templ editorOuter(vm EditorVM) {
 		})
 	}
 	if vm.Err != "" {
-		<p class="mb-5 bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
+		<p class="mb-5 bg-danger/10 px-4 py-3 text-[14px] font-medium text-danger" role="alert">{ vm.Err }</p>
 	}
 	// Der Editor-Raster: zwei Spalten ab lg, eine Spalte, sobald die Vorschau
 	// eingeklappt ist (data-preview="hidden", gesetzt von editor-preview.js).
@@ -78,7 +78,7 @@ templ editorOuter(vm EditorVM) {
 		<form action={ templ.SafeURL(vm.Action()) } method="post" class="panel p-5" data-document-metadata>
 			<div class="grid gap-4 sm:grid-cols-2">
 				<label class="block">
-					<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.type") }</span>
+					<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.type") }</span>
 					<select name="type" class="field" data-document-type>
 						for _, option := range vm.TypeOptions {
 							<option value={ option.Value } selected?={ option.Value == vm.Type }>{ option.Label }</option>
@@ -86,7 +86,7 @@ templ editorOuter(vm EditorVM) {
 					</select>
 				</label>
 				<label class="block" data-metadata-field="project" hidden?={ !vm.ShowsProject() }>
-					<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.project") }</span>
+					<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.project") }</span>
 					<select name="projectId" class="field" data-document-project disabled?={ !vm.ShowsProject() } required?={ vm.Type == "project" }>
 						<option value="">{ components.T(ctx, "wissen.project.none") }</option>
 						for _, option := range vm.ProjectOptions {
@@ -96,24 +96,24 @@ templ editorOuter(vm EditorVM) {
 				</label>
 			</div>
 			<label class="mt-4 block" data-metadata-field="date" hidden?={ !vm.Daily() }>
-				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.date") }</span>
+				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.date") }</span>
 				<input type="date" name="date" value={ vm.Date } class="field" data-document-date disabled?={ !vm.Daily() } required?={ vm.Daily() }/>
 			</label>
 			<label class="mt-4 block" data-metadata-field="path" hidden?={ vm.Daily() }>
-				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
+				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
 				<input type="text" name="path" value={ vm.Path } class="field font-mono" data-document-path disabled?={ vm.Daily() } required?={ !vm.Daily() }/>
 			</label>
 			<div class="mt-4 border border-line bg-sunken px-4 py-3" data-metadata-field="derived-path" hidden?={ !vm.Daily() }>
-				<span class="mb-1 block text-[.72rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path.derived") }</span>
-				<code class="text-[.86rem] text-ink" data-derived-path>{ vm.Path }</code>
-				<p class="mt-1 text-[.78rem] text-muted">{ components.T(ctx, "wissen.path.dailyHint") }</p>
+				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path.derived") }</span>
+				<code class="text-[13px] text-ink" data-derived-path>{ vm.Path }</code>
+				<p class="mt-1 text-[12.5px] text-muted">{ components.T(ctx, "wissen.path.dailyHint") }</p>
 			</div>
 			<label class="mt-4 block">
-				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.title.field") }</span>
+				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.title.field") }</span>
 				<input type="text" name="title" value={ vm.Title } class="field"/>
 			</label>
 			<label class="mt-4 block">
-				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.tags") }</span>
+				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.tags") }</span>
 				<input type="text" name="tags" value={ vm.TagsCSV }
 					placeholder="go tui postgres"
 					class="field"/>
@@ -127,7 +127,7 @@ templ editorOuter(vm EditorVM) {
 				<input type="hidden" name="node" value={ vm.NodeID }/>
 			}
 			<label class="mt-4 block">
-				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
+				<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
 				<div class="editor-toolbar">
 					<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
 						<button type="button" class="btn btn-q btn-s"

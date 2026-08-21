@@ -326,7 +326,7 @@ func appShellHull(active string, ebeneColor string, flush bool, breadcrumb, subn
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span></button></div><div id=\"timer-pill\" class=\"px-5 pt-4\" hx-get=\"/ui/timer\" hx-trigger=\"load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted\" hx-swap=\"innerHTML\"></div><button type=\"button\" data-palette-open class=\"mx-6 mt-4 flex w-[calc(100%-3rem)] items-center gap-2 border-b border-ink pb-2 text-left text-[.8rem] text-faint hover:text-muted\"><span class=\"flex-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span></button></div><div id=\"timer-pill\" class=\"px-5 pt-4\" hx-get=\"/ui/timer\" hx-trigger=\"load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted\" hx-swap=\"innerHTML\"></div><button type=\"button\" data-palette-open class=\"mx-6 mt-4 flex w-[calc(100%-3rem)] items-center gap-2 border-b border-ink pb-2 text-left text-[12.5px] text-faint hover:text-muted\"><span class=\"flex-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -339,7 +339,7 @@ func appShellHull(active string, ebeneColor string, flush bool, breadcrumb, subn
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</span> <kbd class=\"font-mono text-[.68rem]\">⌘K</kbd></button><nav class=\"min-h-0 flex-1 overflow-y-auto pb-3\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</span> <kbd class=\"font-mono text-[10.5px]\">⌘K</kbd></button><nav class=\"min-h-0 flex-1 overflow-y-auto pb-3\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -432,7 +432,7 @@ func appShellHull(active string, ebeneColor string, flush bool, breadcrumb, subn
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" aria-hidden=\"true\"></div><header class=\"sticky top-0 z-40 border-b border-hair bg-paper/90 backdrop-blur-sm md:hidden\"><div class=\"flex h-[54px] items-center gap-3 px-4\"><a href=\"/\" class=\"inline-flex items-center gap-2\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" aria-hidden=\"true\"></div><header class=\"sticky top-0 z-40 border-b border-hair bg-paper md:hidden\"><div class=\"flex h-[54px] items-center gap-3 px-4\"><a href=\"/\" class=\"inline-flex items-center gap-2\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

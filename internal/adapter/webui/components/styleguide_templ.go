@@ -128,7 +128,7 @@ func styleguideContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<header class=\"mb-8\"><p class=\"eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<header class=\"mb-8\"><p class=\"eyebrow uppercase text-[10.5px] font-semibold text-blue mb-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -141,14 +141,14 @@ func styleguideContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</p><h1 class=\"font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</p><h1 class=\"font-display text-[30px] sm:text-[30px] font-semibold leading-none tracking-tight\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "styleguide.title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 27, Col: 126}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 27, Col: 124}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -447,7 +447,7 @@ func sgDialogs() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`), false).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[14px] text-body">Beispiel-Dialoginhalt.</p>`), false).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

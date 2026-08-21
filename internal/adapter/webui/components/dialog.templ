@@ -51,10 +51,10 @@ templ ConfirmDialog(spec ConfirmSpec) {
 	<dialog id={ s.ID } aria-modal="true" aria-labelledby={ s.ID + "-title" }
 		class="m-auto w-[min(92vw,26rem)] border border-line bg-surface text-ink p-6 shadow-lift backdrop:bg-ink/40">
 		<h2 id={ s.ID + "-title" } class="font-display text-lg font-semibold">{ T(ctx, s.TitleKey) }</h2>
-		<p class="mt-2 text-[.9rem] text-body">{ T(ctx, s.BodyKey) }</p>
+		<p class="mt-2 text-[14px] text-body">{ T(ctx, s.BodyKey) }</p>
 		<div class="mt-6 flex items-center justify-end gap-3">
 			<button type="button" data-dialog-close autofocus
-				class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken">
+				class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[14px] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken">
 				{ T(ctx, "common.cancel") }
 			</button>
 			@Button(BtnDanger, T(ctx, s.ConfirmLabelKey), "", s.ConfirmAttrs)

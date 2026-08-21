@@ -118,9 +118,9 @@ templ appShellHull(active string, ebeneColor string, flush bool, breadcrumb, sub
 					hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
 					hx-swap="innerHTML"
 				></div>
-				<button type="button" data-palette-open class="mx-6 mt-4 flex w-[calc(100%-3rem)] items-center gap-2 border-b border-ink pb-2 text-left text-[.8rem] text-faint hover:text-muted">
+				<button type="button" data-palette-open class="mx-6 mt-4 flex w-[calc(100%-3rem)] items-center gap-2 border-b border-ink pb-2 text-left text-[12.5px] text-faint hover:text-muted">
 					<span class="flex-1">{ T(ctx, "palette.hint") }</span>
-					<kbd class="font-mono text-[.68rem]">⌘K</kbd>
+					<kbd class="font-mono text-[10.5px]">⌘K</kbd>
 				</button>
 				<nav class="min-h-0 flex-1 overflow-y-auto pb-3" aria-label={ T(ctx, "nav.primary") }>
 					<div hx-get={ "/ui/nav/tree?active=" + active } hx-trigger="load" hx-swap="innerHTML"></div>
@@ -141,7 +141,7 @@ templ appShellHull(active string, ebeneColor string, flush bool, breadcrumb, sub
 			// ── Telefon (<768px): schmale Kopfzeile oben, Dock unten
 			// (Katalog 3.13 — "unter 768 Dock unten, jede Fläche eine eigene
 			// Seite"). Die Schiene ist hier ausgeblendet. ──
-			<header class="sticky top-0 z-40 border-b border-hair bg-paper/90 backdrop-blur-sm md:hidden">
+			<header class="sticky top-0 z-40 border-b border-hair bg-paper md:hidden">
 				<div class="flex h-[54px] items-center gap-3 px-4">
 					<a href="/" class="inline-flex items-center gap-2" aria-label={ T(ctx, "app.name") }>
 						@BrandMark("h-5 w-5")

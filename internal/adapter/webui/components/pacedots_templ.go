@@ -59,7 +59,7 @@ func PaceDots(dots []PaceDot) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, d := range dots {
-			var templ_7745c5c3_Var2 = []any{"text-[.7rem]", paceColor(d.State)}
+			var templ_7745c5c3_Var2 = []any{"text-[11px]", paceColor(d.State)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -84,7 +84,7 @@ func PaceDots(dots []PaceDot) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(paceGlyph(d.State))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/pacedots.templ`, Line: 31, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/pacedots.templ`, Line: 31, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

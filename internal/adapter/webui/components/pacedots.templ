@@ -28,7 +28,7 @@ func paceColor(state string) string {
 templ PaceDots(dots []PaceDot) {
 	<span class="inline-flex items-center gap-1" aria-hidden="true">
 		for _, d := range dots {
-			<span class={ "text-[.7rem]", paceColor(d.State) }>{ paceGlyph(d.State) }</span>
+			<span class={ "text-[11px]", paceColor(d.State) }>{ paceGlyph(d.State) }</span>
 		}
 	</span>
 }

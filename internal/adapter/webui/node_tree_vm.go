@@ -228,9 +228,9 @@ func NodeSelectOptions(ctx context.Context, nodes []domain.Node) []EditorOption 
 // background, inactive = muted text with hover accent.
 func nodeFilterChip(active bool) string {
 	if active {
-		return "rounded-full bg-ink px-3 py-1 text-xs font-medium text-canvas"
+		return "bg-ink px-3 py-1 text-xs font-medium text-canvas"
 	}
-	return "rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-muted hover:border-blue/40 hover:text-blue"
+	return "border border-line bg-surface px-3 py-1 text-xs font-medium text-muted hover:border-ink hover:text-ink"
 }
 
 // nodeFormAction returns the form POST target for create (/nodes) or edit (/nodes/{id}).

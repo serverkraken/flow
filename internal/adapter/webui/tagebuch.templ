@@ -131,7 +131,7 @@ templ tagebuchArchivMain(vm TagebuchArchivVM) {
 						{Label: vm.SelectedMonthLabel + " " + itoa(vm.Year)},
 					}, "")
 				<div class="flex items-baseline gap-3">
-					<h1 class="font-display text-2xl font-bold tracking-tight">{ vm.SelectedMonthLabel } { itoa(vm.Year) }</h1>
+					<h1 class="font-display text-[26px] font-bold tracking-tight">{ vm.SelectedMonthLabel } { itoa(vm.Year) }</h1>
 					<span class="text-[12.5px] text-muted">{ vm.SelectedCountLabel }</span>
 				</div>
 				if len(vm.Entries) == 0 {
@@ -177,7 +177,7 @@ templ tagebuchMarkierenMain(vm TagebuchMarkierenVM) {
 					<span class="flex-1"></span>
 					<a href={ templ.SafeURL(vm.Doc.EditHref) } class="text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "tagebuch.edit") }</a>
 				</div>
-				<h1 class="mt-3.5 font-display text-2xl font-bold tracking-tight">{ vm.Doc.Title }</h1>
+				<h1 class="mt-3.5 font-display text-[26px] font-bold tracking-tight">{ vm.Doc.Title }</h1>
 				<div id="tagebuch-mark-body" class="select-text">
 					@components.MarkdownProse(vm.Doc.BodyHTML)
 				</div>

@@ -140,7 +140,7 @@ func Item(r Row) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if r.TypeGlyph != "" {
-			var templ_7745c5c3_Var5 = []any{"shrink-0 text-[.8rem]", typeMarkerClass(r.TypeColor)}
+			var templ_7745c5c3_Var5 = []any{"shrink-0 text-[12.5px]", typeMarkerClass(r.TypeColor)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var5...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -165,7 +165,7 @@ func Item(r Row) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(r.TypeGlyph)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/docrow/docrow.templ`, Line: 66, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/docrow/docrow.templ`, Line: 66, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {

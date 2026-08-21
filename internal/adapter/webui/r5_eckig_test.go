@@ -73,3 +73,58 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// Die Klassen-Strings, die Go-Helfer zusammensetzen (nodeFilterChip,
+// StatusBadge, historie_vm …), sieht TestR5_TemplatesAreSquare nicht — genau
+// dort überlebten Pillen und Tailwind-Standardpalette den ersten Pass. Dieser
+// Test liest deshalb Templates UND Go-Quellen (ohne Generate und Tests) und
+// prüft neben dem Radius die anderen Off-Token-Spuren: Schriftgrößen in rem
+// statt auf der Typo-Leiter, Standardpalette mit Stufen (amber-100, slate-400),
+// Blur, Gradienten und Ring-Schatten.
+func TestTokens_NoOffTokenClassesInSources(t *testing.T) {
+	rules := []struct {
+		name string
+		re   *regexp.Regexp
+	}{
+		{"Radius", roundedClassRE},
+		{"rem-Schriftgröße", regexp.MustCompile(`text-\[\d*\.\d+rem\]|text-\[\d+rem\]`)},
+		{"Tailwind-Standardpalette", regexp.MustCompile(`\b(bg|text|border|ring|from|to|via|fill|stroke)-(amber|slate|emerald|gray|zinc|neutral|stone|red|orange|yellow|lime|green|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b`)},
+		{"Blur", regexp.MustCompile(`backdrop-blur`)},
+		{"Gradient", regexp.MustCompile(`bg-gradient-`)},
+		{"Ring", regexp.MustCompile(`\bring-\d`)},
+	}
+	var offenders []string
+	_ = filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			if d != nil && d.IsDir() && (d.Name() == "static" || d.Name() == "gen") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := d.Name()
+		isTempl := strings.HasSuffix(name, ".templ")
+		isGo := strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_templ.go") && !strings.HasSuffix(name, "_test.go")
+		if !isTempl && !isGo {
+			return nil
+		}
+		b, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return nil
+		}
+		for i, line := range strings.Split(string(b), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "//") {
+				continue
+			}
+			for _, r := range rules {
+				if !r.re.MatchString(line) || (r.name == "Radius" && liveDot(line)) {
+					continue
+				}
+				offenders = append(offenders, r.name+" · "+filepath.Base(path)+":"+itoa(i+1)+" "+strings.TrimSpace(line)[:min(90, len(strings.TrimSpace(line)))])
+			}
+		}
+		return nil
+	})
+	if len(offenders) > 0 {
+		t.Errorf("Token-Pass: %d Off-Token-Stellen:\n  %s", len(offenders), strings.Join(offenders[:min(20, len(offenders))], "\n  "))
+	}
+}

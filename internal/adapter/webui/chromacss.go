@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2"
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/styles"
 )
@@ -11,9 +12,33 @@ import (
 //go:generate go run ./gen/chromacss
 
 const (
-	chromaLightStyle = "github"
+	chromaLightStyle = "flow-karteikasten"
 	chromaDarkStyle  = "github-dark"
 )
+
+// Code-Syntax — drei Farben, mehr nicht (TOKENS.md): Schlüsselwort, Zahl,
+// String; Kommentar in Meta-Tinte, Text in Lesetinte auf Blatt. Alles, was
+// Chroma sonst noch kennt (Namen, Operatoren, Attribute), bleibt Text —
+// Farbe erklärt hier Grammatik, nicht Dekoration.
+var _ = styles.Register(chroma.MustNewStyle(chromaLightStyle, chroma.StyleEntries{
+	chroma.Background:        "#33312A bg:#FFFFFF",
+	chroma.Text:              "#33312A",
+	chroma.Keyword:           "#D9480F",
+	chroma.NameTag:           "#D9480F", // Markup-Tags lesen sich wie Schlüsselwörter
+	chroma.NameAttribute:     "#33312A",
+	chroma.LiteralNumber:     "#1864AB",
+	chroma.LiteralString:     "#0F8A46",
+	chroma.Comment:           "#8A8578",
+	chroma.CommentPreproc:    "#D9480F",
+	chroma.GenericDeleted:    "#B4452F",
+	chroma.GenericInserted:   "#0F8A46",
+	chroma.GenericEmph:       "italic",
+	chroma.GenericStrong:     "bold",
+	chroma.LineNumbers:       "#8A8578",
+	chroma.LineNumbersTable:  "#8A8578",
+	chroma.LineHighlight:     "bg:#F8F6F0",
+	chroma.Error:             "#B4452F",
+}))
 
 // GenerateChromaCSS returns the combined, theme-scoped chroma stylesheet:
 // light rules under :root, dark rules under :root[data-theme="dark"].

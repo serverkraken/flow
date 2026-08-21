@@ -137,7 +137,7 @@ templ projRow(row ProjRow, indented bool) {
 // nodeKindBadge renders the kind pill (glyph + i18n label, kind-toned).
 templ nodeKindBadge(kind domain.NodeKind) {
 	{{ k := NodeKindStyle(kind) }}
-	<span class={ "inline-flex shrink-0 items-center gap-1.5 border px-2 py-0.5 text-[.72rem] font-medium", kindToneClass(k.Tone) }>
+	<span class={ "inline-flex shrink-0 items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium", kindToneClass(k.Tone) }>
 		<span aria-hidden="true">{ k.Glyph }</span> { components.T(ctx, k.LabelKey) }
 	</span>
 }
@@ -152,7 +152,7 @@ templ nodeFormBody(d NodeFormData, editing *domain.Node) {
 }
 
 templ nodeFormInner(d NodeFormData, editing *domain.Node) {
-	<h1 class="mb-4 font-display text-2xl font-semibold">
+	<h1 class="mb-4 font-display text-[26px] font-semibold">
 		if editing != nil {
 			{ components.T(ctx, "node.edit.title") }
 		} else {
@@ -247,7 +247,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 			if editing != nil && editing.BannerRef != "" {
 				<div class="mb-2 flex items-center gap-3">
 					<img src={ "/nodes/" + editing.ID + "/banner?v=" + editing.BannerRef } alt="" class="h-[38px] w-full max-w-[240px] object-cover"/>
-					<label class="flex items-center gap-2 text-[.82rem]">
+					<label class="flex items-center gap-2 text-[12.5px]">
 						<input type="checkbox" name="bannerRemove" value="1"/> { components.T(ctx, "node.banner.remove") }
 					</label>
 				</div>
@@ -347,9 +347,9 @@ templ nodeColorRadio(name, current string) {
 			<input type="radio" name="color" value={ name } class="peer sr-only"/>
 		}
 		if name == "" {
-			<span class="inline-flex h-6 w-6 items-center justify-center border border-line text-xs text-faint peer-checked:ring-2 peer-checked:ring-blue">∅</span>
+			<span class="inline-flex h-6 w-6 items-center justify-center border border-line text-xs text-faint peer-checked:outline peer-checked:outline-2 peer-checked:outline-offset-1 peer-checked:outline-ink">∅</span>
 		} else {
-			<span class="inline-block h-6 w-6 ring-offset-1 peer-checked:ring-2 peer-checked:ring-blue" style={ "background-color:" + ColorHex(name) }></span>
+			<span class="inline-block h-6 w-6 peer-checked:outline peer-checked:outline-2 peer-checked:outline-offset-1 peer-checked:outline-ink" style={ "background-color:" + ColorHex(name) }></span>
 		}
 	</label>
 }

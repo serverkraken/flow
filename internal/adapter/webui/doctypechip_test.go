@@ -8,13 +8,16 @@ import (
 
 func TestDocTypeChipClass(t *testing.T) {
 	cases := map[domain.DocumentType]string{
-		domain.DocProject:       "tc-b",
-		domain.DocPlan:          "tc-v",
-		domain.DocSpec:          "tc-t",
-		domain.DocMemory:        "tc-o",
-		domain.DocDaily:         "tc-g",
-		domain.DocFree:          "tc-g",
-		domain.DocActiveContext: "tc-v", // Spec §7.1 context → violett
+		domain.DocProject:       "tc-b", // Notiz
+		domain.DocInstruction:   "tc-b", // Notiz, Instruktion
+		domain.DocFree:          "tc-b",
+		domain.DocPlan:          "tc-v", // Plan
+		domain.DocSkill:         "tc-v", // Ausstattung
+		domain.DocSpec:          "tc-t", // Spec
+		domain.DocMemory:        "tc-r", // Erinnerung
+		domain.DocAgent:         "tc-r",
+		domain.DocActiveContext: "tc-o", // Kontext = Akzent
+		domain.DocDaily:         "tc-g", // Tagebuch
 	}
 	for in, want := range cases {
 		if got := DocTypeChipClass(in); got != want {

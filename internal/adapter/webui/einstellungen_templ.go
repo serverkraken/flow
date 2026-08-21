@@ -89,14 +89,14 @@ func einstellungenContent(vm EinstellungenVM) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 md:mb-6\"><div><h1 class=\"font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 md:mb-6\"><div><h1 class=\"font-display text-[30px] sm:text-[30px] font-semibold leading-none tracking-tight\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "nav.settings"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/einstellungen.templ`, Line: 16, Col: 134}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/einstellungen.templ`, Line: 16, Col: 132}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -142,14 +142,14 @@ func EinstellungenTargetFragment(vm EinstellungenVM) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if vm.Err != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"mb-5 bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red\" role=\"alert\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"mb-5 bg-red/10 px-4 py-3 text-[14px] font-medium text-red\" role=\"alert\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Err)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/einstellungen.templ`, Line: 28, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/einstellungen.templ`, Line: 28, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -202,7 +202,7 @@ func einstellungenTargetBody(vm EinstellungenVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</h2><form hx-post=\"/ui/einstellungen/target\" hx-target=\"#einstellungen-target\" hx-swap=\"innerHTML\" class=\"space-y-5\"><label class=\"block\"><span class=\"eyebrow uppercase text-[.68rem] font-semibold text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</h2><form hx-post=\"/ui/einstellungen/target\" hx-target=\"#einstellungen-target\" hx-swap=\"innerHTML\" class=\"space-y-5\"><label class=\"block\"><span class=\"eyebrow uppercase text-[10.5px] font-semibold text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -228,7 +228,7 @@ func einstellungenTargetBody(vm EinstellungenVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" min=\"0\" max=\"1440\" inputmode=\"numeric\" class=\"field mt-1 w-32 font-mono tnum\"></label><div><p class=\"eyebrow uppercase text-[.68rem] font-semibold text-muted mb-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" min=\"0\" max=\"1440\" inputmode=\"numeric\" class=\"field mt-1 w-32 font-mono tnum\"></label><div><p class=\"eyebrow uppercase text-[10.5px] font-semibold text-muted mb-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -259,14 +259,14 @@ func einstellungenTargetBody(vm EinstellungenVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, wd := range vm.Weekdays {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<label class=\"block\"><span class=\"text-[.74rem] font-semibold text-body\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<label class=\"block\"><span class=\"text-[11px] font-semibold text-body\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(wd.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/einstellungen.templ`, Line: 46, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/einstellungen.templ`, Line: 46, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {

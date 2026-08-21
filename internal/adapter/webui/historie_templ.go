@@ -468,7 +468,7 @@ func historieToolbar(vm HistorieVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if vm.UnassignedCount > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"border border-orange/30 bg-orange/10 px-3.5 py-2.5 flex flex-wrap items-center gap-y-2 gap-x-4 mt-2.5\"><span class=\"text-orange inline-flex items-center gap-1.5 text-[.86rem] font-semibold\"><span aria-hidden=\"true\">○</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"border border-orange/30 bg-orange/10 px-3.5 py-2.5 flex flex-wrap items-center gap-y-2 gap-x-4 mt-2.5\"><span class=\"text-orange inline-flex items-center gap-1.5 text-[13px] font-semibold\"><span aria-hidden=\"true\">○</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -547,14 +547,14 @@ func historieSeg(options []components.SegOption, active string) templ.Component 
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\" aria-pressed=\"true\" class=\"px-3.5 py-1.5 text-[.85rem] font-semibold\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\" aria-pressed=\"true\" class=\"px-3.5 py-1.5 text-[13px] font-semibold\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, o.LabelKey))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 131, Col: 139}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 131, Col: 137}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -574,14 +574,14 @@ func historieSeg(options []components.SegOption, active string) templ.Component 
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" aria-pressed=\"false\" class=\"px-3.5 py-1.5 text-[.85rem] font-medium text-muted hover:text-ink\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" aria-pressed=\"false\" class=\"px-3.5 py-1.5 text-[13px] font-medium text-muted hover:text-ink\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, o.LabelKey))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 133, Col: 164}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 133, Col: 162}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -763,14 +763,14 @@ func historieDayHead(d HistorieDayVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if d.IsToday {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<span class=\"rounded bg-cyan/15 px-1 py-px text-[.56rem] tracking-normal\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<span class=\"bg-cyan/15 px-1 py-px text-[10px] tracking-normal\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "historie.today"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 179, Col: 115}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 179, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -924,7 +924,7 @@ func historieDayHead(d HistorieDayVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\" class=\"day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue\"><span aria-hidden=\"true\">▢</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\" class=\"day-chk hidden mt-1 items-center gap-1 text-[10.5px] font-semibold text-blue\"><span aria-hidden=\"true\">▢</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -985,7 +985,7 @@ func historieTimeAxis(vm HistorieVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, h := range vm.HourLabels {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "<span class=\"absolute right-2 text-[.66rem] font-mono tnum text-faint\" style=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "<span class=\"absolute right-2 text-[10.5px] font-mono tnum text-faint\" style=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1650,7 +1650,7 @@ func historieMonth(vm HistorieVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "</h2><div class=\"flex items-center gap-2 text-[.72rem] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2 w-2 bg-blue\"></span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "</h2><div class=\"flex items-center gap-2 text-[11px] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2 w-2 bg-blue\"></span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1736,7 +1736,7 @@ func historieMonth(vm HistorieVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if vm.MonthUnassigned > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 125, "<p class=\"text-orange text-[.86rem] font-semibold mt-1\"><span aria-hidden=\"true\">○</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 125, "<p class=\"text-orange text-[13px] font-semibold mt-1\"><span aria-hidden=\"true\">○</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1858,7 +1858,7 @@ func historieMonthCell(c HistorieMonthCellVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if c.HasUnassigned {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "<span class=\"text-orange text-[.66rem]\" aria-label=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "<span class=\"text-orange text-[10.5px]\" aria-label=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1876,7 +1876,7 @@ func historieMonthCell(c HistorieMonthCellVM) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else if c.Hours != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "<span class=\"text-accent text-[.6rem]\" aria-hidden=\"true\">●</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "<span class=\"text-accent text-[10px]\" aria-hidden=\"true\">●</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1998,7 +1998,7 @@ func historieLegend() templ.Component {
 			templ_7745c5c3_Var111 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 148, "<div class=\"mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.78rem] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2.5 w-2.5 border border-dashed border-faint bg-sunken\"></span> <span class=\"text-orange\">○</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 148, "<div class=\"mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-muted\"><span class=\"inline-flex items-center gap-1.5\"><span class=\"inline-block h-2.5 w-2.5 border border-dashed border-faint bg-sunken\"></span> <span class=\"text-orange\">○</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2565,7 +2565,7 @@ func historieActionBar(vm components.SelectionBarVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 185, "\" method=\"post\" class=\"contents\"><input type=\"hidden\" name=\"ids\" data-bulk-ids value=\"\"> <input type=\"hidden\" name=\"projectId\" data-bulk-project-id value=\"\"> <input type=\"hidden\" name=\"newProject\" data-bulk-new-project value=\"\"></form><div class=\"flex flex-wrap items-center gap-2.5 sm:gap-3\"><span class=\"inline-flex items-center gap-2 bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue\"><span aria-hidden=\"true\">▎</span><span data-sel-count>0</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 185, "\" method=\"post\" class=\"contents\"><input type=\"hidden\" name=\"ids\" data-bulk-ids value=\"\"> <input type=\"hidden\" name=\"projectId\" data-bulk-project-id value=\"\"> <input type=\"hidden\" name=\"newProject\" data-bulk-new-project value=\"\"></form><div class=\"flex flex-wrap items-center gap-2.5 sm:gap-3\"><span class=\"inline-flex items-center gap-2 bg-blue/10 px-3 py-2 text-[14px] font-semibold text-blue\"><span aria-hidden=\"true\">▎</span><span data-sel-count>0</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2604,7 +2604,7 @@ func historieActionBar(vm components.SelectionBarVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 188, " <span class=\"text-[.7rem] opacity-80\" aria-hidden=\"true\">▴</span></button><div data-assign-panel class=\"hidden absolute bottom-[calc(100%+8px)] right-0\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 188, " <span class=\"text-[11px] opacity-80\" aria-hidden=\"true\">▴</span></button><div data-assign-panel class=\"hidden absolute bottom-[calc(100%+8px)] right-0\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

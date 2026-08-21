@@ -30,7 +30,7 @@ func docBadge(k DocKind) badgeStyle {
 // Badge renders a doc-kind pill (glyph + i18n label, kind-colored).
 templ Badge(kind DocKind) {
 	{{ b := docBadge(kind) }}
-	<span class={ "inline-flex items-center gap-1.5 px-2 py-0.5 text-[.72rem] font-medium", b.cls }>
+	<span class={ "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium", b.cls }>
 		<span aria-hidden="true">{ b.glyph }</span> { T(ctx, b.labelKey) }
 	</span>
 }

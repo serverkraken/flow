@@ -343,7 +343,7 @@ func wissenEbeneSuche(vm WissenEbeneVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<label class=\"block\"><span class=\"mb-1 block text-[.78rem] font-semibold uppercase text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<label class=\"block\"><span class=\"mb-1 block text-[10.5px] font-semibold uppercase text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

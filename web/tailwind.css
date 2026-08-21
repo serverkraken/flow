@@ -93,6 +93,7 @@
   --green-wash:   227 240 230;   /* #E3F0E6 */
   --warn:         184 114  15;   /* Warnung = Akzent (TOKENS.md) */
   --warn-wash:    248 241 226;   /* Warnband #F8F1E2 */
+  --warn-line:    232 217 184;   /* Warnband-Rand #E8D9B8 */
 
   /* Alt-Namen ohne eigene Bedeutung im Karteikasten: auf den nächsten
      benannten Ton gelegt, damit keine Fläche off-palette stehen bleibt (R2). */
@@ -205,8 +206,10 @@
   --font-sans:    "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --radius-2xl: 1.25rem;
-  --radius-3xl: 1.75rem;
+  /* Radien: 0 — überall (TOKENS.md Maß und Raster). Die Utilities bleiben
+     benannt, tragen aber keinen Radius mehr. */
+  --radius-2xl: 0;
+  --radius-3xl: 0;
 
   --shadow-soft: 0 1px 2px rgb(var(--shadow) / .05);
   --shadow-lift: 0 18px 50px -24px rgb(var(--shadow) / .28);
@@ -259,7 +262,7 @@ aside, header, nav, article, input, .theme-fade {
 }
 
 /* Styled native <dialog> backdrop (Task 8). */
-dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px); }
+dialog::backdrop { background: rgb(var(--shadow) / .42); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
@@ -375,7 +378,6 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .now-line { position:absolute; left:0; right:0; height:0; border-top:2px solid rgb(var(--live-bright)); z-index:8; pointer-events:none; }
   .now-line::before {
     content:""; position:absolute; left:-4px; top:-4px; height:8px; width:8px; border-radius:99px; background:rgb(var(--live-bright));
-    box-shadow:0 0 0 3px rgb(var(--live-bright) / .25);
   }
 
   /* fuzzy-picker option rows */
@@ -384,7 +386,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* checkbox styled to brand */
   .chk {
     appearance:none; -webkit-appearance:none;
-    height:18px; width:18px; border-radius:6px; border:1.5px solid rgb(var(--faint));
+    height:18px; width:18px; border-radius:0; border:1.5px solid rgb(var(--faint));
     background:rgb(var(--surface)); display:inline-grid; place-content:center; cursor:pointer;
     transition: background .12s ease, border-color .12s ease;
     flex: none;
@@ -402,7 +404,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 
   /* Kristall form field — single source for glass inputs across editor + node form */
   .field { width: 100%; background: rgb(255 255 255 / .8); border: 1px solid rgb(var(--hair2)); border-radius: 0; padding: 8px 12px; color: rgb(var(--ink)); transition: border-color .13s ease, box-shadow .13s ease; }
-  .field:focus { outline: none; border-color: rgb(var(--accent) / .5); box-shadow: 0 0 0 3px rgb(var(--accent) / .12); }
+  .field:focus { outline: none; border-color: rgb(var(--accent)); }
   .field:disabled { color: rgb(var(--muted)); background: rgb(var(--sunken)); }
   .field::placeholder { color: rgb(var(--faint)); }
 
@@ -413,26 +415,26 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 
   /* rollup-tile accent underline (mockup .rtile::after); hue via --ac */
   .rtile-ac { position: relative; }
-  .rtile-ac::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background: linear-gradient(90deg, rgb(var(--ac, var(--blue))), transparent); }
+  .rtile-ac::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background: rgb(var(--ac, var(--blue))); }
 
   /* pill tab strip (mockup .tabs) */
-  .pill-tabs { display:flex; gap:4px; background: rgb(var(--sunken) / .75); border:1px solid rgb(var(--line2)); border-radius:14px; padding:5px; overflow-x:auto; }
+  .pill-tabs { display:flex; gap:4px; background: rgb(var(--sunken) / .75); border:1px solid rgb(var(--line2)); border-radius:0; padding:5px; overflow-x:auto; }
   /* K5 M2: right-edge fade cues that the pill strip scrolls horizontally when
      it overflows (mobile has no visible scrollbar). Pure affordance — the
      strip already scrolls via overflow-x:auto. */
   .pill-tabs { position: relative; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); }
   .pill-tabs::-webkit-scrollbar { display: none; }
-  .pill-tab { display:flex; align-items:center; gap:8px; padding:9px 15px; border-radius:10px; color: rgb(var(--muted)); font-weight:600; font-size:13px; white-space:nowrap; transition: color .13s ease, background .13s ease; }
+  .pill-tab { display:flex; align-items:center; gap:8px; padding:9px 15px; border-radius:0; color: rgb(var(--muted)); font-weight:600; font-size:13px; white-space:nowrap; transition: color .13s ease, background .13s ease; }
   .pill-tab:hover { color: rgb(var(--ink)); }
   .pill-tab[aria-current="page"] { background: rgb(var(--glass) / var(--glass-strong-a)); color: rgb(var(--ink)); }
-  .pill-cnt { font-size:10.5px; color: rgb(var(--faint)); background: rgb(var(--glass) / .07); padding:1px 7px; border-radius:999px; }
+  .pill-cnt { font-size:10.5px; color: rgb(var(--faint)); background: rgb(var(--glass) / .07); padding:1px 7px; border-radius:0; }
   .pill-tab[aria-current="page"] .pill-cnt { color: rgb(var(--cyan)); }
 
   /* sidebar tree: form-coded kind dots (mockup .node .dot), hue via --nc */
-  .nvdot { width:9px; height:9px; flex:0 0 auto; background: rgb(var(--nc, var(--blue))); box-shadow: 0 0 8px -1px rgb(var(--nc, var(--blue))); }
-  .nvdot-eng { border-radius:50%; }
-  .nvdot-vor { transform: rotate(45deg); border-radius:1.5px; }
-  .nvdot-repo { clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); box-shadow:none; }
+  .nvdot { width:9px; height:9px; flex:0 0 auto; background: rgb(var(--nc, var(--blue))); }
+  .nvdot-eng { border-radius:0; }
+  .nvdot-vor { transform: rotate(45deg); border-radius:0; }
+  .nvdot-repo { clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
   /* soft fade truncation (mockup .node .lb) — replaces the hard ellipsis */
   /* Die Kristall-Fassung der aktiven Schienenzeile (blauer Verlauf plus
      blauer Innenschatten) ist entfallen — die Karteikasten-Regel weiter unten
@@ -440,33 +442,37 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      keinen setzt und ihn damit nicht überschrieb. */
 
   /* Übersicht feed (Kristall K2 Task 5): Work/Privat split bar + chain/comp share bar */
-  .split-bar { height:14px; border-radius:999px; overflow:hidden; display:flex; background:rgb(var(--sunken)); border:1px solid rgb(var(--line2)); }
+  .split-bar { height:14px; border-radius:0; overflow:hidden; display:flex; background:rgb(var(--sunken)); border:1px solid rgb(var(--line2)); }
   .split-work { background: rgb(var(--accent)); }
-  .split-priv { background:linear-gradient(90deg,rgb(var(--purple)),rgb(var(--purple) / .7)); }
-  .chain-bar { height:6px; border-radius:999px; background:rgb(var(--sunken)); overflow:hidden; }
+  .split-priv { background:rgb(var(--purple)); }
+  .chain-bar { height:6px; border-radius:0; background:rgb(var(--sunken)); overflow:hidden; }
 
   /* K5 L2: quiet scrollbar for the sidebar nav scroll region */
   .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--scrollthumb)) transparent; }
   .scroll-thin::-webkit-scrollbar { width: 6px; }
-  .scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--scrollthumb)); border-radius: 999px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--scrollthumb)); border-radius: 0; }
 
   /* Zwei-Flächen-Regel (Spec §4): Inhalt auf Papier, Instrumente auf Fläche */
   /* R5: alles eckig — kein Radius an Flächen, Knöpfen, Feldern, Dialogen. */
   .panel { background: rgb(var(--panel)); border-radius: 0; }
 
-  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: rgb(var(--faint)); }
+  /* Beschriftung über einem Block (Typo-Leiter): 10.5 / 700 / .14em / caps */
+  .eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgb(var(--faint)); }
 
   /* Dokumenttyp-Chips (Spec §7.1) — feste semantische Zuordnung, nie pro Projekt */
   .typechip { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(var(--meta)); border: 1px solid rgb(var(--hair2)); border-radius: 0; padding: 1.5px 6px; background: rgb(var(--surface)); flex-shrink: 0; }
-  .tc-b { color: #2554E8; background: #E8EEFE; border-color: #C9D8FC; }
-  .tc-v { color: #7A3FE4; background: #F1EAFE; border-color: #DFD0FA; }
-  .tc-t { color: #0B8A7B; background: #E2F5F2; border-color: #C6EAE5; }
-  .tc-o { color: #B45309; background: #FDF0D9; border-color: #F5DFB3; }
-  .tc-g { color: #15883E; background: #E5F6EA; border-color: #CBEBD5; }
-  .tc-r { color: #D14324; background: #FDEAE4; border-color: #F8D5C9; }
+  /* Kartentypen (TOKENS.md): Ton als Schrift, Wash als Fläche, Rand = Ton
+     auf ein Viertel. b Notiz/Instruktion · v Plan/Ausstattung · t Spec ·
+     o Kontext (Akzent) · g Tagebuch · r Erinnerung. */
+  .tc-b { color: rgb(var(--blue));   background: rgb(var(--blue-wash));   border-color: rgb(var(--blue) / .25); }
+  .tc-v { color: rgb(var(--purple)); background: rgb(var(--purple-wash)); border-color: rgb(var(--purple) / .25); }
+  .tc-t { color: rgb(var(--teal));   background: rgb(var(--teal-wash));   border-color: rgb(var(--teal) / .25); }
+  .tc-o { color: rgb(var(--accent)); background: rgb(var(--accent-wash)); border-color: rgb(var(--accent) / .25); }
+  .tc-g { color: rgb(var(--green));  background: rgb(var(--green-wash));  border-color: rgb(var(--green) / .25); }
+  .tc-r { color: rgb(var(--red));    background: rgb(var(--red-wash));    border-color: rgb(var(--red) / .25); }
 
   /* Ersatz-Avatare (Spec §7.2/§8): weiße Initialen auf sattem Grund */
-  .ava { display: inline-grid; place-items: center; flex-shrink: 0; font-weight: 700; color: #fff; border-radius: 0; }
+  .ava { display: inline-grid; place-items: center; flex-shrink: 0; font-weight: 700; color: rgb(var(--oncolor)); border-radius: 0; }
   .av-28 { width: 28px; height: 28px; font-size: 11px; border-radius: 0; }
   .av-36 { width: 36px; height: 36px; font-size: 13px; }
   .av-64 { width: 64px; height: 64px; font-size: 22px; border-radius: 0; }
@@ -474,8 +480,8 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .ava-agent { background: rgb(var(--surface)); border: 1.5px dashed rgb(var(--hair2)); color: rgb(var(--meta)); }
   .ava-me { background: rgb(var(--wash)); border: 1px solid rgb(var(--hair2)); color: rgb(var(--ink)); }
   .ava-logo { background: rgb(var(--surface)); border: 1px solid rgb(var(--hair2)); }
-  .av-a { background: #3D6BF0; } .av-b { background: #8250DF; } .av-c { background: #0E9888; }
-  .av-d { background: #D97706; } .av-e { background: #1FA254; } .av-f { background: #E25C3C; }
+  .av-a { background: rgb(var(--blue)); } .av-b { background: rgb(var(--purple)); } .av-c { background: rgb(var(--teal)); }
+  .av-d { background: rgb(var(--accent)); } .av-e { background: rgb(var(--live)); } .av-f { background: rgb(var(--red)); }
 
   /* ── Lesesaal L2: Layout-Klassen (Mockup v2.4 Z.141–322, benannt statt arbitrary) ── */
   /* Pfad-Rückgrat */
@@ -540,7 +546,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .lvl2 { margin-left: 26px; }
   /* Buttons + Puls-Marker (Mockup Z.108, 262–267, 275–279) */
   .btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 0; padding: 9px 16px; font-size: 14px; font-weight: 600; border: 1px solid transparent; }
-  .btn-pri { background: rgb(var(--accent)); color: #fff; }
+  .btn-pri { background: rgb(var(--accent)); color: rgb(var(--oncolor)); }
   .btn-pri:hover { background: rgb(var(--accent-deep)); }
   .btn-q { border-color: rgb(var(--hair2)); color: rgb(var(--ink)); background: rgb(var(--surface)); }
   .btn-q:hover { border-color: rgb(var(--faint)); }
@@ -857,7 +863,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      Typfarbe plus Wash als Zeilenhintergrund — nie Rahmen, nie Radius, nie
      Schatten. --nc is the row's own node color (nvHue); falls back to the
      general ocher accent for nodes without one. */
-  .nv-row-active { border-left: 3px solid rgb(var(--nc, var(--accent))); background: linear-gradient(90deg, rgb(var(--nc, var(--accent)) / .09), transparent 70%); color: rgb(var(--ink)); font-weight:700; }
+  .nv-row-active { border-left: 3px solid rgb(var(--nc, var(--accent))); background: rgb(var(--nc, var(--accent)) / .09); color: rgb(var(--ink)); font-weight:700; }
   .nv-row-active .fade-label { -webkit-mask-image:none; mask-image:none; }
   .prose {
     @apply text-body leading-relaxed;
@@ -871,7 +877,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     min-width: 0;
   }
   .prose > * + * { margin-top: 1.05em; }
-  .prose h1 { @apply font-display text-2xl mt-8 mb-3 text-ink; }
+  .prose h1 { @apply font-display mt-8 mb-3 text-ink; font-size: 26px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; }
   .prose h2 { font-size: 20px; font-weight: 750; letter-spacing: -.015em; margin-top: 2.1em; padding-top: 1.1em; border-top: 1px solid rgb(var(--hair)); color: rgb(var(--ink)); }
   .prose h3 { font-size: 19px; font-weight: 750; margin-top: 1.7em; color: rgb(var(--ink)); }
   /* Lesesaal L6 Task 4: hover-¶ deep-link anchor, server-rendered as the
@@ -917,8 +923,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     word-break: break-word;
   }
   .prose pre {
-    background: rgb(var(--sheet));
-    border: 1px solid rgb(var(--hair));
+    background: rgb(var(--code-bg));
+    color: rgb(var(--code-fg));
+    border: 1px solid rgb(var(--hair2));
     border-radius: 0;
     padding: 16px 18px;
     overflow-x: auto;
@@ -969,7 +976,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      .callout.callout-<kind> + .callout-title/.callout-glyph (nicht das
      Mockup-.m) — Kind-Farbcodierung bleibt über die bestehenden
      .callout-<kind>-Utilities erhalten. */
-  .callout { @apply my-4 rounded-lg; display: flex; gap: 12px; background: rgb(var(--warn-wash)); border: 1px solid #EADFC8; border-radius: 0; padding: 14px 16px; font-size: 14px; }
+  .callout { @apply my-4; display: flex; gap: 12px; background: rgb(var(--warn-wash)); border: 1px solid rgb(var(--warn-line)); border-radius: 0; padding: 14px 16px; font-size: 14px; }
   .callout-title { @apply font-semibold mb-1 flex items-center gap-2; }
   .callout-glyph { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 700; color: rgb(var(--warn)); flex-shrink: 0; }
   .callout-note { @apply border-accent bg-accent/5; }

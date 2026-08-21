@@ -130,7 +130,7 @@ func RailNav(vm RailNavVM) templ.Component {
 			}
 		}
 		if len(vm.Rows) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<p class=\"px-6 py-1 text-[.78rem] text-faint\">—</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<p class=\"px-6 py-1 text-[12.5px] text-faint\">—</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

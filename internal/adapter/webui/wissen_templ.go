@@ -1555,7 +1555,7 @@ func wissenTagChips(vm WissenVM) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "\" class=\"inline-flex items-center gap-1.5 border border-blue/40 bg-blue/10 px-3 py-1 text-[.8rem] font-medium text-blue\"><span aria-hidden=\"true\">#</span>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "\" class=\"inline-flex items-center gap-1.5 border border-blue/40 bg-blue/10 px-3 py-1 text-[12.5px] font-medium text-blue\"><span aria-hidden=\"true\">#</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1595,7 +1595,7 @@ func wissenTagChips(vm WissenVM) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, "\" class=\"inline-flex items-center gap-1.5 border border-line px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue\"><span aria-hidden=\"true\">#</span>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, "\" class=\"inline-flex items-center gap-1.5 border border-line px-3 py-1 text-[12.5px] font-medium text-muted hover:border-blue/40 hover:text-blue\"><span aria-hidden=\"true\">#</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1637,7 +1637,7 @@ func wissenTagChips(vm WissenVM) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "\" class=\"ml-1 text-[.8rem] text-muted underline underline-offset-2 hover:text-ink\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "\" class=\"ml-1 text-[12.5px] text-muted underline underline-offset-2 hover:text-ink\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2064,7 +2064,7 @@ func WissenTypeFragment(vm WissenTypeVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 165, "\" class=\"mb-2 inline-block text-[.8rem] text-muted underline underline-offset-2 hover:text-ink\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 165, "\" class=\"mb-2 inline-block text-[12.5px] text-muted underline underline-offset-2 hover:text-ink\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2265,7 +2265,7 @@ func wissenBulkActionBar() templ.Component {
 			templ_7745c5c3_Var125 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 179, "<div class=\"hidden fixed inset-x-0 bottom-0 z-50 px-3 md:bottom-5 md:pl-[260px] md:pr-6\" data-wissen-action-bar><div class=\"mx-auto max-w-[1100px] border border-line bg-surface p-3 md:mx-0\"><form id=\"wissenBulkForm\" class=\"contents\"><input type=\"hidden\" name=\"ids\" data-wissen-ids value=\"\"></form><div class=\"flex flex-wrap items-center gap-2.5\"><span class=\"inline-flex items-center gap-2 border-l-2 border-blue bg-blue/10 px-3 py-2 text-[.9rem] font-semibold text-blue\"><span data-wissen-count>0</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 179, "<div class=\"hidden fixed inset-x-0 bottom-0 z-50 px-3 md:bottom-5 md:pl-[260px] md:pr-6\" data-wissen-action-bar><div class=\"mx-auto max-w-[1100px] border border-line bg-surface p-3 md:mx-0\"><form id=\"wissenBulkForm\" class=\"contents\"><input type=\"hidden\" name=\"ids\" data-wissen-ids value=\"\"></form><div class=\"flex flex-wrap items-center gap-2.5\"><span class=\"inline-flex items-center gap-2 border-l-2 border-blue bg-blue/10 px-3 py-2 text-[14px] font-semibold text-blue\"><span data-wissen-count>0</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2309,7 +2309,7 @@ func wissenBulkActionBar() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, mode := range []string{"auto", "immer", "nie"} {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 183, "<button type=\"button\" class=\"px-2.5 py-2 text-[.78rem] font-medium text-muted hover:bg-sunken hover:text-ink disabled:cursor-not-allowed disabled:opacity-40\" data-wissen-submit data-wissen-context-action data-wissen-mode=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 183, "<button type=\"button\" class=\"px-2.5 py-2 text-[12.5px] font-medium text-muted hover:bg-sunken hover:text-ink disabled:cursor-not-allowed disabled:opacity-40\" data-wissen-submit data-wissen-context-action data-wissen-mode=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

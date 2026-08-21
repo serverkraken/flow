@@ -63,7 +63,7 @@ func rowClass() string {
 templ Item(r Row) {
 	<div class={ rowClass() } data-tint={ components.Tint(r.TypeColor) } data-tint-on?={ r.Selected }>
 		if r.TypeGlyph != "" {
-			<span class={ "shrink-0 text-[.8rem]", typeMarkerClass(r.TypeColor) } aria-hidden="true">{ r.TypeGlyph }</span>
+			<span class={ "shrink-0 text-[12.5px]", typeMarkerClass(r.TypeColor) } aria-hidden="true">{ r.TypeGlyph }</span>
 		}
 		<span class="min-w-0 flex-1">
 			if r.Href != "" {

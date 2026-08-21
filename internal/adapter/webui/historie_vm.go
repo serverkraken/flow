@@ -168,19 +168,19 @@ func historieDayLabelClass(d HistorieDayVM) string {
 func historieDayNumClass(d HistorieDayVM) string {
 	switch {
 	case d.IsToday:
-		return "text-[1.05rem] font-semibold tnum text-cyan"
+		return "text-[17px] font-semibold tnum text-cyan"
 	case d.IsWeekend:
-		return "text-[1.05rem] font-semibold tnum text-faint"
+		return "text-[17px] font-semibold tnum text-faint"
 	default:
-		return "text-[1.05rem] font-semibold tnum"
+		return "text-[17px] font-semibold tnum"
 	}
 }
 
 func historieDayDurClass(d HistorieDayVM) string {
 	if d.IsToday {
-		return "hidden xl:inline font-mono text-[.66rem] tnum text-cyan"
+		return "hidden xl:inline font-mono text-[10.5px] tnum text-cyan"
 	}
-	return "hidden xl:inline font-mono text-[.66rem] tnum text-muted"
+	return "hidden xl:inline font-mono text-[10.5px] tnum text-muted"
 }
 
 // historieColumnClass styles one day's grid-lines column: a subtle wash on
@@ -198,9 +198,9 @@ func historieColumnClass(d HistorieDayVM) string {
 
 func historieAgendaHeadClass(d HistorieDayVM) string {
 	if d.IsToday {
-		return "text-[1.05rem] font-semibold text-cyan"
+		return "text-[17px] font-semibold text-cyan"
 	}
-	return "text-[1.05rem] font-semibold"
+	return "text-[17px] font-semibold"
 }
 
 // ── month cell class helpers (hairline day-cells, not Kristall cards) ───────
@@ -220,19 +220,19 @@ func historieMonthCellClass(c HistorieMonthCellVM) string {
 func historieMonthNumClass(c HistorieMonthCellVM) string {
 	switch {
 	case c.IsToday:
-		return "text-[.72rem] tnum text-cyan font-semibold"
+		return "text-[11px] tnum text-cyan font-semibold"
 	case c.IsWeekend:
-		return "text-[.72rem] tnum text-faint"
+		return "text-[11px] tnum text-faint"
 	default:
-		return "text-[.72rem] tnum text-muted"
+		return "text-[11px] tnum text-muted"
 	}
 }
 
 func historieMonthHoursClass(c HistorieMonthCellVM) string {
 	if c.IsToday {
-		return "font-mono text-[.6rem] tnum text-cyan"
+		return "font-mono text-[10px] tnum text-cyan"
 	}
-	return "font-mono text-[.6rem] tnum text-body"
+	return "font-mono text-[10px] tnum text-body"
 }
 
 // historieMonthBarClass colors a stacked mini project-bar by its hue (or a
@@ -240,13 +240,13 @@ func historieMonthHoursClass(c HistorieMonthCellVM) string {
 // arbitrary class injection.
 func historieMonthBarClass(b HistorieMonthBar) string {
 	if b.Dashed {
-		return "block h-1.5 rounded-full border border-dashed border-faint bg-sunken"
+		return "block h-1.5 border border-dashed border-faint bg-sunken"
 	}
 	switch b.Hue {
 	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return "block h-1.5 rounded-full bg-" + b.Hue
+		return "block h-1.5 bg-" + b.Hue
 	default:
-		return "block h-1.5 rounded-full bg-blue"
+		return "block h-1.5 bg-blue"
 	}
 }
 

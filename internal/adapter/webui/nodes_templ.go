@@ -813,7 +813,7 @@ func nodeKindBadge(kind domain.NodeKind) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		k := NodeKindStyle(kind)
-		var templ_7745c5c3_Var46 = []any{"inline-flex shrink-0 items-center gap-1.5 border px-2 py-0.5 text-[.72rem] font-medium", kindToneClass(k.Tone)}
+		var templ_7745c5c3_Var46 = []any{"inline-flex shrink-0 items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium", kindToneClass(k.Tone)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var46...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -945,7 +945,7 @@ func nodeFormInner(d NodeFormData, editing *domain.Node) templ.Component {
 			templ_7745c5c3_Var52 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<h1 class=\"mb-4 font-display text-2xl font-semibold\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<h1 class=\"mb-4 font-display text-[26px] font-semibold\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1512,7 +1512,7 @@ func nodeFormInner(d NodeFormData, editing *domain.Node) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "\" alt=\"\" class=\"h-[38px] w-full max-w-[240px] object-cover\"> <label class=\"flex items-center gap-2 text-[.82rem]\"><input type=\"checkbox\" name=\"bannerRemove\" value=\"1\"> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "\" alt=\"\" class=\"h-[38px] w-full max-w-[240px] object-cover\"> <label class=\"flex items-center gap-2 text-[12.5px]\"><input type=\"checkbox\" name=\"bannerRemove\" value=\"1\"> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2182,19 +2182,19 @@ func nodeColorRadio(name, current string) templ.Component {
 			}
 		}
 		if name == "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 159, "<span class=\"inline-flex h-6 w-6 items-center justify-center border border-line text-xs text-faint peer-checked:ring-2 peer-checked:ring-blue\">∅</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 159, "<span class=\"inline-flex h-6 w-6 items-center justify-center border border-line text-xs text-faint peer-checked:outline peer-checked:outline-2 peer-checked:outline-offset-1 peer-checked:outline-ink\">∅</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "<span class=\"inline-block h-6 w-6 ring-offset-1 peer-checked:ring-2 peer-checked:ring-blue\" style=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "<span class=\"inline-block h-6 w-6 peer-checked:outline peer-checked:outline-2 peer-checked:outline-offset-1 peer-checked:outline-ink\" style=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var125 string
 			templ_7745c5c3_Var125, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color:" + ColorHex(name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nodes.templ`, Line: 352, Col: 139}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nodes.templ`, Line: 352, Col: 181}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var125))
 			if templ_7745c5c3_Err != nil {

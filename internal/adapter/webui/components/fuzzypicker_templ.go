@@ -82,7 +82,7 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\"><div class=\"px-1.5 pb-2\"><label class=\"relative block\"><span class=\"absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-[.8rem]\" aria-hidden=\"true\">›</span> <input type=\"text\" data-fuzzy-filter placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\"><div class=\"px-1.5 pb-2\"><label class=\"relative block\"><span class=\"absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-[12.5px]\" aria-hidden=\"true\">›</span> <input type=\"text\" data-fuzzy-filter placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -108,7 +108,7 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" class=\"w-full border border-line bg-sunken/60 py-2 pl-7 pr-2 text-[.85rem] placeholder:text-faint focus:border-blue/40 transition-colors\"></label></div><ul class=\"max-h-[230px] overflow-auto scroll-thin\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" class=\"w-full border border-line bg-sunken/60 py-2 pl-7 pr-2 text-[13px] placeholder:text-faint focus:border-blue/40 transition-colors\"></label></div><ul class=\"max-h-[230px] overflow-auto scroll-thin\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -139,7 +139,7 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"><span class=\"flex items-center gap-2.5 text-[.9rem] font-medium\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"><span class=\"flex items-center gap-2.5 text-[14px] font-medium\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -187,14 +187,14 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span> <span class=\"font-mono text-[.7rem] tnum text-muted\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span> <span class=\"font-mono text-[11px] tnum text-muted\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(p.Rate)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/fuzzypicker.templ`, Line: 35, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/fuzzypicker.templ`, Line: 35, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -205,7 +205,7 @@ func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"border-t border-line2 mt-1 pt-1\"><button type=\"button\" data-new-project class=\"pick-row flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[.9rem] font-medium text-green hover:bg-green/10\" role=\"option\" aria-selected=\"false\"><span aria-hidden=\"true\">✚</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"border-t border-line2 mt-1 pt-1\"><button type=\"button\" data-new-project class=\"pick-row flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[14px] font-medium text-green hover:bg-green/10\" role=\"option\" aria-selected=\"false\"><span aria-hidden=\"true\">✚</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

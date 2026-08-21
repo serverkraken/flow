@@ -139,14 +139,14 @@ func sessionDialogBody(vm SessionDialogVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<!-- Date field --><label class=\"block\"><span class=\"block text-[.85rem] font-medium text-body mb-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<!-- Date field --><label class=\"block\"><span class=\"block text-[13px] font-medium text-body mb-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "session.dialog.date"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 47, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 47, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -165,14 +165,14 @@ func sessionDialogBody(vm SessionDialogVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors\"></label><!-- Time fields (From/To) --><div class=\"grid grid-cols-2 gap-3\"><label class=\"block\"><span class=\"block text-[.85rem] font-medium text-body mb-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors\"></label><!-- Time fields (From/To) --><div class=\"grid grid-cols-2 gap-3\"><label class=\"block\"><span class=\"block text-[13px] font-medium text-body mb-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "session.dialog.from"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 55, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 55, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -191,14 +191,14 @@ func sessionDialogBody(vm SessionDialogVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors\"></label> <label class=\"block\"><span class=\"block text-[.85rem] font-medium text-body mb-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors\"></label> <label class=\"block\"><span class=\"block text-[13px] font-medium text-body mb-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "session.dialog.to"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 60, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 60, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -217,25 +217,25 @@ func sessionDialogBody(vm SessionDialogVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors\"></label></div><!-- Node select (only when Nodes not empty); when hidden but NodeID is\n\t\t     known, carry it as a hidden field so the booked node survives an\n\t\t     edit untouched (containment: Spec §4). -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors\"></label></div><!-- Node select (only when Nodes not empty); when hidden but NodeID is\n\t\t     known, carry it as a hidden field so the booked node survives an\n\t\t     edit untouched (containment: Spec §4). -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(vm.Nodes) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<label class=\"block\"><span class=\"block text-[.85rem] font-medium text-body mb-1\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<label class=\"block\"><span class=\"block text-[13px] font-medium text-body mb-1\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "session.dialog.node"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 71, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 71, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span> <select name=\"node\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors\"><option value=\"\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span> <select name=\"node\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors\"><option value=\"\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -350,14 +350,14 @@ func sessionDialogBody(vm SessionDialogVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<!-- Tags field --><label class=\"block\"><span class=\"block text-[.85rem] font-medium text-body mb-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<!-- Tags field --><label class=\"block\"><span class=\"block text-[13px] font-medium text-body mb-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "session.dialog.tags"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 89, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 89, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -376,33 +376,33 @@ func sessionDialogBody(vm SessionDialogVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors\"></label><!-- Note field --><label class=\"block\"><span class=\"block text-[.85rem] font-medium text-body mb-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" class=\"w-full border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors\"></label><!-- Note field --><label class=\"block\"><span class=\"block text-[13px] font-medium text-body mb-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "session.dialog.note"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 96, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 96, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <textarea name=\"note\" rows=\"2\" class=\"w-full resize-none border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <textarea name=\"note\" rows=\"2\" class=\"w-full resize-none border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[12.5px] focus:border-blue/40 transition-colors\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Note)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 98, Col: 167}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessiondialog.templ`, Line: 98, Col: 168}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</textarea></label><!-- Action buttons --><div class=\"mt-6 flex items-center justify-end gap-3\"><button type=\"button\" data-dialog-close class=\"inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[.92rem] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</textarea></label><!-- Action buttons --><div class=\"mt-6 flex items-center justify-end gap-3\"><button type=\"button\" data-dialog-close class=\"inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[14px] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

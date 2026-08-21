@@ -54,9 +54,9 @@ func blockStyle(vm SessionBlockVM) string {
 // titleClass dims the title text for unassigned blocks.
 func blockTitleClass(unassigned bool) string {
 	if unassigned {
-		return "b-title text-[.74rem] font-semibold leading-tight text-muted"
+		return "b-title text-[11px] font-semibold leading-tight text-muted"
 	}
-	return "b-title text-[.78rem] font-semibold leading-tight wtblock-c"
+	return "b-title text-[12.5px] font-semibold leading-tight wtblock-c"
 }
 
 // SessionBlock renders a positioned worktime block in the time grid (ported
@@ -216,7 +216,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span></span> <span class=\"b-time mt-0.5 font-mono text-[.66rem] tnum text-body\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span></span> <span class=\"b-time mt-0.5 font-mono text-[10.5px] tnum text-body\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

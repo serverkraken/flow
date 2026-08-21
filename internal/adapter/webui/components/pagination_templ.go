@@ -95,7 +95,7 @@ func Pagination(p PageNav) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" class=\"inline-flex items-center gap-1.5 border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors\"><span aria-hidden=\"true\">‹</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" class=\"inline-flex items-center gap-1.5 border border-line bg-surface px-3.5 py-2 text-[13px] font-medium text-body hover:bg-sunken hover:text-ink transition-colors\"><span aria-hidden=\"true\">‹</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -113,7 +113,7 @@ func Pagination(p PageNav) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span aria-disabled=\"true\" class=\"inline-flex items-center gap-1.5 border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed\"><span aria-hidden=\"true\">‹</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span aria-disabled=\"true\" class=\"inline-flex items-center gap-1.5 border border-line2 bg-sunken/50 px-3.5 py-2 text-[13px] font-medium text-faint cursor-not-allowed\"><span aria-hidden=\"true\">‹</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -141,7 +141,7 @@ func Pagination(p PageNav) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"inline-flex items-center gap-1.5 border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"inline-flex items-center gap-1.5 border border-line bg-surface px-3.5 py-2 text-[13px] font-medium text-body hover:bg-sunken hover:text-ink transition-colors\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -159,7 +159,7 @@ func Pagination(p PageNav) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<span aria-disabled=\"true\" class=\"inline-flex items-center gap-1.5 border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<span aria-disabled=\"true\" class=\"inline-flex items-center gap-1.5 border border-line2 bg-sunken/50 px-3.5 py-2 text-[13px] font-medium text-faint cursor-not-allowed\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -177,7 +177,7 @@ func Pagination(p PageNav) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><span class=\"text-[.82rem] text-muted tnum\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><span class=\"text-[12.5px] text-muted tnum\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -230,7 +230,7 @@ func Pagination(p PageNav) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"border border-dashed border-line px-3.5 py-2 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-accent transition-colors\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"border border-dashed border-line px-3.5 py-2 text-[13px] font-medium text-muted hover:border-blue/40 hover:text-accent transition-colors\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

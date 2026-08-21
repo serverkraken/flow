@@ -395,7 +395,7 @@ func exportDownloadSection(d ExportPageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"><label class=\"flex items-center gap-1.5 text-[.86rem] text-body\"><input type=\"radio\" name=\"format\" value=\"csv\" checked> CSV</label> <label class=\"flex items-center gap-1.5 text-[.86rem] text-body\"><input type=\"radio\" name=\"format\" value=\"json\"> JSON</label> <label class=\"flex items-center gap-1.5 text-[.86rem] text-body\"><input type=\"radio\" name=\"format\" value=\"md\"> Markdown</label></div><button type=\"submit\" class=\"btn btn-pri\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"><label class=\"flex items-center gap-1.5 text-[13px] text-body\"><input type=\"radio\" name=\"format\" value=\"csv\" checked> CSV</label> <label class=\"flex items-center gap-1.5 text-[13px] text-body\"><input type=\"radio\" name=\"format\" value=\"json\"> JSON</label> <label class=\"flex items-center gap-1.5 text-[13px] text-body\"><input type=\"radio\" name=\"format\" value=\"md\"> Markdown</label></div><button type=\"submit\" class=\"btn btn-pri\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

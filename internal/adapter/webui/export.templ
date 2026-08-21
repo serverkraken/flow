@@ -94,13 +94,13 @@ templ exportDownloadSection(d ExportPageData) {
 				<input type="hidden" name="from" value={ d.From }/>
 				<input type="hidden" name="to" value={ d.To }/>
 				<div class="flex flex-wrap items-center gap-4" role="radiogroup" aria-label={ components.T(ctx, "export.format") }>
-					<label class="flex items-center gap-1.5 text-[.86rem] text-body">
+					<label class="flex items-center gap-1.5 text-[13px] text-body">
 						<input type="radio" name="format" value="csv" checked/> CSV
 					</label>
-					<label class="flex items-center gap-1.5 text-[.86rem] text-body">
+					<label class="flex items-center gap-1.5 text-[13px] text-body">
 						<input type="radio" name="format" value="json"/> JSON
 					</label>
-					<label class="flex items-center gap-1.5 text-[.86rem] text-body">
+					<label class="flex items-center gap-1.5 text-[13px] text-body">
 						<input type="radio" name="format" value="md"/> Markdown
 					</label>
 				</div>

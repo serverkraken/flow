@@ -23,8 +23,8 @@ templ styleguideSubnav() {
 templ styleguideContent() {
 	@Breadcrumb(nil, []Crumb{{Href: "/", Label: "flow"}, {Label: T(ctx, "styleguide.title")}}, "bereich")
 	<header class="mb-8">
-		<p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">{ T(ctx, "styleguide.subtitle") }</p>
-		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ T(ctx, "styleguide.title") }</h1>
+		<p class="eyebrow uppercase text-[10.5px] font-semibold text-blue mb-1">{ T(ctx, "styleguide.subtitle") }</p>
+		<h1 class="font-display text-[30px] sm:text-[30px] font-semibold leading-none tracking-tight">{ T(ctx, "styleguide.title") }</h1>
 	</header>
 	// Buttons
 	@Card("mb-6", sgButtons())
@@ -99,7 +99,7 @@ templ sgDialogs() {
 		@Button(BtnSecondary, T(ctx, "common.edit"), "", templ.Attributes{"data-dialog-open": "sgEditDlg", "type": "button"})
 		@Button(BtnDanger, T(ctx, "common.delete"), "■", templ.Attributes{"data-dialog-open": "sgDelDlg", "type": "button"})
 	</div>
-	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`), false)
+	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[14px] text-body">Beispiel-Dialoginhalt.</p>`), false)
 	@ConfirmDialog(ConfirmSpec{
 		ID:           "sgDelDlg",
 		ConfirmAttrs: templ.Attributes{"type": "button", "data-dialog-close": true},

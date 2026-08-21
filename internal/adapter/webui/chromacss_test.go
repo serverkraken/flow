@@ -31,10 +31,10 @@ func TestGenerateChromaCSSScopesThemes(t *testing.T) {
 
 func TestGenerateChromaCSSLightRulesDoNotApplyInDarkTheme(t *testing.T) {
 	got := GenerateChromaCSS()
-	if !strings.Contains(got, `:root:not([data-theme="dark"]) .chroma .na {`) {
+	if !strings.Contains(got, `:root:not([data-theme="dark"]) .chroma .k {`) {
 		t.Fatalf("light token selectors must be excluded from dark theme")
 	}
-	if strings.Contains(got, `:root .chroma .na {`) {
-		t.Fatalf("unqualified light token selector leaks dark Terraform attribute colors")
+	if strings.Contains(got, `:root .chroma .k {`) {
+		t.Fatalf("unqualified light token selector leaks dark keyword colors")
 	}
 }

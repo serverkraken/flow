@@ -14,14 +14,15 @@ func ColorHex(name string) string {
 	return ""
 }
 
-// StatusBadge returns a German label and Tailwind chip classes for a node status.
+// StatusBadge returns a German label and token-based chip classes for a node
+// status — Linie statt Pille, Töne aus dem Karteikasten (aktiv = live).
 func StatusBadge(s domain.NodeStatus) (label, classes string) {
 	switch s {
 	case domain.NodePaused:
-		return "pausiert", "rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 opacity-70"
+		return "pausiert", "border border-hair2 bg-sunken px-2 py-0.5 text-xs text-muted"
 	case domain.NodeArchived:
-		return "archiviert", "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400"
+		return "archiviert", "border border-hair2 bg-sunken px-2 py-0.5 text-xs text-faint"
 	default:
-		return "aktiv", "rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700"
+		return "aktiv", "border border-live/25 bg-live-wash px-2 py-0.5 text-xs text-live"
 	}
 }

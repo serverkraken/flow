@@ -58,7 +58,7 @@ templ wissenEbeneSuche(vm WissenEbeneVM) {
 			<input type="hidden" name="open" value={ o }/>
 		}
 		<label class="block">
-			<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.ebene.search") }</span>
+			<span class="mb-1 block text-[10.5px] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.ebene.search") }</span>
 			<span class="flex items-baseline gap-3">
 				<input type="search" name="q" value={ vm.Query.Q } class="field" autocomplete="off"/>
 				<button type="submit" class="btn btn-q btn-s">{ components.T(ctx, "wissen.ebene.search.go") }</button>

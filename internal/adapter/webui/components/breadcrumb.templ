@@ -61,7 +61,7 @@ func crumbTrail(back *Crumb, items []Crumb) []Crumb {
 }
 
 templ Breadcrumb(back *Crumb, items []Crumb, level string) {
-	<nav class="mb-4 flex flex-wrap items-center gap-2 border-b border-line2 pb-3.5 text-[.8rem]" aria-label="Breadcrumb">
+	<nav class="mb-4 flex flex-wrap items-center gap-2 border-b border-line2 pb-3.5 text-[12.5px]" aria-label="Breadcrumb">
 		if back != nil {
 			<a href={ templ.SafeURL(back.Href) } class="inline-flex items-center gap-1.5 border border-hair2 bg-sheet px-2.5 py-1 font-semibold text-body2 hover:border-accent hover:text-accent">‹ { back.Label }</a>
 		}
