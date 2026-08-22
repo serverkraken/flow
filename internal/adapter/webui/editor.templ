@@ -31,6 +31,7 @@ templ editorBody(vm EditorVM) {
 	// schreibt bei jeder Änderung Markdown hinein. Fällt das Bundle aus,
 	// bleibt die Textarea bedienbar. type="module": das Bundle ist ESM, und
 	// ein src-Skript braucht unter der erzwingenden CSP keine Nonce.
+	<link rel="stylesheet" href={ AssetURL("vendor/milkdown/editor.min.css") } data-v={ AssetVersion() }/>
 	<script type="module" src={ AssetURL("vendor/milkdown/editor.min.js") } data-v={ AssetVersion() }></script>
 }
 
@@ -137,20 +138,13 @@ templ editorOuter(vm EditorVM) {
 	</form>
 }
 
-// editorBand ist das Werkzeug-Band (Mockup 11/16): Blöcke und Auszeichnungen
-// als Befehle an den Stift (im Markdown-Modus als Einfügung in die Quelle),
-// Bild und Verweis öffnen die bestehenden Picker, rechts der Modus.
+// editorBand ist das Band über dem Stift (Mockup 11/16). Blöcke und
+// Auszeichnungen trägt der Stift selbst (Crepe: „/"-Menü, Auswahl-Werkzeuge,
+// Block-Griff); hier stehen nur, was flow dazugibt — Bild (Artefakt) und
+// [[Verweis]] über die Picker — und rechts der Modus. Das Band klebt oben.
 templ editorBand(vm EditorVM) {
 	<div class="editor-band panel" role="toolbar" aria-label={ components.T(ctx, "editor.band") }>
-		@bandBtn("h2", "H2", "editor.band.h2")
-		@bandBtn("h3", "H3", "editor.band.h3")
-		@bandBtn("bold", "B", "editor.band.bold")
-		@bandBtn("italic", "I", "editor.band.italic")
-		@bandBtn("code", "</>", "editor.band.code")
-		@bandBtn("list", components.T(ctx, "editor.band.list"), "editor.band.list")
-		@bandBtn("task", "☐ " + components.T(ctx, "editor.band.task"), "editor.band.task")
-		@bandBtn("table", components.T(ctx, "editor.band.table"), "editor.band.table")
-		@bandBtn("diagram", components.T(ctx, "editor.band.diagram"), "editor.band.diagram")
+		<span class="text-[11.5px] text-faint"><kbd class="font-mono">/</kbd> { components.T(ctx, "editor.band.slash") }</span>
 		<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
 			<button type="button" class="band-btn"
 				data-insert-toggle="insert-picker-artefakte"
@@ -203,6 +197,3 @@ templ editorBand(vm EditorVM) {
 	</div>
 }
 
-templ bandBtn(cmd, label, titleKey string) {
-	<button type="button" class="band-btn" data-md-cmd={ cmd } title={ components.T(ctx, titleKey) } aria-label={ components.T(ctx, titleKey) }>{ label }</button>
-}

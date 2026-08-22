@@ -53,15 +53,15 @@ func maxI(a, b int) int {
 }
 
 // Rich Text ist Standard (eine Fläche), Markdown der Umschalter — erst dort
-// Quelle und Vorschau nebeneinander. Das Band trägt die Blöcke und
-// Auszeichnungen, die der Stift kennt.
+// Quelle und Vorschau nebeneinander. Blöcke und Auszeichnungen trägt der
+// Stift selbst (Crepe); das Band gibt Bild, Verweis und den Modus dazu.
 func TestEditor_RichTextIsDefaultWithBand(t *testing.T) {
 	out := renderToBuf(t, context.Background(), EditorPage(EditorVM{ID: "d1", Title: "T"}))
 	for _, want := range []string{
 		`data-editor-body data-mode="rich"`,
 		`data-editor-mode-set="rich" aria-pressed="true"`,
 		`data-editor-mode-set="markdown" aria-pressed="false"`,
-		`data-md-cmd="h2"`, `data-md-cmd="bold"`, `data-md-cmd="task"`, `data-md-cmd="table"`, `data-md-cmd="diagram"`,
+		`vendor/milkdown/editor.min.css`, `vendor/milkdown/editor.min.js`,
 		`data-insert-toggle="insert-picker-artefakte"`, `data-insert-toggle="insert-picker-seiten"`,
 		`data-preview-pane`, `id="preview"`, `js/editor-mode.js`,
 		`class="field editor-title"`,

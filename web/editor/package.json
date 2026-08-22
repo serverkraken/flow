@@ -4,9 +4,10 @@
   "type": "module",
   "description": "Milkdown-Bundle für den Wissens-Editor. Wird mit esbuild zu einer statischen Datei gebaut und committet — zur Laufzeit braucht der Server kein Node.",
   "scripts": {
-    "build": "esbuild editor.mjs --bundle --minify --format=esm --target=es2022 --outfile=../../internal/adapter/webui/static/vendor/milkdown/editor.min.js"
+    "build": "node build.mjs"
   },
   "dependencies": {
+    "@milkdown/crepe": "^7.22.1",
     "@milkdown/kit": "7.22.1",
     "mdast-util-find-and-replace": "3.0.2",
     "remark-frontmatter": "5.0.0"

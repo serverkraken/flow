@@ -2,10 +2,8 @@
 //
 // Rich Text ist Standard: eine Fläche, der Stift (Milkdown). Markdown ist
 // der Umschalter: Quelle links, Vorschau rechts. Beide schreiben dieselbe
-// Markdown-Quelle (die Textarea). Die Wahl merkt sich der Browser. Die
-// Befehle des Bands gehen im Rich-Text-Modus an den Stift
-// (window.flowEditor, aus dem Bundle) und im Markdown-Modus als Einfügung
-// in die Quelle. Ereignis-Delegation: überlebt jeden htmx-Tausch.
+// Markdown-Quelle (die Textarea). Die Wahl merkt sich der Browser.
+// Ereignis-Delegation: überlebt jeden htmx-Tausch.
 (function () {
 	'use strict';
 	var STORE = 'flow-editor-mode';
@@ -36,50 +34,9 @@
 		}
 	}
 
-	// Einfügung in die Quelle (Markdown-Modus): Präfix je Zeile oder Umschluss.
-	function wrapSource(ta, before, after, placeholder) {
-		var s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
-		var sel = v.slice(s, e) || placeholder || '';
-		ta.value = v.slice(0, s) + before + sel + after + v.slice(e);
-		ta.selectionStart = s + before.length;
-		ta.selectionEnd = s + before.length + sel.length;
-		ta.focus();
-		ta.dispatchEvent(new Event('keyup', { bubbles: true }));
-	}
-	function prefixLines(ta, prefix) {
-		var s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
-		var ls = v.lastIndexOf('\n', s - 1) + 1;
-		var le = v.indexOf('\n', e); if (le < 0) { le = v.length; }
-		var block = v.slice(ls, le).split('\n').map(function (l) { return prefix + l; }).join('\n');
-		ta.value = v.slice(0, ls) + block + v.slice(le);
-		ta.selectionStart = ls; ta.selectionEnd = ls + block.length;
-		ta.focus();
-		ta.dispatchEvent(new Event('keyup', { bubbles: true }));
-	}
-	function sourceCommand(ta, cmd) {
-		switch (cmd) {
-			case 'h2': return prefixLines(ta, '## ');
-			case 'h3': return prefixLines(ta, '### ');
-			case 'bold': return wrapSource(ta, '**', '**', 'fett');
-			case 'italic': return wrapSource(ta, '*', '*', 'kursiv');
-			case 'code': return wrapSource(ta, '`', '`', 'code');
-			case 'list': return prefixLines(ta, '- ');
-			case 'task': return prefixLines(ta, '- [ ] ');
-			case 'table': return wrapSource(ta, '\n| Spalte | Spalte |\n| --- | --- |\n| ', ' |  |\n', '');
-			case 'diagram': return wrapSource(ta, '\n```mermaid\n', '\n```\n', 'flowchart LR\n  A --> B');
-		}
-	}
-
 	document.addEventListener('click', function (e) {
 		var set = e.target.closest('[data-editor-mode-set]');
 		if (set) { e.preventDefault(); var m = set.getAttribute('data-editor-mode-set'); save(m); apply(m, true); return; }
-		var cmd = e.target.closest('[data-md-cmd]');
-		if (cmd) {
-			e.preventDefault();
-			var name = cmd.getAttribute('data-md-cmd');
-			if (mode() === 'rich' && window.flowEditor) { window.flowEditor.cmd(name); }
-			else { var ta = source(); if (ta) { sourceCommand(ta, name); } }
-		}
 	});
 
 	function boot() { apply(load(), false); }

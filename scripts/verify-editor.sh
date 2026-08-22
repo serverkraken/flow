@@ -20,11 +20,16 @@ if [ ! -d "$SRC_DIR/node_modules" ]; then
 fi
 
 tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-(cd "$SRC_DIR" && npx esbuild editor.mjs --bundle --minify --format=esm --target=es2022 --outfile="$tmp" --log-level=warning)
+trap 'rm -f "$tmp" "$tmp.js" "$tmp.css"' EXIT
+(cd "$SRC_DIR" && node build.mjs --out "$tmp")
 
-if ! diff -q "$tmp" "$COMMITTED" >/dev/null; then
+if ! diff -q "$tmp.js" "$COMMITTED" >/dev/null; then
   echo "verify-editor: FAIL — $COMMITTED is out of date. Run 'make editor' and commit." >&2
+  exit 1
+fi
+# esbuild schreibt das gebündelte Theme-CSS neben die JS-Datei (gleicher Name, .css).
+if ! diff -q "$tmp.css" "${COMMITTED%.js}.css" >/dev/null; then
+  echo "verify-editor: FAIL — ${COMMITTED%.js}.css is out of date. Run 'make editor' and commit." >&2
   exit 1
 fi
 echo "verify-editor: OK"

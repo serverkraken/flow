@@ -790,10 +790,42 @@ dialog::backdrop { background: rgb(var(--shadow) / .42); }
      zusätzlich braucht: Bedienfläche, Fokus, und die Knoten, die flows
      Syntax beim Schreiben darstellen. Farben, Maße und Schrift kommen aus
      .prose — der Editor hat keine eigene Typografie. */
-  .milkdown-host { min-height: 60vh; border: 1px solid rgb(var(--hair2)); background: rgb(var(--canvas)); padding: 18px 22px; }
+  .milkdown-host { min-height: 60vh; border: 1px solid rgb(var(--hair2)); background: rgb(var(--canvas)); }
   .milkdown-host:focus-within { border-color: rgb(var(--accent)); }
-  .milkdown-host .ProseMirror { outline: none; min-height: 56vh; }
-  .milkdown-host .ProseMirror > *:first-child { margin-top: 0; }
+  /* Crepe auf die Karteikasten-Token: Flächen, Tinte, Akzent, Schriften —
+     und Radius 0, Schatten nur am Menü (Overlay). */
+  .milkdown-host .milkdown {
+    --crepe-color-background: rgb(var(--canvas));
+    --crepe-color-on-background: rgb(var(--body));
+    --crepe-color-surface: rgb(var(--sheet));
+    --crepe-color-surface-low: rgb(var(--panel));
+    --crepe-color-on-surface: rgb(var(--ink));
+    --crepe-color-on-surface-variant: rgb(var(--body2));
+    --crepe-color-outline: rgb(var(--hair2));
+    --crepe-color-primary: rgb(var(--accent));
+    --crepe-color-secondary: rgb(var(--accent-wash));
+    --crepe-color-on-secondary: rgb(var(--ink));
+    --crepe-color-inverse: rgb(var(--ink));
+    --crepe-color-on-inverse: rgb(var(--canvas));
+    --crepe-color-inline-code: rgb(var(--red));
+    --crepe-color-error: rgb(var(--red));
+    --crepe-color-hover: rgb(var(--sunken));
+    --crepe-color-selected: rgb(var(--accent-wash));
+    --crepe-color-inline-area: rgb(var(--sheet));
+    --crepe-base-font-size: 16.5px;
+    --crepe-font-title: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --crepe-font-default: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --crepe-font-code: "JetBrains Mono", ui-monospace, monospace;
+    --crepe-shadow-1: var(--shadow-lift);
+    --crepe-shadow-2: var(--shadow-lift);
+    padding: 18px 56px 40px;
+  }
+  .milkdown-host .milkdown .ProseMirror { padding: 0; min-height: 56vh; max-width: none; }
+  .milkdown-host .milkdown .ProseMirror > *:first-child { margin-top: 0; }
+  .milkdown-host .milkdown .ProseMirror h1 { font-weight: 750; letter-spacing: -.02em; }
+  .milkdown-host .milkdown .ProseMirror h2, .milkdown-host .milkdown .ProseMirror h3 { font-weight: 750; letter-spacing: -.015em; }
+  /* Vier Klassen schlagen jede Crepe-Regel (drei) — Radius 0 ohne !important. */
+  .editor-page .editor-body .milkdown-host .milkdown * { border-radius: 0; }
   /* [[ziel|anzeige]] als Knoten: derselbe Ton wie ein aufgelöster Wikilink
      im Lesesaal, aber gepunktet — im Editor weiß niemand, ob er auflöst. */
   .editor-wikilink { color: rgb(var(--accent)); border-bottom: 1px dotted currentColor; cursor: default; }
@@ -811,7 +843,7 @@ dialog::backdrop { background: rgb(var(--shadow) / .42); }
   /* Editor (Screens 11/16): die Karte beim Schreiben. Titel als Überschrift,
      Meta als eine Zeile, das Band auf Kastenton, der Stift auf der Lesefläche.
      Rich Text ist eine Fläche; Markdown zeigt Quelle und Vorschau nebeneinander. */
-  .editor-page { max-width: 1040px; }
+  .editor-page { max-width: none; }
   .editor-title { font-family: "Schibsted Grotesk", ui-sans-serif, sans-serif; font-size: 26px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; border: 0; border-bottom: 1px solid rgb(var(--line2)); background: transparent; padding: 10px 0 8px; margin-top: 10px; }
   .editor-title:focus { border-bottom-color: rgb(var(--accent)); }
   .editor-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 8px 0 10px; font-size: 12.5px; }
@@ -819,7 +851,7 @@ dialog::backdrop { background: rgb(var(--shadow) / .42); }
   .editor-meta-item > span:first-child { color: rgb(var(--faint)); font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
   .editor-meta-item[hidden] { display: none; }
   .field-inline { width: auto; padding: 3px 8px; font-size: 12.5px; min-width: 8ch; }
-  .editor-band { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; margin-top: 6px; border: 1px solid rgb(var(--hairp)); }
+  .editor-band { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 10px; margin-top: 6px; border: 1px solid rgb(var(--hairp)); }
   .band-btn { font-size: 11.5px; font-weight: 600; color: rgb(var(--body2)); padding: 4px 8px; border: 1px solid transparent; background: transparent; cursor: pointer; white-space: nowrap; }
   .band-btn:hover { color: rgb(var(--ink)); border-color: rgb(var(--hair2)); background: rgb(var(--surface)); }
   .editor-body { margin-top: 14px; }
