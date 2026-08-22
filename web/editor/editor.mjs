@@ -9,26 +9,28 @@
 // Die <textarea name="body"> bleibt die Quelle des Formulars und der
 // Markdown-Vorschau: der Stift schreibt bei jeder Änderung Markdown hinein.
 // Fällt das Skript aus, steht die Textarea weiterhin da — bedienbar.
-// Nur die Teile des Themes, die wir nutzen — die Sammeldatei zöge KaTeX samt
-// Schriften mit, und Formeln gibt es in flow nicht.
+// Nur die BEDIEN-Teile des Themes — Blockmenü, Code-Block-Chrome, Cursor,
+// Link-Tooltip, Platzhalter, Werkzeuge, Tabellen-Griffe. Crepes reset.css
+// (seine Typografie) bleibt draußen: die Schrift des Stifts ist .prose, die-
+// selbe Regel wie in der Leseansicht (Soenne, 22.08.: „genauso gerendert wie
+// später im Dokument"). Die Sammeldatei zöge zudem KaTeX samt Schriften mit.
 import '@milkdown/crepe/theme/common/prosemirror.css';
-import '@milkdown/crepe/theme/common/reset.css';
 import '@milkdown/crepe/theme/common/block-edit.css';
 import '@milkdown/crepe/theme/common/code-mirror.css';
 import '@milkdown/crepe/theme/common/cursor.css';
 import '@milkdown/crepe/theme/common/link-tooltip.css';
-import '@milkdown/crepe/theme/common/list-item.css';
 import '@milkdown/crepe/theme/common/placeholder.css';
 import '@milkdown/crepe/theme/common/toolbar.css';
 import '@milkdown/crepe/theme/common/table.css';
 import '@milkdown/crepe/theme/frame.css';
 import { Crepe } from '@milkdown/crepe';
-import { remarkStringifyOptionsCtx, editorViewCtx } from '@milkdown/kit/core';
+import { remarkStringifyOptionsCtx, editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
 import { remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
 import { replaceAll } from '@milkdown/kit/utils';
 import { LanguageDescription, StreamLanguage } from '@codemirror/language';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { flowSyntax } from './flow-syntax.mjs';
+import { flowCodeTheme } from './code-theme.mjs';
 
 // Schreibweise an den Bestand angleichen — Serializer-Optionen, keine
 // Modell-Eigenschaften. Agenten schreiben dieselben Karten; ein Editor, der
@@ -85,6 +87,9 @@ async function mount(source) {
     defaultValue: source.value,
     features: {
       [Crepe.Feature.ImageBlock]: false, // Bilder kommen als ![[Artefakt]] über den Picker
+      // Crepes Listenpunkte sind eigene Bausteine (Label-Spalte, SVG-Punkt);
+      // die Leseansicht setzt ul/li mit list-disc — der Stift auch.
+      [Crepe.Feature.ListItem]: false,
       [Crepe.Feature.Latex]: false,
       [Crepe.Feature.TopBar]: false,
       [Crepe.Feature.AI]: false,
@@ -94,12 +99,21 @@ async function mount(source) {
       [Crepe.Feature.BlockEdit]: { textGroup: DE.textGroup, listGroup: DE.listGroup, advancedGroup: DE.advancedGroup },
       [Crepe.Feature.Toolbar]: DE.toolbar,
       [Crepe.Feature.LinkTooltip]: DE.link,
-      [Crepe.Feature.CodeMirror]: { languages },
+      [Crepe.Feature.CodeMirror]: { languages, theme: flowCodeTheme },
     },
   });
 
   crepe.editor
     .config((ctx) => {
+      // Das Wurzelelement des Stifts ist .prose: dieselbe Typografie wie die
+      // Leseansicht, aus derselben Regel — keine zweite Schriftleiter.
+      ctx.update(editorViewOptionsCtx, (o) => {
+        const prev = o.attributes;
+        return { ...o, attributes: (state) => {
+          const a = typeof prev === 'function' ? prev(state) : (prev ?? {});
+          return { ...a, class: [a.class, 'prose'].filter(Boolean).join(' ') };
+        } };
+      });
       ctx.set(remarkGFMPlugin.options.key, { tablePipeAlign: false, tableCellPadding: true });
       ctx.update(remarkStringifyOptionsCtx, (o) => ({
         ...o, ...STRINGIFY,
