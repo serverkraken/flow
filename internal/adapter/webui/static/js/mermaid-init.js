@@ -11,15 +11,17 @@
   // tag's own <script> instead).
   var v = (document.currentScript && document.currentScript.dataset.v) || '';
   function markError() { document.querySelectorAll('.mermaid-figure:not(.mermaid-error)').forEach(function (f) { f.classList.add('mermaid-error'); }); }
-  function ensureLib(cb) {
+  var waiting = [];                         // Rückrufe, die auf das Laden warten
+  function ensureLib(cb, onFail) {
     if (window.mermaid) return cb();
-    if (failed) return markError();          // Lib zuvor nicht geladen → Figuren markieren, Quelle bleibt lesbar
+    if (failed) { markError(); if (onFail) onFail(); return; } // Lib zuvor nicht geladen → Figuren markieren, Quelle bleibt lesbar
+    waiting.push([cb, onFail]);
     if (loading) return;
     loading = true;
     var s = document.createElement('script');
     s.src = '/static/vendor/mermaid.min.js' + (v ? '?v=' + v : '');  // 'self' → CSP script-src ok
-    s.onload = function () { loading = false; cb(); };
-    s.onerror = function () { loading = false; failed = true; markError(); };
+    s.onload = function () { loading = false; var w = waiting; waiting = []; w.forEach(function (p) { p[0](); }); };
+    s.onerror = function () { loading = false; failed = true; markError(); var w = waiting; waiting = []; w.forEach(function (p) { if (p[1]) p[1](); }); };
     document.head.appendChild(s);
   }
   function render() {
@@ -46,4 +48,24 @@
   }
   if (document.readyState !== 'loading') render(); else document.addEventListener('DOMContentLoaded', render);
   document.body.addEventListener('htmx:afterSwap', render);
+
+  // Brücke für den Stift (editor.mjs): ein Diagramm aus Quelle zu SVG —
+  // dieselbe Lib, dieselbe Initialisierung, dieselbe Kappe wie die Figuren
+  // der Leseansicht. Lehnt ab (reject) bei Syntaxfehler, Überlänge oder
+  // fehlender Lib; der Stift zeichnet dann den Fehlerrahmen.
+  var seq = 0;
+  window.flowMermaid = {
+    render: function (src) {
+      return new Promise(function (resolve, reject) {
+        if (!src || src.length > MAX) return reject(new Error('mermaid: source too long'));
+        ensureLib(function () {
+          window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false, flowchart: { htmlLabels: false } });
+          window.mermaid.parse(src, { suppressErrors: true }).then(function (ok) {
+            if (!ok) throw new Error('mermaid: syntax');
+            return window.mermaid.render('flow-mm-' + (++seq), src);
+          }).then(function (r) { resolve(r.svg); }).catch(reject);
+        }, function () { reject(new Error('mermaid: lib failed')); });
+      });
+    },
+  };
 })();

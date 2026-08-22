@@ -46,6 +46,10 @@ export const embedNode = $node('flow_embed', () => ({
 // Das Escaping von "[!NOTE]" ist ein Serializer-Artefakt (remark-stringify
 // schützt "[" vor Link-Verwechslung). Wir heben die Markierung in ein Attribut
 // und schreiben sie beim Serialisieren roh zurück.
+// Die Arten und Glyphen spiegeln markdown_callout.go (calloutKinds,
+// calloutGlyph) — TestFlowSyntax_CalloutGlyphsMatchServer hält sie gleich.
+// Eine unbekannte Art bleibt ein Zitat, wie auf dem Server.
+export const CALLOUT_GLYPH = { note: '●', tip: '✓', warning: '▲', important: '★', danger: '✗' };
 export const calloutRemark = $remark('flowCallout', () => () => (tree) => {
   const walk = node => {
     if (!node.children) return;
@@ -54,34 +58,50 @@ export const calloutRemark = $remark('flowCallout', () => () => (tree) => {
     const first = node.children[0];
     const t = first?.children?.[0];
     if (first?.type !== 'paragraph' || t?.type !== 'text') return;
-    const m = /^\[!([A-Za-z]+)\]\n?/.exec(t.value);
+    // Marker und Titel stehen auf der ersten Zeile — „[!NOTE] Titel"; der
+    // Server (calloutRe) liest sie genauso und hebt die Zeile aus dem Text.
+    const m = /^\[!([A-Za-z]+)\][ \t]*([^\n]*)\n?/.exec(t.value);
     if (!m) return;
-    node.type = 'flowCallout'; node.kind = m[1];
+    if (!(m[1].toLowerCase() in CALLOUT_GLYPH)) {
+      // Unbekannte Art: bleibt Zitat — und der Marker bleibt roh (html-Knoten),
+      // sonst escaped der Serializer ihn zu "\[!FOO]" und verrauscht den Diff.
+      const marker = `[!${m[1]}]`;
+      t.value = t.value.slice(marker.length);
+      first.children.unshift({ type: 'html', value: marker });
+      return;
+    }
+    node.type = 'flowCallout'; node.kind = m[1]; node.title = m[2].trim();
     t.value = t.value.slice(m[0].length);
     if (!t.value) first.children.shift();
+    // Milkdown hat den weichen Umbruch hinter der Markerzeile schon in einen
+    // break-Knoten zerlegt — der gehört zur Markerzeile, nicht zum Text.
+    if (first.children[0]?.type === 'break') first.children.shift();
     if (!first.children.length) node.children.shift();
   };
   walk(tree);
 });
+// Markup wie der Server: div.callout.callout-<art>; die Titelzeile
+// (p.callout-title mit Glyph) setzt flow-views.mjs als Widget davor.
 export const calloutNode = $node('flow_callout', () => ({
-  group: 'block', content: 'block+', defining: true, attrs: { kind: { default: 'NOTE' } },
-  parseDOM: [{ tag: 'blockquote[data-callout]', getAttrs: el => ({ kind: el.dataset.callout }) }],
-  toDOM: n => ['blockquote', { 'data-callout': n.attrs.kind, class: 'callout callout-' + n.attrs.kind.toLowerCase() }, 0],
-  parseMarkdown: { match: n => n.type === 'flowCallout', runner: (s, n, t) => { s.openNode(t, { kind: n.kind }); s.next(n.children); s.closeNode(); } },
+  group: 'block', content: 'block+', defining: true, attrs: { kind: { default: 'NOTE' }, title: { default: '' } },
+  parseDOM: [{ tag: 'div[data-callout]', getAttrs: el => ({ kind: el.dataset.callout, title: el.dataset.title ?? '' }) }],
+  toDOM: n => ['div', { 'data-callout': n.attrs.kind, 'data-title': n.attrs.title, class: 'callout callout-' + n.attrs.kind.toLowerCase() }, 0],
+  parseMarkdown: { match: n => n.type === 'flowCallout', runner: (s, n, t) => { s.openNode(t, { kind: n.kind, title: n.title ?? '' }); s.next(n.children); s.closeNode(); } },
   toMarkdown:    { match: n => n.type.name === 'flow_callout', runner: (s, n) => {
     // Der Marker muss IN den ersten Absatz, sonst setzt remark zwischen
     // Marker-Block und Text einen Absatzabstand ("> [!NOTE]\n>\n> Text").
     s.openNode('blockquote');
+    const marker = `[!${n.attrs.kind}]` + (n.attrs.title ? ' ' + n.attrs.title : '');
     let first = true;
     n.content.forEach(child => {
       if (first && child.type.name === 'paragraph') {
         s.openNode('paragraph');
-        s.addNode('html', undefined, `[!${n.attrs.kind}]`); // roh, kein Escaping
+        s.addNode('html', undefined, marker + '\n'); // roh, kein Escaping; Titel bleibt auf der Markerzeile
         s.next(child.content);
         s.closeNode();
         first = false;
       } else {
-        if (first) { s.openNode('paragraph'); s.addNode('html', undefined, `[!${n.attrs.kind}]`); s.closeNode(); first = false; }
+        if (first) { s.openNode('paragraph'); s.addNode('html', undefined, marker); s.closeNode(); first = false; }
         s.next(child);
       }
     });

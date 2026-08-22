@@ -31,14 +31,15 @@ import { LanguageDescription, StreamLanguage } from '@codemirror/language';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { flowSyntax } from './flow-syntax.mjs';
 import { flowCodeTheme } from './code-theme.mjs';
+import { flowViews, setLabels, labels, renumber } from './flow-views.mjs';
 
 // Schreibweise an den Bestand angleichen — Serializer-Optionen, keine
 // Modell-Eigenschaften. Agenten schreiben dieselben Karten; ein Editor, der
 // '*' statt '-' setzt, verrauscht jeden Diff.
 // Code-Sprachen im Stift: die, die in flow-Karten vorkommen — nicht das
 // ganze Sprachverzeichnis (das wäre 2 MB Bundle für Sprachen, die hier nie
-// jemand schreibt). Alles andere bleibt Klartext, Mermaid ebenso: das Diagramm
-// zeigt die Karte nach dem Speichern.
+// jemand schreibt). Alles andere bleibt Klartext; Mermaid zeichnet der
+// Code-Block unter sich als Figur (mermaidPreview).
 const languages = [
   LanguageDescription.of({ name: 'Go', alias: ['go', 'golang'], extensions: ['go'], load: () => import('@codemirror/lang-go').then((m) => m.go()) }),
   LanguageDescription.of({ name: 'JavaScript', alias: ['js', 'javascript', 'mjs'], extensions: ['js', 'mjs'], load: () => import('@codemirror/lang-javascript').then((m) => m.javascript()) }),
@@ -53,6 +54,40 @@ const languages = [
   LanguageDescription.of({ name: 'Shell', alias: ['sh', 'bash', 'zsh', 'shell'], extensions: ['sh'], load: async () => StreamLanguage.define(shell) }),
 ];
 
+// ```mermaid: die Figur der Leseansicht unter dem Code — Rahmen, SVG,
+// „Abb. n · gerendert aus mermaid". Gezeichnet von derselben Lib über die
+// Brücke in mermaid-init.js (window.flowMermaid), entprellt je Anschlag;
+// ein Syntaxfehler zeigt den Fehlerrahmen mit der Quelle, wie der Server.
+function mermaidFigure(src, svg) {
+  const fig = document.createElement('figure');
+  fig.className = 'mermaid-figure' + (svg ? '' : ' mermaid-error');
+  fig.dataset.fig = '';
+  const fr = document.createElement('div');
+  fr.className = 'frame';
+  if (svg) fr.innerHTML = svg;
+  else { const pre = document.createElement('pre'); pre.className = 'mermaid'; pre.textContent = src; fr.appendChild(pre); }
+  fig.appendChild(fr);
+  const cap = document.createElement('figcaption');
+  const b = document.createElement('b'); b.textContent = labels().fig;
+  cap.appendChild(b);
+  const span = document.createElement('span'); span.className = 'mermaid-cap'; span.textContent = labels().mermaid;
+  cap.appendChild(document.createTextNode(' · ')); cap.appendChild(span);
+  fig.appendChild(cap);
+  return fig;
+}
+function mermaidPreview(language, content, apply) {
+  if ((language || '').toLowerCase() !== 'mermaid') return null;
+  const src = content.trim();
+  if (!src) return null;
+  setTimeout(() => {
+    const mm = window.flowMermaid;
+    const done = (fig) => { apply(fig); queueMicrotask(() => { const root = document.querySelector('.milkdown .ProseMirror'); if (root) renumber(root); }); };
+    if (!mm) return done(mermaidFigure(src, null));
+    mm.render(src).then((svg) => done(mermaidFigure(src, svg))).catch(() => done(mermaidFigure(src, null)));
+  }, 400);
+  return undefined; // asynchron — apply() liefert nach
+}
+
 const STRINGIFY = {
   bullet: '-', listItemIndent: 'one', emphasis: '*', strong: '*', rule: '-',
 };
@@ -65,9 +100,12 @@ const DE = {
   advancedGroup: { label: 'Blöcke', image: null, codeBlock: { label: 'Code' }, table: { label: 'Tabelle' }, math: null },
   toolbar: { boldLabel: 'Fett', italicLabel: 'Kursiv', strikethroughLabel: 'Durchgestrichen', codeLabel: 'Code', linkLabel: 'Link' },
   link: { editButton: 'Ändern', removeButton: 'Entfernen', confirmButton: 'OK', inputPlaceholder: 'Adresse eintragen …' },
+  code: { previewLabel: 'Diagramm', previewLoading: 'Zeichne …', previewToggleText: (only) => (only ? 'Code zeigen' : 'Code ausblenden'), copyText: 'Kopieren', searchPlaceholder: 'Sprache suchen', noResultText: 'Keine Sprache' },
 };
 
 async function mount(source) {
+  // Figuren-Beschriftungen aus dem Katalog des Servers (editor.templ).
+  setLabels({ fig: source.dataset.figLabel, mermaid: source.dataset.mermaidLabel, unresolved: source.dataset.unresolvedLabel });
   const host = document.createElement('div');
   host.className = 'milkdown-host';
   source.insertAdjacentElement('beforebegin', host);
@@ -99,7 +137,7 @@ async function mount(source) {
       [Crepe.Feature.BlockEdit]: { textGroup: DE.textGroup, listGroup: DE.listGroup, advancedGroup: DE.advancedGroup },
       [Crepe.Feature.Toolbar]: DE.toolbar,
       [Crepe.Feature.LinkTooltip]: DE.link,
-      [Crepe.Feature.CodeMirror]: { languages, theme: flowCodeTheme },
+      [Crepe.Feature.CodeMirror]: { languages, theme: flowCodeTheme, renderPreview: mermaidPreview, ...DE.code },
     },
   });
 
@@ -121,7 +159,8 @@ async function mount(source) {
         handlers: { ...(o.handlers ?? {}), break: () => '  \n' },
       }));
     })
-    .use(flowSyntax);
+    .use(flowSyntax)
+    .use(flowViews);
   crepe.on((l) => l.markdownUpdated((_, markdown) => sync(markdown)));
   await crepe.create();
 

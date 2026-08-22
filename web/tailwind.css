@@ -837,14 +837,16 @@ dialog::backdrop { background: rgb(var(--shadow) / .42); }
   .milkdown-host .milkdown .milkdown-code-block { background: rgb(var(--code-bg)); border: 1px solid rgb(var(--hair2)); padding: 16px 18px; margin: 1.05em 0; }
   /* Vier Klassen schlagen jede Crepe-Regel (drei) — Radius 0 ohne !important. */
   .editor-page .editor-body .milkdown-host .milkdown * { border-radius: 0; }
-  /* [[ziel|anzeige]] als Knoten: derselbe Ton wie ein aufgelöster Wikilink
-     im Lesesaal, aber gepunktet — im Editor weiß niemand, ob er auflöst. */
-  .editor-wikilink { color: rgb(var(--accent)); border-bottom: 1px dotted currentColor; cursor: default; }
-  /* ![[slug]]: Adresse, also Mono — der Lesesaal zeigt das Bild, der Stift die Quelle. */
+  /* ![[slug]], solange der Server noch nicht geantwortet hat: die Adresse in
+     Mono. Danach zeichnet flow-views.mjs die Figur der Leseansicht. */
   .editor-embed { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .9em; color: rgb(var(--meta)); }
-  /* > [!NOTE]: Typ-Marke in Mono, Rahmen im Akzent — wie die Server-Callouts. */
-  .milkdown-host blockquote[data-callout] { border-left: 3px solid rgb(var(--accent)); padding: 4px 14px 6px; background: rgb(var(--sheet)); margin: 1em 0; }
-  .milkdown-host blockquote[data-callout]::before { content: attr(data-callout); display: block; font: 700 10.5px/1 "JetBrains Mono", ui-monospace, monospace; letter-spacing: .1em; color: rgb(var(--accent)); margin: 6px 0 4px; }
+  .milkdown-host .embed-host > figure { margin-top: 0; }
+  /* ```mermaid im Stift: Crepes Vorschau-Fläche unter dem Code trägt die
+     Figur der Leseansicht; die Beschriftung der Fläche im Eyebrow-Ton. */
+  .milkdown-host .milkdown-code-block .preview-panel .preview-divider { border-top: 1px solid rgb(var(--hair)); margin: 14px 0 8px; }
+  .milkdown-host .milkdown-code-block .preview-panel .preview-label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgb(var(--faint)); }
+  .milkdown-host .milkdown-code-block .preview-panel .preview figure { margin-top: 8px; }
+  .milkdown-host .milkdown-code-block .preview-panel .preview figure.mermaid-figure .frame { background: rgb(var(--surface)); }
   /* GFM-Task: Milkdown schreibt li[data-item-type=task][data-checked], kein <input>. */
   .milkdown-host li[data-item-type="task"] { list-style: none; position: relative; }
   .milkdown-host li[data-item-type="task"]::before { content: "☐"; position: absolute; left: -1.4em; color: rgb(var(--meta)); }

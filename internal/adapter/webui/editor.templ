@@ -116,8 +116,13 @@ templ editorOuter(vm EditorVM) {
 		// Kein <label> um Band und Stift: ein Klick in ein Label aktiviert dessen
 		// erstes bedienbares Kind — den ersten Knopf des Bands.
 		<div class="editor-body" data-editor-field data-editor-body data-mode="rich">
+			// Die Figuren-Beschriftungen des Stifts (Abb. n · …) kommen aus
+			// demselben Katalog wie die der Leseansicht.
 			<textarea id="editor-body" name="body"
 				class="field editor-source"
+				data-fig-label={ components.T(ctx, "document.figure.label") }
+				data-mermaid-label={ components.T(ctx, "document.figure.mermaid") }
+				data-unresolved-label={ components.T(ctx, "document.figure.unresolved") }
 				hx-post="/wissen/preview"
 				hx-include="[name=projectId], [name=node]"
 				hx-trigger="keyup changed delay:400ms, load, flow:preview"
