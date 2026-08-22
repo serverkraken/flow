@@ -1,4 +1,9 @@
 (function () {
+  function headingText(heading) {
+    var copy = heading.cloneNode(true);
+    copy.querySelectorAll('.head-anchor').forEach(function (a) { a.remove(); });
+    return copy.textContent.trim();
+  }
   function build() {
     var tocs = document.querySelectorAll('[data-toc-nav]');
     var prose = document.querySelector('.prose');
@@ -11,7 +16,9 @@
         if (!heading.id) heading.id = 'h-' + index;
         var link = document.createElement('a');
         link.href = '#' + heading.id;
-        link.textContent = heading.textContent;
+        // Der ¶-Anker (head-anchor) ist ein Hover-Werkzeug der Überschrift,
+        // kein Teil ihres Texts — im Inhaltsverzeichnis bleibt er draußen.
+        link.textContent = headingText(heading);
         link.className = 'block py-1 text-muted hover:text-ink toc-' + heading.tagName.toLowerCase();
         toc.appendChild(link);
       });

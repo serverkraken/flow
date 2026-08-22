@@ -2360,7 +2360,7 @@ func einstiegReadmeProsa(d NodeEinstieg) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if d.HasReadme {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "<div class=\"prose mt-5 max-w-[720px] text-[18px]\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "<div class=\"prose mt-5 text-[18px]\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2374,7 +2374,7 @@ func einstiegReadmeProsa(d NodeEinstieg) templ.Component {
 			}
 		} else {
 			if d.DescriptionHTML != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "<div class=\"prose mt-5 max-w-[720px] text-[18px]\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "<div class=\"prose mt-5 text-[18px]\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

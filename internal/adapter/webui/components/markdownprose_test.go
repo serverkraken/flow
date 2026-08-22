@@ -9,7 +9,7 @@ import (
 
 func TestMarkdownProseConstrainedForGridColumns(t *testing.T) {
 	// Lesesaal L3: the width guard now lives entirely in the named `.prose`
-	// CSS class (web/tailwind.css, Task 1: max-width 680px + min-width:0) —
+	// CSS class (web/tailwind.css: max-width none + min-width:0 — volle Spalte) —
 	// no arbitrary Tailwind utilities on the element itself anymore.
 	out := render(t, components.MarkdownProse(`<p>body</p>`))
 	if !strings.Contains(out, `class="prose"`) {

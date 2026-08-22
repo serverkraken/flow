@@ -563,10 +563,10 @@ templ einstiegReadmeKopf(d NodeEinstieg) {
 // spinner: a missing README is a known, final state, not a loading one.
 templ einstiegReadmeProsa(d NodeEinstieg) {
 	if d.HasReadme {
-		<div class="prose mt-5 max-w-[720px] text-[18px]">@templ.Raw(string(d.ReadmeHTML))</div>
+		<div class="prose mt-5 text-[18px]">@templ.Raw(string(d.ReadmeHTML))</div>
 	} else {
 		if d.DescriptionHTML != "" {
-			<div class="prose mt-5 max-w-[720px] text-[18px]">@templ.Raw(string(d.DescriptionHTML))</div>
+			<div class="prose mt-5 text-[18px]">@templ.Raw(string(d.DescriptionHTML))</div>
 		}
 		<div class="mt-5 text-[13px] text-faint">
 			<a href={ templ.SafeURL(d.ReadmeHref) } hx-boost="false" class="font-semibold text-accent hover:underline">{ components.T(ctx, "einstieg.readme.empty") }</a>

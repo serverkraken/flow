@@ -6,7 +6,9 @@ package webui
 //	20 / 750 / −.015em Artikelabschnitt (H2)
 //	19 / 750           Unterabschnitt (H3)
 //
-// Satzbreite 660–720px. "Kein Element darf die Spalte verbreitern" (R6).
+// Satzbreite: KEINE Kappe mehr (Soenne, 22.08.2026: „Das Dokument soll den
+// verfügbaren Platz immer voll nutzen") — R6 gilt nur noch in der zweiten
+// Hälfte: "Kein Element darf die Spalte verbreitern."
 
 import (
 	"context"
@@ -49,13 +51,13 @@ func TestLesesaal_ReadingMeasure(t *testing.T) {
 			t.Errorf("Lesetext braucht %q (TOKENS.md Typo-Leiter): %s", want, block)
 		}
 	}
-	m := regexp.MustCompile(`max-width: (\d+)px`).FindStringSubmatch(block)
-	if m == nil {
-		t.Fatalf("keine Satzbreite gesetzt: %s", block)
+	// Keine Pixel-Kappe: der Lesetext nutzt die Spalte voll (Soenne, 22.08.).
+	if m := regexp.MustCompile(`max-width: (\d+)px`).FindStringSubmatch(block); m != nil {
+		w, _ := strconv.Atoi(m[1])
+		t.Errorf("Satzbreite auf %dpx gekappt — der Lesetext soll die Spalte voll nutzen", w)
 	}
-	w, _ := strconv.Atoi(m[1])
-	if w < 660 || w > 720 {
-		t.Errorf("Satzbreite %dpx liegt außerhalb 660–720px", w)
+	if !strings.Contains(block, "max-width: none") {
+		t.Errorf("Basisregel .prose soll max-width: none tragen: %s", block)
 	}
 }
 

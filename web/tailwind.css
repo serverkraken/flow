@@ -921,10 +921,12 @@ dialog::backdrop { background: rgb(var(--shadow) / .42); }
   .nv-row-active .fade-label { -webkit-mask-image:none; mask-image:none; }
   .prose {
     @apply text-body leading-relaxed;
-    /* Karteikasten-Typo-Leiter (TOKENS.md): Lesetext 16,5px auf 1,82 —
-       "Lesbarkeit gewinnt" (R6). Die Satzbreite bleibt bei 680px und damit
-       im Korridor 660–720px; kein Element darf die Spalte verbreitern. */
-    max-width: 680px;
+    /* Karteikasten-Typo-Leiter (TOKENS.md): Lesetext 16,5px auf 1,82.
+       Keine Satzbreiten-Kappe (Soenne, 22.08.: „Das Dokument soll den
+       verfügbaren Platz immer voll nutzen" — die frühere 680px-Kappe aus R6
+       ist damit aufgehoben). Was bleibt: kein Element darf die Spalte
+       VERBREITERN — Tabellen und Code scrollen in sich. */
+    max-width: none;
     font-size: 16.5px;
     line-height: 1.82;
     overflow-wrap: break-word;

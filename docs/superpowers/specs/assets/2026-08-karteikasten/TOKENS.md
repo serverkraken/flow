@@ -130,7 +130,7 @@ nach `internal/adapter/webui/static/fonts/`):
 | --- | --- |
 | Dreispalter | `264px` Schiene · `372px` Kasten · `1fr` Lesesaal |
 | Lesesaal-Polster | `30px` oben/unten, `56px` seitlich |
-| Satzbreite | `660–720px`, optional `236px` Randspalte |
+| Satzbreite | volle Spaltenbreite (Soenne, 22.08.2026 — vorher `660–720px`); Tabellen und Code scrollen in sich, optional `236px` Randspalte |
 | Listenzeile | `11–13px` senkrecht, `16px` waagerecht, Auswahlkante `3px` |
 | Schienen-Einzug je Ebene | `+15px` |
 | Ebenenstreifen | `3px`, ab `left:264px` |
