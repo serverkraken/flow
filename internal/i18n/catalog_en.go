@@ -156,7 +156,7 @@ func init() {
 			"einstieg.age.years":                  "yr",
 			"einstieg.age.months":                 "mo",
 			"einstieg.readme":                     "README",
-			"einstieg.readme.empty":               "No README yet — Edit ›",
+			"einstieg.readme.empty":               "No README yet — create one ›",
 			"einstieg.readme.end":                 "End of README",
 			"einstieg.readme.last":                "last",
 			"einstieg.highlights":                 "What was worked on last",

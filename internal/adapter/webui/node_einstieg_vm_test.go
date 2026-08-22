@@ -388,12 +388,13 @@ func TestBuildNodeEinstieg(t *testing.T) {
 		t.Errorf("SinceMonth = %q, want März 2024", vm.SinceMonth)
 	}
 
-	// README head: path from N.Slug, age from N.UpdatedAt via EinstiegSince.
-	if vm.ReadmePath != "kunde-a/README.md" {
-		t.Errorf("ReadmePath = %q, want kunde-a/README.md", vm.ReadmePath)
+	// No readme doc in the fixture: the head claims neither path nor age, and
+	// the single way in is the create editor (the cockpit's address).
+	if vm.HasReadme || vm.ReadmePath != "" || vm.ReadmeWhen != "" {
+		t.Errorf("without a README: HasReadme=%v path=%q when=%q, want false/empty", vm.HasReadme, vm.ReadmePath, vm.ReadmeWhen)
 	}
-	if vm.ReadmeWhen != "vor 6 Tagen" {
-		t.Errorf("ReadmeWhen = %q, want vor 6 Tagen", vm.ReadmeWhen)
+	if vm.ReadmeHref != "/wissen/neu?node=eng1&type=project&path=readme" {
+		t.Errorf("ReadmeHref = %q, want the create editor", vm.ReadmeHref)
 	}
 
 	// Sortierkopf: default (SortByName==false) shows the ACTIVE mode ("geändert"),
@@ -631,5 +632,38 @@ func TestEinstiegPage_MountsDocRenderScripts(t *testing.T) {
 	// must never re-add the tag.
 	if n := strings.Count(out, "js/mermaid-init.js"); n != 1 {
 		t.Errorf("mermaid-init.js mounted %d times, want exactly once", n)
+	}
+}
+
+// TestBuildNodeEinstieg_Readme: with the register's own readme document the
+// Lesespalte shows ITS path and age (not the node's), and "Bearbeiten" leads
+// to that document's editor — not to an address that does not exist.
+func TestBuildNodeEinstieg_Readme(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	now := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
+	eng1, subtree, allNodes := einstiegFixture()
+	readme := domain.Document{ID: "rd1", NodeID: ptr("eng1"), Type: domain.DocProject, Path: "readme", Title: "Kunde A", UpdatedAt: now.AddDate(0, 0, -6)}
+
+	vm := BuildNodeEinstieg(ctx, EinstiegInput{
+		N: eng1, Ancestors: []domain.Node{eng1}, AllNodes: allNodes, Subtree: subtree,
+		Docs: []domain.Document{readme}, Readme: &readme, ReadmeHTML: "<p>Hallo README</p>",
+		Now: now,
+	})
+
+	if !vm.HasReadme {
+		t.Fatal("HasReadme = false, want true")
+	}
+	if vm.ReadmeHTML != "<p>Hallo README</p>" {
+		t.Errorf("ReadmeHTML = %q, want the rendered body passed through", vm.ReadmeHTML)
+	}
+	if vm.ReadmeHref != "/wissen/rd1/bearbeiten" {
+		t.Errorf("ReadmeHref = %q, want /wissen/rd1/bearbeiten", vm.ReadmeHref)
+	}
+	if vm.ReadmePath != "kunde-a/readme" {
+		t.Errorf("ReadmePath = %q, want kunde-a/readme", vm.ReadmePath)
+	}
+	if vm.ReadmeWhen != "vor 6 Tagen" {
+		t.Errorf("ReadmeWhen = %q, want vor 6 Tagen (the DOCUMENT's age)", vm.ReadmeWhen)
 	}
 }

@@ -39,6 +39,12 @@ type EinstiegInput struct {
 	RunningNodeID   string // node the owner's running session is booked to, "" if none
 	SortByName      bool   // ?sort=name
 	DescriptionHTML template.HTML
+	// Readme is the register's OWN readme document (path "readme" — the same
+	// findReadme the cockpit front page uses), nil when none exists;
+	// ReadmeHTML is its rendered body. The handler resolves wikilinks and
+	// artifacts for it: a README is a card, unlike the plain-prose description.
+	Readme     *domain.Document
+	ReadmeHTML template.HTML
 	// RunningBase is the running session's elapsed seconds. The entry point
 	// shows NO clock of its own (Soenne, 21.08.: mockup-true — the clock sits
 	// in the rail); this is only the live duration on the running child's row.
@@ -102,8 +108,15 @@ type NodeEinstieg struct {
 	Buchungen     []EinstiegBuchungRow
 	BuchungenSpan string // "01.–16.08." — the month window, once in the section head (F14/M7)
 
-	// Lesespalte
-	ReadmePath string // "privat/README.md"
+	// Lesespalte: the register's own README document. HasReadme false = no
+	// readme doc yet — then ReadmeHref leads into the editor that creates one
+	// (the cockpit's address, one mechanism) and the description stands in as
+	// quiet prose WITHOUT path or age (Karteikasten-Kompass A1: empty README,
+	// empty claims).
+	HasReadme  bool
+	ReadmeHTML template.HTML
+	ReadmeHref string // "/wissen/{id}/bearbeiten", or the create-editor without a README
+	ReadmePath string // "privat/readme"
 	ReadmeWhen string // "vor 6 Tagen" — a RELATIVE age, not the Datumsstaffel:
 	// Screen 02's README head answers "how long ago", not
 	// "when" (Spec C.2.1 "zuletzt ‹relativ›").
@@ -196,8 +209,14 @@ func BuildNodeEinstieg(ctx context.Context, in EinstiegInput) NodeEinstieg {
 		CountsWork:      in.CountsWork,
 		Today:           in.Today,
 		BannerRef:       in.N.BannerRef,
-		ReadmePath:      in.N.Slug + "/README.md",
-		ReadmeWhen:      EinstiegSince(ctx, in.N.UpdatedAt, in.Now),
+		ReadmeHref:      "/wissen/neu?node=" + in.N.ID + "&type=project&path=readme",
+	}
+	if in.Readme != nil {
+		out.HasReadme = true
+		out.ReadmeHTML = in.ReadmeHTML
+		out.ReadmeHref = "/wissen/" + in.Readme.ID + "/bearbeiten"
+		out.ReadmePath = in.N.Slug + "/" + in.Readme.Path
+		out.ReadmeWhen = EinstiegSince(ctx, in.Readme.UpdatedAt, in.Now)
 	}
 
 	subtreeIDs := make(map[string]bool, len(in.Subtree))

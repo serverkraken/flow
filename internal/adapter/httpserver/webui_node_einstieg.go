@@ -1,7 +1,9 @@
 package httpserver
 
 import (
+	"context"
 	"errors"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"time"
@@ -139,6 +141,7 @@ func (s *Server) einstiegData(r *http.Request, u domain.User, id string) (webui.
 	in.DescriptionHTML, _ = webui.RenderDocument(ctx, n.Description,
 		func(string) (string, string, bool) { return "", "", false },
 		nil)
+	in.Readme, in.ReadmeHTML = s.einstiegReadme(ctx, u, n, chain, in.Docs)
 
 	// Rail timer's own-node "today" figure — derived from in.Sessions
 	// (already loaded above, since 2000-01-01) instead of a second
@@ -219,4 +222,38 @@ func (s *Server) handleWebNodeKasten(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.EinstiegKasten(d).Render(r.Context(), w)
+}
+
+// einstiegReadme finds the register's OWN readme document among the owner's
+// docs (in.Docs is already loaded — no second query) and renders it the way
+// the cockpit front page does: wikilinks resolve against all docs, ![[…]]
+// artifacts against the node's own. Returns nil, "" without a README — the
+// Lesespalte then falls back to the description and the create link.
+func (s *Server) einstiegReadme(ctx context.Context, u domain.User, n domain.Node, chain []domain.Node, docs []domain.Document) (*domain.Document, template.HTML) {
+	own := make([]domain.Document, 0, 4)
+	for _, d := range docs {
+		if d.NodeID != nil && *d.NodeID == n.ID {
+			own = append(own, d)
+		}
+	}
+	doc, ok := findReadme(own)
+	if !ok {
+		return nil, ""
+	}
+	resolve := func(target string) (string, string, bool) {
+		if t, ok := domain.ResolveWikilink(doc, target, docs); ok {
+			return "/wissen/" + t.ID, t.Title, true
+		}
+		return "", "", false
+	}
+	var resolveArtifact webui.ArtifactResolver
+	if s.ListArtifacts.Artifacts != nil {
+		if arts, aerr := s.ListArtifacts.Execute(ctx, u.ID, n.ID); aerr == nil {
+			resolveArtifact = buildArtifactResolver(chain, arts)
+		}
+	}
+	// An existing README counts even with an empty body — "anlegen" in its
+	// place would create a second one.
+	html, _ := webui.RenderDocument(ctx, doc.Body, resolve, resolveArtifact)
+	return &doc, html
 }

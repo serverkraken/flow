@@ -542,26 +542,34 @@ templ einstiegReadmeKopf(d NodeEinstieg) {
 		// Path and age describe a text that exists. Without one they described
 		// nothing — the head named a file and an age right above "Noch keine
 		// README" (Karteikasten-Kompass A1). Empty README, empty claims.
-		if d.DescriptionHTML != "" {
+		if d.HasReadme {
 			<span class="min-w-0 truncate font-mono text-[11.5px] text-faint">{ d.ReadmePath }</span>
 			if d.ReadmeWhen != "" {
 				<span class="shrink-0 text-[11.5px] text-faint">{ components.T(ctx, "einstieg.readme.last") } { d.ReadmeWhen }</span>
 			}
 		}
 		<span class="flex-1"></span>
-		<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/readme") } hx-boost="false" class="shrink-0 text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "common.edit") }</a>
+		// "Bearbeiten" edits the README that exists; without one the prose
+		// below carries the single "anlegen" way in — one mechanism per action.
+		if d.HasReadme {
+			<a href={ templ.SafeURL(d.ReadmeHref) } hx-boost="false" class="shrink-0 text-[12.5px] font-semibold text-accent hover:underline">{ components.T(ctx, "common.edit") }</a>
+		}
 	</div>
 }
 
-// einstiegReadmeProsa renders the description at reading size, or — empty —
-// a single quiet line with the edit link. No skeleton, no spinner: an empty
-// README is a known, final state, not a loading one.
+// einstiegReadmeProsa renders the README at reading size. Without one the
+// description stands in as prose (when the register has one) and a single
+// quiet line leads into the editor that creates the README. No skeleton, no
+// spinner: a missing README is a known, final state, not a loading one.
 templ einstiegReadmeProsa(d NodeEinstieg) {
-	if d.DescriptionHTML != "" {
-		<div class="prose mt-5 max-w-[720px] text-[18px]">@templ.Raw(string(d.DescriptionHTML))</div>
+	if d.HasReadme {
+		<div class="prose mt-5 max-w-[720px] text-[18px]">@templ.Raw(string(d.ReadmeHTML))</div>
 	} else {
+		if d.DescriptionHTML != "" {
+			<div class="prose mt-5 max-w-[720px] text-[18px]">@templ.Raw(string(d.DescriptionHTML))</div>
+		}
 		<div class="mt-5 text-[13px] text-faint">
-			<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/readme") } hx-boost="false" class="font-semibold text-accent hover:underline">{ components.T(ctx, "einstieg.readme.empty") }</a>
+			<a href={ templ.SafeURL(d.ReadmeHref) } hx-boost="false" class="font-semibold text-accent hover:underline">{ components.T(ctx, "einstieg.readme.empty") }</a>
 		</div>
 	}
 }
@@ -570,8 +578,9 @@ templ einstiegReadmeProsa(d NodeEinstieg) {
 // end marker (cockpit_uebersicht.templ:37-41).
 templ einstiegReadmeEnde(d NodeEinstieg) {
 	// An end rule closes a text. Over an empty README it marked the end of
-	// nothing (Karteikasten-Kompass A1).
-	if d.DescriptionHTML != "" {
+	// nothing (Karteikasten-Kompass A1) — and the description standing in is
+	// not a README either.
+	if d.HasReadme {
 		<div class="mt-9 flex items-center gap-3.5">
 			<span class="h-px flex-1 bg-hair2"></span>
 			<span class="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[.14em] text-faint">{ components.T(ctx, "einstieg.readme.end") }</span>

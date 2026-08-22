@@ -162,7 +162,7 @@ func init() {
 			"einstieg.age.years":                  "J.",
 			"einstieg.age.months":                 "M.",
 			"einstieg.readme":                     "README",
-			"einstieg.readme.empty":               "Noch keine README — Bearbeiten ›",
+			"einstieg.readme.empty":               "Noch keine README — anlegen ›",
 			"einstieg.readme.end":                 "Ende der README",
 			"einstieg.readme.last":                "zuletzt",
 			"einstieg.highlights":                 "Woran zuletzt gearbeitet",
