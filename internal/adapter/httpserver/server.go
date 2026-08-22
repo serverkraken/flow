@@ -345,6 +345,7 @@ func (s *Server) Routes() http.Handler {
 	// L6 Task 6: editor toolbar insert-pickers (Artefakt-Embed / Seiten-Wikilink).
 	mux.Handle("GET /ui/editor/artefakte", s.webAuth(http.HandlerFunc(s.handleWebEditorArtefaktePicker)))
 	mux.Handle("GET /ui/editor/seiten", s.webAuth(http.HandlerFunc(s.handleWebEditorSeitenPicker)))
+	mux.Handle("GET /ui/editor/aufloesen", s.webAuth(http.HandlerFunc(s.handleWebEditorResolve)))
 	mux.Handle("POST /wissen", s.webAuth(http.HandlerFunc(s.handleWebEditorCreate)))
 	// Free (node-less) artifact web gallery page + mutations — registered
 	// BEFORE /wissen/{id} (the specific "artefakte" segment wins over the

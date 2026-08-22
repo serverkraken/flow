@@ -76,6 +76,7 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"GET", "/wissen/typ?type=daily"},
 		{"GET", "/ui/wissen/list/typ?type=daily"},
 		{"GET", "/wissen/neu"},
+		{"GET", "/ui/editor/aufloesen"},
 		{"POST", "/wissen/preview"},
 		{"POST", "/wissen"},
 		{"GET", "/wissen/x"},
