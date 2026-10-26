@@ -15,8 +15,8 @@ jobs:
     secrets: inherit
     with:
       prerelease: true
-      dockerfile: Dockerfile.server
-      image_name: serverkraken/flow-server
+      dockerfile: "Dockerfile.server"
+      image_name: "serverkraken/flow-server"
       sign: ${{ fromJSON(vars.SK_SIGN || 'true') }}
       attest: ${{ fromJSON(vars.SK_ATTEST || 'true') }}
       sbom: ${{ fromJSON(vars.SK_SBOM || 'true') }}
@@ -30,6 +30,7 @@ jobs:
       actions: read
     secrets: inherit
     with:
-      image_ref: ${{ needs.build.outputs.image_ref }}
+      image_ref: "${{ needs.build.outputs.image_ref }}"
+      platforms: linux/amd64,linux/arm64
       severity: ${{ vars.SK_TRIVY_SEVERITY || 'HIGH,CRITICAL' }}
       trivy_version: ${{ vars.SK_TRIVY_VERSION || '' }}

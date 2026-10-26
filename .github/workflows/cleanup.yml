@@ -5,5 +5,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  cleanup:
+  cleanup-repo-server:
     uses: serverkraken/reusable-workflows/.github/workflows/cleanup-images.yml@v4
+    with:
+      package_name: "${{ github.event.repository.name }}-server"
