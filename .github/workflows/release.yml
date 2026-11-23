@@ -1,7 +1,7 @@
 name: release
 on:
   push:
-    branches: [main]
+    branches: ["main"]
 
 permissions:
   contents: write
@@ -24,9 +24,10 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     uses: serverkraken/reusable-workflows/.github/workflows/docker-build.yml@v4
     with:
-      dockerfile: Dockerfile.server
-      image_name: serverkraken/flow-server
-      tag: ${{ needs.release-please.outputs.tag_name }}
+      dockerfile: "Dockerfile.server"
+      image_name: "serverkraken/flow-server"
+      tag: "${{ needs.release-please.outputs.tag_name }}"
+      ref: "${{ needs.release-please.outputs.tag_name }}"
       sign: ${{ fromJSON(vars.SK_SIGN || 'true') }}
       attest: ${{ fromJSON(vars.SK_ATTEST || 'true') }}
       sbom: ${{ fromJSON(vars.SK_SBOM || 'true') }}
@@ -36,7 +37,8 @@ jobs:
     needs: [docker-build]
     uses: serverkraken/reusable-workflows/.github/workflows/trivy-image.yml@v4
     with:
-      image_ref: ${{ needs.docker-build.outputs.image_ref }}
+      image_ref: "${{ needs.docker-build.outputs.image_ref }}"
+      platforms: linux/amd64,linux/arm64
       severity: ${{ vars.SK_TRIVY_SEVERITY || 'HIGH,CRITICAL' }}
       trivy_version: ${{ vars.SK_TRIVY_VERSION || '' }}
     secrets: inherit
